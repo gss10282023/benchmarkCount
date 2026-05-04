@@ -1,0 +1,1 @@
+"""Paper output package."""

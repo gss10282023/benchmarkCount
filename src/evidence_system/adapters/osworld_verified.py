@@ -1,0 +1,5 @@
+"""OSWorld-Verified adapter skeleton."""
+
+from evidence_system.adapters.base import AdapterSkeleton
+
+ADAPTER = AdapterSkeleton(canonical_domain_id="osworld_verified")
