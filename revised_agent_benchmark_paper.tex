@@ -70,12 +70,13 @@
 \IfFileExists{outputs/latex/results_macros.tex}{\input{outputs/latex/results_macros.tex}}{}
 
 % ---- Main measurement table fallbacks ----
-\providecommand{\ADJTotal}{400}
-\providecommand{\APPTotal}{400}
-\providecommand{\WAVTotal}{400}
-\providecommand{\TAUTotal}{400}
-\providecommand{\ALLTotal}{1600}
+\providecommand{\ADJTotal}{300}
+\providecommand{\APPTotal}{300}
+\providecommand{\WAVTotal}{300}
+\providecommand{\TAUTotal}{300}
+\providecommand{\ALLTotal}{1200}
 
+\providecommand{\ADJNativeScore}{\fillfromdata}
 \providecommand{\ADJSuccess}{\fillfromdata}
 \providecommand{\ADJFail}{\fillfromdata}
 \providecommand{\ADJUnresolve}{\fillfromdata}
@@ -85,6 +86,7 @@
 \providecommand{\ADJUpper}{\fillfromdata}
 \providecommand{\ADJWidth}{\fillfromdata}
 
+\providecommand{\APPNativeScore}{\fillfromdata}
 \providecommand{\APPSuccess}{\fillfromdata}
 \providecommand{\APPFail}{\fillfromdata}
 \providecommand{\APPUnresolve}{\fillfromdata}
@@ -94,6 +96,7 @@
 \providecommand{\APPUpper}{\fillfromdata}
 \providecommand{\APPWidth}{\fillfromdata}
 
+\providecommand{\WAVNativeScore}{\fillfromdata}
 \providecommand{\WAVSuccess}{\fillfromdata}
 \providecommand{\WAVFail}{\fillfromdata}
 \providecommand{\WAVUnresolve}{\fillfromdata}
@@ -103,6 +106,7 @@
 \providecommand{\WAVUpper}{\fillfromdata}
 \providecommand{\WAVWidth}{\fillfromdata}
 
+\providecommand{\TAUNativeScore}{\fillfromdata}
 \providecommand{\TAUSuccess}{\fillfromdata}
 \providecommand{\TAUFail}{\fillfromdata}
 \providecommand{\TAUUnresolve}{\fillfromdata}
@@ -112,6 +116,7 @@
 \providecommand{\TAUUpper}{\fillfromdata}
 \providecommand{\TAUWidth}{\fillfromdata}
 
+\providecommand{\ALLNativeScore}{\fillfromdata}
 \providecommand{\ALLSuccess}{\fillfromdata}
 \providecommand{\ALLFail}{\fillfromdata}
 \providecommand{\ALLUnresolve}{\fillfromdata}
@@ -172,9 +177,9 @@
 \providecommand{\ALLAgentCausedFail}{\fillfromdata}
 
 % ---- Requirement-drafting fallbacks ----
-\providecommand{\ContractDrafterModel}{\fillfromdata}
-\providecommand{\ContractDrafterTemperature}{\fillfromdata}
-\providecommand{\ContractPromptVersion}{\fillfromdata}
+\providecommand{\ChecklistDrafterModel}{\fillfromdata}
+\providecommand{\ChecklistDrafterTemperature}{\fillfromdata}
+\providecommand{\ChecklistPromptVersion}{\fillfromdata}
 
 % ---- Prediction outcome fallbacks ----
 \providecommand{\PoneValue}{\fillfromdata}
@@ -359,8 +364,8 @@ task design.
 We address this by adding an outcome-evidence reporting layer to existing
 benchmarks, without changing their tasks, agents, or evaluators. The layer does
 three things: \textit{(i)} specifies, before scoring, which stored artifacts
-would verify the claimed outcome for each case; \textit{(ii)} applies these
-requirements to each completed record and assigns one of three evidence states:
+would verify the claimed outcome for each case; \textit{(ii)} applies the
+locked case checklist to each completed record and assigns one of three evidence states:
 \supportedSuccess, \supportedFailure, or \unresolvedOutcome; and
 \textit{(iii)} reports evidence-supported bounds that quantify uncertainty from
 unresolved records. Records that remain \unresolvedOutcome are kept visible
@@ -370,8 +375,8 @@ We evaluate this outcome-evidence layer on four public benchmarks: \agentdojo,
 \tauthree, \appworld, and \webarena. The resulting reports make
 outcome-evidence quality visible alongside task quality, supporting more
 evidence-grounded agent evaluation and uncertainty reporting. We release the
-case-level requirements, reason labels, audit checks, robust-ranking summaries,
-and rescorer needed to reproduce the reports.
+case checklists, reason labels, audit checks, robust-ranking summaries,
+and scoring script needed to reproduce the reports.
 \end{abstract}
 
 \section{Introduction}
@@ -426,7 +431,7 @@ stored evidence from strong native verification.
 The paper makes four contributions: \textit{(i)} we formalize the
 outcome-evidence gap in interactive-agent benchmarks, where a binary success
 claim may be reported even when stored artifacts are insufficient to decide
-that claim; \textit{(ii)} we introduce case-level evidence requirements tied to
+that claim; \textit{(ii)} we introduce case checklists tied to
 each benchmark's own success claim, plus a three-state counting rule that
 separates \supportedSuccess, \supportedFailure, and \unresolvedOutcome records
 without changing benchmark tasks, agents, environments, or native evaluators;
@@ -436,8 +441,8 @@ decidable records rather than a headline all-record estimate; and
 \textit{(iv)} we apply the method to four public benchmarks, showing that
 evidence uncertainty is concentrated in evidence-sensitive domains while
 remaining narrow on strong state-based evaluator controls, and release the
-case-level requirements, case cards, reason labels, audit checks,
-robust-ranking summaries, and rescorer needed to reproduce the reports.
+case checklists, reason labels, audit checks, robust-ranking summaries, and
+scoring script needed to reproduce the reports.
 
 \section{Related Work and Preliminaries}
 \label{sec:related-prelim}
@@ -524,158 +529,182 @@ from the main bounds tied to the benchmark's own claim.
 \label{sec:evidence-counting}
 \label{sec:method}
 
-The method is a post-run reporting pass over completed benchmark runs. For each
-record, it asks one narrow question: do the stored artifacts decide the
-benchmark's own outcome claim? The inputs are the benchmark's official sources
-and the artifacts already saved for each run. The output is a measurement
-report with counts, coverage, bounds, ranking decisions, and reason labels. The
-pass does not change the task, agent, environment, native evaluator, or native
-score.
+The method turns completed benchmark runs into an evidence-supported report. It
+keeps the benchmark's native view, namely the released evaluator's pass/fail
+label, and adds an evidence view that asks whether the stored artifacts are
+sufficient to decide the same underlying outcome claim. The layer is post-run
+with respect to agent execution, but fixed before evidence scoring: it does not
+change the task, prompt, agent, environment, native evaluator, or native score.
 
-\paragraph{Post-run procedure.}
+\paragraph{Case checklist.}
 
-The procedure is simple. We first run the benchmark normally, with the same
-tasks, prompts, tools, environment, and released evaluator. Before scoring
-stored runs, we write one short requirement for each case unit: the benchmark
-claim in plain language, the artifacts that would decide success or failure,
-and the rule for leaving the record undecided. These requirements are derived
-from the official source hierarchy in Section~\ref{sec:related-prelim}. This is
-the main guardrail: a requirement may not add a stronger task claim unless it is
-labeled and reported separately.
+For each case unit, we first make the outcome claim explicit. An LLM-assisted
+drafter reads the user goal, task text, official policy when present, released
+evaluator or oracle code, and relevant state schemas. It proposes a compact
+case checklist: what the user is trying to achieve, what condition the
+benchmark reports as success, which official code or oracle checks that
+condition, which artifacts would decide it after execution, and when the record
+should remain undecided. Human review source-checks each checklist against the
+hierarchy in Section~\ref{sec:related-prelim}. The checklist is not a new task
+or answer key; it states what stored evidence would be sufficient to
+verify the benchmark's own claim. Conditions that go beyond that claim are
+labeled as stronger measurement claims and reported separately rather than used
+in the native-aligned headline bounds.
 
-A scoring pass then applies the fixed requirements to the stored run artifacts.
-Each completed record receives one of three labels. \(S\) is used when the
-artifacts support success under the benchmark claim; \(F\) when they support
-failure; \(U\) when they do not decide the claim. Agent-caused invalid actions,
-timeouts, tool misuse, or aborts after task start are failures when the released
-benchmark would fail the run; they are not moved into \(U\).
+\paragraph{Evidence scoring.}
 
-\paragraph{Counting and bounds.}
+We then run the benchmark normally and retain the artifacts available for
+review: traces, tool calls, evaluator inputs and outputs, final messages, and
+saved database, browser, file, or API state. For each completed record, the
+native view records the released evaluator's label. The evidence view applies
+the locked case checklist to the stored artifacts and assigns one of
+three states: \(S\), if the artifacts support success under the benchmark
+claim; \(F\), if they support failure; and \(U\), if they do not decide the
+claim. Agent-caused invalid actions, timeouts, tool misuse, or aborts after
+task start are failures when the released benchmark would fail the run; they
+are not moved into \(U\). Thus the evidence view is an additional report over
+the same runs, not a replacement for the native benchmark score.
+
+\paragraph{Counting rule.}
 \label{sec:bounds}
 
-The report then uses only these counts. For agent \(a\) in domain \(d\), let
-\(N_{a,d}\) be the number of completed records in the evaluation set, and let
-\(S_{a,d}\), \(F_{a,d}\), and \(U_{a,d}\) be the counts of the three labels, so
-\(N_{a,d}=S_{a,d}+F_{a,d}+U_{a,d}\). The intuition is simple: there are three
-piles. The
-counted-only score asks, among records the artifacts decide, what fraction are
-successes. The bound asks a different question: over all completed records,
-what performance values are still consistent with the stored evidence? For
-readability, write \(S,F,U,N\) for the four counts in this cell. We report
+The reporting rule uses only the three evidence-state counts. For agent \(a\)
+in domain \(d\), let \(N_{a,d}\) be the number of completed records in the
+evaluation set, and let \(S_{a,d}\), \(F_{a,d}\), and \(U_{a,d}\) be the counts
+of the three states, so \(N_{a,d}=S_{a,d}+F_{a,d}+U_{a,d}\). The counted-only
+score answers a conditional question: among records the stored artifacts
+decide, what fraction are successes? The bound answers the all-record question:
+over every completed record, what performance values are still compatible with
+the stored evidence? Writing \(S,F,U,N\) for the counts in a given agent-domain
+cell, we report
 \[
 \mathrm{CountedScore}_{r}(a,d)=\frac{S}{S+F},\quad
 \mathrm{Perf}_{r}(a,d)\in\left[\frac{S}{N},\frac{S+U}{N}\right],\quad
 \mathrm{Width}_{r}(a,d)=\frac{U}{N}.
 \]
 The lower endpoint counts only supported successes; the upper endpoint treats
-every unresolved record as a possible success. The width is therefore not an
-extra statistic but the unresolved share itself. When \(U=0\), the bound
-collapses to the all-record score; when \(U>0\), any single point estimate must
-hide a decision about records the stored artifacts did not decide. These are
-not confidence intervals; they are partial-identification bounds that report
-what the observed evidence can and cannot identify \citep{manski2003partial}.
-Other scores and labels are diagnostic views over the same traces; the headline
-object is the evidence-supported bound.
+every unresolved record as a possible success. The width is exactly the
+unresolved share. When \(U=0\), the bound collapses to the all-record score.
+When \(U>0\), a single point estimate must make an unobserved decision about
+records the artifacts did not decide. These intervals are not confidence
+intervals; they are partial-identification bounds describing what the stored
+evidence can and cannot identify \citep{manski2003partial}. The counted-only
+score remains useful as a diagnostic conditional on decidability, but the
+headline object is the evidence-supported bound.
 
-\paragraph{Diagnostics.}
+\paragraph{Comparisons and diagnostics.}
 \label{sec:interval-meaning}
 \label{sec:pairwise}
 
-The first diagnostic separates evidence uncertainty from finite-case variation.
-A bound computed on a fixed sample of cases may change if the benchmark sampled
-a different set of cases from the same domain. To show that sensitivity, we use
-case-cluster bootstrap intervals: each replicate resamples case units within a
-domain and keeps all agent records attached to the resampled case unit. We do
-not use record-level binomial standard errors. These intervals condition on the
-stored traces and fixed agent versions; they do not measure uncertainty from
-repeated executions, API drift, tool nondeterminism, or environment volatility.
+We keep three diagnostics separate from the headline bounds. First,
+case-cluster bootstrap intervals describe sensitivity to the finite set of
+sampled cases. Each replicate resamples case units within a domain and keeps
+all agent records attached to the resampled case unit. These intervals
+condition on the stored traces and fixed agent versions; they do not measure
+uncertainty from repeated executions, API drift, tool nondeterminism, or
+environment volatility.
 
-The second diagnostic handles leaderboards. A native point score may put agent
-\(i\) above agent \(j\), but that ordering is not supported if unresolved
-records could reverse it. We therefore compare agents by the bounds themselves.
-For agents \(i\) and \(j\) in domain \(d\), the difference interval implied by
-the bounds is \(\Delta(i,j;d)=[\mathrm{LB}_{i,d}-\mathrm{UB}_{j,d},
-\mathrm{UB}_{i,d}-\mathrm{LB}_{j,d}]\). The decision rule is directional:
-\(i\succ j\) if \(\mathrm{LB}_{i,d}>\mathrm{UB}_{j,d}\), and \(j\succ i\)
-if \(\mathrm{LB}_{j,d}>\mathrm{UB}_{i,d}\). If neither inequality holds, the
-pair is \emph{not identified}: the stored evidence does not rule out either
-agent being at least as good as the other. Ordinary interval overlap is
-reported as ``?'' rather than as a tie. For an observed ordering \(i\succ j\),
+Second, pairwise rankings are supported only when the bounds separate. For
+agents \(i\) and \(j\) in domain \(d\), the bound-implied difference interval
+is \(\Delta(i,j;d)=[\mathrm{LB}_{i,d}-\mathrm{UB}_{j,d},
+\mathrm{UB}_{i,d}-\mathrm{LB}_{j,d}]\). We report \(i\succ j\) only if
+\(\mathrm{LB}_{i,d}>\mathrm{UB}_{j,d}\), and \(j\succ i\) only if
+\(\mathrm{LB}_{j,d}>\mathrm{UB}_{i,d}\). Otherwise the pair is not identified
+and is marked ``?'' rather than a tie. For a separated ordering \(i\succ j\),
 the dominance margin is \(M_{i>j}=\mathrm{LB}_{i,d}-\mathrm{UB}_{j,d}\). We add
 an asterisk only when the 2.5th percentile of the case-cluster bootstrap
-distribution of \(M_{i>j}\) remains positive. The symmetric criterion applies
-when \(j\succ i\). The asterisk is a descriptive stability tag, not a formal
-significance test.
+distribution of \(M_{i>j}\) remains positive; the asterisk is a descriptive
+stability tag, not a formal significance test.
 
-The third diagnostic explains unresolved records. The width \(U/N\) says how
-much of the evaluation is not decided by the stored artifacts, but not why.
-Every \(U\) record therefore receives one reason. A missing state query means
-the needed backend or environment state was never queried or saved. An
-unobservable side effect means the action was taken but the consequence, such
-as delivery, receipt, payment, or send status, is absent from the artifacts. An
-ambiguous identity mapping means the trace does not uniquely identify the
-record or recipient acted on. Missing state-preservation evidence means the
-native claim requires unrelated state to remain unchanged, but no diff or
-snapshot is available. Paired-arm asymmetry means a paired case needs both arms
-to be decidable, but only one is. Evaluator-output ambiguity means the released
-evaluator emits a label, but the stored evaluator inputs do not determine that
-label under the benchmark claim. Claim-scope mismatch means the trace supports
-a related task, but not the claim being reported. Appendix~\ref{app:unresolve-taxonomy}
+Third, every \(U\) record receives one reason, so the bound width can be
+audited. The reasons are: missing state query (needed backend or environment
+state was not saved), unobservable side effect (the consequence of an action is
+not exposed), ambiguous identity mapping (the acted-on record or recipient is
+not unique), missing state-preservation evidence (the native claim requires
+unrelated state to remain unchanged but no diff or snapshot is available),
+paired-arm asymmetry (one arm of a paired case is decidable and the other is
+not), evaluator-output ambiguity (the released evaluator emits a label but the
+stored inputs do not determine it), and claim-scope mismatch (the trace
+supports a related task but not the reported claim). Appendix~\ref{app:unresolve-taxonomy}
 gives representative examples and the priority rule used when more than one
 reason could apply.
 
-\section{Experimental Setup}
+\section{Experiments}
 \label{sec:study-design}
 \label{sec:experimental-setup}
+\label{sec:experiments}
 
-\subsection{Why these domains}
+We evaluate whether the reporting layer changes what benchmark scores can
+claim, not which model wins a leaderboard. The experiment fixes four public
+interactive-agent benchmarks, three current frontier agents, and a 100-case
+sample per benchmark. Each run is evaluated twice: once by the benchmark's
+native evaluator, and once by the evidence-supported reporting layer defined in
+Section~\ref{sec:method}.
 
-The study uses four main domains chosen to make the evidence claim falsifiable.
-A method that only finds large gaps is not informative. We therefore mix
-evidence-sensitive and strong-evaluator domains.
+\subsection{Benchmarks}
+
+The benchmark suite contains two strong-evaluator controls and two domains
+where the native claim can depend on evidence that is not always stored. This
+mix is important: a useful reporting layer should leave strong native
+verification mostly narrow while exposing uncertainty when traces are
+insufficient.
 
 \begin{table}[t]
 \centering
-\caption{Main domains. Each domain contributes 100 case units crossed with four
-agents, for 400 records. \agentdojo stores 800 episodes because each case unit
-has benign and injected arms; the other domains store 400 episodes.}
+\caption{Benchmark suite. We sample 100 case units from each benchmark and run
+three agents on each case unit, yielding 300 records per benchmark. \agentdojo
+uses paired benign/injected arms, so its 300 records correspond to 600 execution
+episodes.}
 \label{tab:domains}
 \small
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.12}
 \begin{tabularx}{\linewidth}{@{}l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X@{}}
 \toprule
-Domain & Role in the study & Native outcome signal & Stored evidence used \\
+Benchmark & Role & Native outcome signal & Stored evidence used \\
 \midrule
+\tauthree & Retail tool-use benchmark with identity and policy-sensitive backend state. & native success signal & database state; tool records; policy-relevant backend evidence \\
+\appworld & Strong-evaluator control with database-state unit tests. & database-state unit tests & database state; API logs; unit-test artifacts; native field checks \\
+\webarena & Strong-evaluator control with verified web-task checks. & verified deterministic evaluator & browser artifacts; network trace; structured final output; verifier inputs \\
 \agentdojo & Evidence-sensitive domain with paired utility and security claims. & utility/security label & workspace state across both arms; tool calls; files; messages \\
-\appworld & Strong-evaluator control. & database-state unit tests & database state; API logs; unit-test artifacts; native field checks \\
-\webarena & Strong-evaluator control. & verified deterministic evaluator & browser artifacts; network trace; structured final output; verifier inputs \\
-\tauthree & Repaired retail benchmark with residual identity and policy uncertainty. & native success signal & database state; tool records; policy-relevant backend evidence \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Appendix studies use \androidworld and \workarena as additional negative
-controls and \osworld as a higher-noise stress test; they are not part of the
-main four-domain measurement report.
-
-\subsection{Agents, manifests, and fixed workload}
+\subsection{Agents and workload}
 \label{sec:agents}
 
-The main study uses four fixed agents, Agent~A, Agent~B, Agent~C, and Agent~D,
-selected before scoring as non-redundant measurement probes spanning source
-openness, scale, and tool-use style. Four probes cannot exhaust a factorial
-design; they are not meant to be a leaderboard. They are used to test whether
-evidence uncertainty is structured by domain rather than by a single agent
-family. Concrete model identifiers and version pins are released with the
-manifests.
+We run three agents: OpenAI GPT-5.4, Claude 4.6, and DeepSeek V4 Pro. The paper
+does not treat these models as an exhaustive comparison set. They are fixed
+measurement probes used to test whether outcome-evidence uncertainty is a
+property of benchmark evidence rather than an artifact of one agent family. The
+release records concrete model identifiers, API settings, prompts, tool
+wrappers, and run dates.
 
-The manifest selects 100 eligible case units per domain using a deterministic,
-predeclared hash order after excluding smoke-test cases. With four agents this
-gives 1600 record slots. Because each \agentdojo record runs a benign and an
-injected arm, the main study stores 2000 execution episodes. If a domain has
-fewer than 100 eligible verified cases under the official split, the manifest
-uses all eligible cases and records the exception before main scoring.
+For each benchmark, the manifest selects 100 eligible case units using a
+deterministic hash order after excluding smoke-test and malformed cases. Each
+case unit is run once per agent, giving \(4\times100\times3=1200\) completed
+record slots before infrastructure exclusions. \agentdojo executes two arms per
+record, so the main experiment stores 1500 execution episodes in total: 600 for
+\agentdojo and 300 for each of the other three benchmarks.
+
+\subsection{Execution and evidence scoring}
+
+Every agent run uses the benchmark's original task interface, tools,
+environment, and released evaluator. We store the native evaluator output
+alongside traces, tool calls, final messages, evaluator inputs, and available
+post-run state. The native score is therefore recoverable without the
+evidence-supported layer.
+
+Before evidence scoring, an LLM-assisted drafter produces one case checklist
+per case unit. The drafter receives the user goal, task
+text, official policy when present, evaluator code or description, relevant
+database/API/browser/file/tool schemas, and the schema of artifacts saved after
+the run. Two researchers cross-validate the checklists in two review rounds.
+They check whether each checklist follows the source hierarchy in
+Section~\ref{sec:related-prelim}; checklist items that fail are manually edited or
+regenerated and reviewed again. Once locked, the checklists cannot be changed
+based on agent outcomes.
 
 \paragraph{Denominator rule.}
 Only infrastructure or pre-run failures are excluded from the evaluation set.
@@ -689,243 +718,161 @@ Table~\ref{tab:denominator-audit}. This separation prevents evidence
 filtering from raising scores by removing difficult or agent-induced failures.
 
 \paragraph{Sample size and precision.}
-The primary unit for uncertainty is the case unit, not the record. Each domain
-has 100 case units crossed with four agents, and the four records attached to a
+The primary unit for uncertainty is the case unit, not the record. Each benchmark
+has 100 case units crossed with three agents, and the three records attached to a
 case unit can be correlated because the agents face the same task. We therefore
-avoid formal precision claims based on 400 independent records per domain. A
+avoid formal precision claims based on 300 independent records per benchmark. A
 record-level binomial calculation would be, at best, an independence lower bound
 and is not used for inference. All resampling intervals are case-clustered and
 condition on the stored traces.
 
-\subsection{Drafting and fixing evidence requirements}
-\label{sec:evidence-requirements}
-
-For every case unit, an LLM drafter receives the task text, official policy
-when present, evaluator code or description, relevant database/API/browser/
-file/tool schemas, and the available trace and post-run artifact schema. It
-proposes a candidate \emph{case-level evidence requirement}: the benchmark
-claim, the source of that claim, required artifacts, success and fail rules, an
-\texttt{UNRESOLVE} rule, and whether any requirement is a stronger measurement
-claim. The requirement does not supply a ground-truth answer; it specifies what
-stored evidence would be sufficient to decide the benchmark's own claim.
-
-Two researchers then cross-validate the candidate requirements in two review
-rounds before any agent trace is scored. In each round, they source-check every
-requirement against the fixed hierarchy in Section~\ref{sec:related-prelim}:
-evaluator semantics, then task text and policy, then schema constraints needed
-to interpret evaluator-visible state. Requirements that fail the check are
-manually edited or regenerated and reviewed again. After the final requirements
-are locked, neither the LLM nor the human reviewers may alter them based on
-agent outcomes. Full prompt fields and review metadata are reported in
-Appendix~\ref{app:requirement-drafting-details}.
-
-\subsection{Pre-registered predictions and the falsification clause}
-\label{sec:predictions}
-
-To make the main claim falsifiable, we register predictions before scoring any
-record. Predictions are stored verbatim in the manifest and are not edited
-after the first scoring run. The prediction target is bound width, which
-equals the \texttt{UNRESOLVE} share.
-
-Each prediction is evaluated in a three-state way under the case-population
-interpretation described in Section~\ref{sec:interval-meaning}. A prediction is
-\emph{supported} only when the relevant 95\% case-cluster bootstrap interval is
-entirely on the predicted side of the threshold or contrast. It is
-\emph{falsified} only when the interval is entirely on the opposite side. It is
-\emph{inconclusive} otherwise. Point estimates are still reported for
-transparency, but they do not alone determine support or falsification.
-
-\begin{table}[t]
-\centering
-\caption{Pre-registered predictions used to test calibration. Each prediction
-is supported, falsified, or inconclusive under the case-cluster interval rule.}
-\label{tab:registered-predictions}
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.14}
-\begin{tabularx}{\linewidth}{@{}l X X@{}}
-\toprule
-Prediction & Expected pattern & Falsification criterion \\
-\midrule
-P1 & \appworld and \webarena bound widths are each below 15\%. & Either lower 95\% case-resampling bound exceeds 15\%. \\
-P2 & \agentdojo bound width exceeds the larger negative-control width by at least 20 percentage points. & The upper 95\% case-resampling bound of the contrast is below 20 percentage points. \\
-P3 & \tauthree bound width lies above both negative controls and below \agentdojo. & Either contrast interval is entirely in the opposite direction. \\
-P4 & At least 75\% of non-identified pairwise comparisons occur on \agentdojo or \tauthree. & The upper 95\% case-resampling bound for that fraction is below 75\%. \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-P1 is the calibration check. The method earns its claim only if it produces
-narrow bounds on strong-evaluator negative controls. P2--P4 test whether
-wide bounds and non-identified rankings concentrate in the domains where the
-fixed claims are expected to outrun available evidence.
-
-\subsection{Domain evidence sources}
-
-Each case unit has fixed evidence requirements. In \appworld, the requirements
-center on database state, API call history, and unit-test artifacts. In
-\webarena, they center on verified evaluator inputs, browser artifacts, and
-network-trace evidence. In \tauthree, they center on tool logs, backend state,
-policy-relevant records, and identity resolution. In \agentdojo, they center on
-workspace state across benign and injected arms, messages, files, tool calls,
-and the paired security/utility condition.
-
-The scorer never invents a post hoc claim. It asks whether the fixed
-benchmark claim can be decided from stored evidence. If not, the record is
-\texttt{UNRESOLVE} even when the trajectory looks plausible.
-
-\subsection{Audit and rerun checks}
+\subsection{Audit checks}
 \label{sec:audit}
 
-We run two fixed checks on the main domains.
+We run two checks for inspectability. First, two researchers audit 100 records,
+25 per benchmark. The sample is stratified within each benchmark to include
+decidable records, \texttt{UNRESOLVE} records, and native/evidence disagreement
+records when all three buckets are present. Auditors see the task, trace,
+available artifacts, and locked checklist, but not the agent identity, native
+label, evidence label, or reason tag.
 
-\paragraph{Rerun subset.}
-We rerun Agent~A on ten case units per domain, giving 40 rerun case units and
-50 rerun episodes because \agentdojo reruns paired arms. We report agreement
-with the original counting decision and agreement in evidence category
-(counted success, counted fail, \texttt{UNRESOLVE} reason), together with exact
-(Clopper--Pearson) 95\% binomial intervals. We also report the absolute change
-in lower endpoint, upper endpoint, and width on the rerun subset. This check
-only probes stability of evidence labels under a small fixed rerun. It does not
-support confidence intervals for agent performance under repeated executions.
-
-\paragraph{Blinded human audit.}
-We audit 100 main-study records, 25 per domain. Within each domain, the sample
-is stratified into counted records, records labeled \texttt{UNRESOLVE}, and
-records where native reporting and evidence reporting disagree whenever all
-three buckets exist. This is a stress sample for inspectability, not a simple
-random sample. The raw agreement rates and Cohen's \(\kappa\) values therefore
-do not estimate population-level agreement unless design weights are applied.
-We report the stratum counts for every domain.
-
-For each audit item, the auditor sees the task, the trace, available evidence,
-and the fixed evidence requirements. The auditor does not see the agent identity,
-native benchmark label, counting decision, \texttt{UNRESOLVE}-reason tag, or
-alternate view verdicts. Two auditors independently classify every item. We
-compute:
-\begin{itemize}\itemsep0.1em
-\item auditor-vs.-scorer agreement on the three outcome labels
-(\supportedSuccess, \supportedFailure, and \unresolvedOutcome);
-\item inter-rater Cohen's \(\kappa\) on \{\texttt{counted},\texttt{UNRESOLVE}\};
-\item inter-rater Cohen's \(\kappa\) on \{\texttt{R1},\ldots,\texttt{R7}\},
-computed only over items both auditors mark \texttt{UNRESOLVE}.
-\end{itemize}
-
-The \(\kappa\) values are descriptive. They can be unstable with 25 audit items
-per domain, and the taxonomy \(\kappa\) may be computed on a smaller subset
-because it requires both auditors to choose \texttt{UNRESOLVE}. The release
-therefore includes item-level audit labels and stratum counts. If a
-population-level agreement estimate is needed, the same labels can be combined
-with design weights from the main manifest.
+Second, we rerun a fixed reference agent, OpenAI GPT-5.4, on ten case units per
+benchmark. This rerun subset checks whether evidence labels are stable under a
+small repeated-execution probe. It is not used as an uncertainty interval for
+agent performance.
 
 \paragraph{Adoption note.}
 Adopting the method on top of an existing benchmark requires writing one fixed
-claim and one list of evidence requirements per case unit, then running the rescorer over stored
-traces. The rescorer returns \(S,F,U\), coverage, counted-only score, lower and
-upper bounds, bound width, and \texttt{UNRESOLVE}-reason records. Per-domain
+claim and one case checklist per case unit, then running the scoring script over stored
+traces. The script returns \(S,F,U\), coverage, counted-only score, lower and
+upper bounds, bound width, and \texttt{UNRESOLVE}-reason records. Per-benchmark
 human-time breakdowns appear in Appendix~\ref{app:cost}.
 
-\section{Main Results}
+\section{Evaluation}
 \label{sec:main-results}
+\label{sec:evaluation}
 
-Across the fixed four-domain study, the evidence rule separates what a
-benchmark executed from what its stored artifacts can support as a binary
-claim. The core result is not a new leaderboard. It is a calibrated reporting
-pattern: evidence-supported bounds widen where benchmark claims outrun stored
-evidence and remain narrow where released evaluators already decide the claim.
+The evaluation is organized around the questions a reader of an agent
+benchmark actually needs answered. What did the original benchmark report? How
+much of that report is directly supported by stored artifacts? If support is
+missing, how large is the resulting uncertainty, where does it come from, and
+does it change model comparisons? The tables below are intentionally
+fillable from the scored manifest: they specify exactly what evidence a final
+benchmark report should expose.
 
-\subsection{Result 1: Evidence uncertainty is concentrated in evidence-sensitive domains}
+\subsection{Evaluation 1: Evidence support for reported scores}
 \label{sec:countability}
 
-Table~\ref{tab:main-results-A} is the main measurement report. It reports the
-fixed set of completed records, the three evidence states, coverage, counted-only
-score, and the lower and upper evidence-supported bounds. The reviewer-facing
-test is whether bound width appears broadly, which would suggest an
-over-conservative reporting layer, or concentrates in the evidence-sensitive
-domains where unresolved evidence was predicted.
+The first result is the score report itself. Table~\ref{tab:main-results-A}
+keeps the native benchmark score visible, then adds the evidence view:
+supported successes, supported failures, unresolved records, coverage, the
+counted-only score, and the lower and upper endpoints. This table should let a
+reader tell the difference between two very different situations: a native
+score that is backed by nearly complete stored evidence, and a native score
+whose apparent precision comes from treating unresolved records as if they had
+been decided.
 
 \begin{table*}[t]
 \centering
 \caption{Main measurement report. Counts are over completed records after
-excluding only infrastructure/pre-run failures. Total \(N=S+F+U\). Coverage is
-\((S+F)/N\). Counted-only score is \(S/(S+F)\), a conditional diagnostic over
-decidable records. Lower is \(S/N\), Upper is \((S+U)/N\), and Width is \(U/N\).
-The headline performance object is the interval
-\([\mathrm{Lower},\mathrm{Upper}]\), not Counted-only score alone.}
+excluding only infrastructure/pre-run failures. Native score is the released
+benchmark score on the same completed records. Coverage is the share of records
+that stored artifacts decide. Counted-only score is conditional on those
+decidable records. Lower and Upper are the all-record evidence-supported
+endpoints; Width is the unresolved share.}
 \label{tab:main-results-A}
 \footnotesize
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.12}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}lrrrrrrrrr@{}}
+\begin{tabular}{@{}lrrrrrrrrrr@{}}
 \toprule
-Domain & Total & SUCCESS & FAIL & UNRESOLVE & Coverage & Counted-only score & Lower & Upper & Width \\
+Benchmark & Total & Native score & SUCCESS & FAIL & UNRESOLVE & Coverage & Counted-only score & Lower & Upper & Width \\
 \midrule
-\agentdojo & \ADJTotal & \ADJSuccess & \ADJFail & \ADJUnresolve & \ADJCoverage & \ADJCountedScore & \ADJLower & \ADJUpper & \ADJWidth \\
-\appworld & \APPTotal & \APPSuccess & \APPFail & \APPUnresolve & \APPCoverage & \APPCountedScore & \APPLower & \APPUpper & \APPWidth \\
-\webarena & \WAVTotal & \WAVSuccess & \WAVFail & \WAVUnresolve & \WAVCoverage & \WAVCountedScore & \WAVLower & \WAVUpper & \WAVWidth \\
-\tauthree & \TAUTotal & \TAUSuccess & \TAUFail & \TAUUnresolve & \TAUCoverage & \TAUCountedScore & \TAULower & \TAUUpper & \TAUWidth \\
+\tauthree & \TAUTotal & \TAUNativeScore & \TAUSuccess & \TAUFail & \TAUUnresolve & \TAUCoverage & \TAUCountedScore & \TAULower & \TAUUpper & \TAUWidth \\
+\appworld & \APPTotal & \APPNativeScore & \APPSuccess & \APPFail & \APPUnresolve & \APPCoverage & \APPCountedScore & \APPLower & \APPUpper & \APPWidth \\
+\webarena & \WAVTotal & \WAVNativeScore & \WAVSuccess & \WAVFail & \WAVUnresolve & \WAVCoverage & \WAVCountedScore & \WAVLower & \WAVUpper & \WAVWidth \\
+\agentdojo & \ADJTotal & \ADJNativeScore & \ADJSuccess & \ADJFail & \ADJUnresolve & \ADJCoverage & \ADJCountedScore & \ADJLower & \ADJUpper & \ADJWidth \\
 \midrule
-All domains & \ALLTotal & \ALLSuccess & \ALLFail & \ALLUnresolve & \ALLCoverage & \ALLCountedScore & \ALLLower & \ALLUpper & \ALLWidth \\
+All benchmarks & \ALLTotal & \ALLNativeScore & \ALLSuccess & \ALLFail & \ALLUnresolve & \ALLCoverage & \ALLCountedScore & \ALLLower & \ALLUpper & \ALLWidth \\
 \bottomrule
 \end{tabular}%
 }
 \end{table*}
 
-The registered predictions in Table~\ref{tab:prediction-outcomes} make this
-calibration claim falsifiable. P1 is the key guardrail: if \appworld or
-\webarena show large bound width, the reporting layer has failed to recognize
-strong native verification rather than discovered a new benchmark weakness.
+\begin{figure}[t]
+\centering
+\fbox{\begin{minipage}{0.92\linewidth}
+\textbf{Placeholder: native score and evidence-supported endpoints.}
+\vspace{0.35em}
+
+Final figure: one row per benchmark and model. Plot the native score as a
+marker, the counted-only score as a smaller diagnostic marker, and the
+evidence-supported interval \([\mathrm{Lower},\mathrm{Upper}]\) as a horizontal
+line. Sort benchmarks by Width so that evidence-sensitive domains appear first.
+\end{minipage}}
+\caption{Planned visual summary of Table~\ref{tab:main-results-A} at the
+model-by-benchmark level. The figure should make the paper's main empirical
+pattern visually falsifiable: strong state-based benchmarks should have narrow
+intervals, while evidence-sensitive benchmarks may have wide intervals.}
+\label{fig:evidence-bound-plot}
+\end{figure}
+
+\subsection{Evaluation 2: Counted-only scores are conditional on decidability}
+\label{sec:conditional-score}
+
+The counted-only score answers a narrow but useful question: among records
+where stored artifacts decide the benchmark claim, how often is success
+supported? Its denominator is therefore not the full evaluation set when
+unresolved records exist. In the final analysis, a high counted-only score with
+low coverage should be described as ``high success on the decidable subset,''
+not as strong all-record performance. Case-resampling intervals for the same
+quantities appear in Appendix~\ref{app:supplemental-results}.
+
+The next diagnostic asks why records are unresolved. Table~\ref{tab:unresolve-main}
+should not be read as a new score; it is a repair map for benchmark authors.
+If most unresolved records come from missing state queries, the fix is better
+post-run state capture. If they come from identity ambiguity, the fix is
+unique identifiers or stricter task schemas. If they come from claim-scope
+mismatch, the benchmark needs a clearer statement of what its score claims.
 
 \begin{table}[t]
 \centering
-\caption{Pre-registered prediction outcomes. The prediction target is bound
-width, equivalently the \texttt{UNRESOLVE} rate. Outcomes use the three-state
-case-resampling interval rule in Section~\ref{sec:predictions}: supported,
-falsified, or inconclusive.}
-\label{tab:prediction-outcomes}
+\caption{Main unresolved-evidence diagnostic. Width is the unresolved share
+from Table~\ref{tab:main-results-A}. The top reason identifies the largest
+source of missing evidence; the final column should be filled with the concrete
+benchmark repair suggested by that reason.}
+\label{tab:unresolve-main}
 \footnotesize
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.14}
-\begin{tabularx}{\linewidth}{@{}l X X X@{}}
+\begin{tabularx}{\linewidth}{@{}l c X X@{}}
 \toprule
-Prediction & Registered criterion & Observed quantity & Outcome \\
+Benchmark & Width & Top unresolved reason & Benchmark repair suggested by the evidence gap \\
 \midrule
-P1 & \appworld and \webarena bound widths each below 15\% under the case-resampling interval rule & \PoneValue & \PoneOutcome \\
-P2 & \agentdojo bound width exceeds max negative-control bound width by at least 20 pp under the case-resampling interval rule & \PtwoValue & \PtwoOutcome \\
-P3 & \tauthree bound width lies above both negative controls and below \agentdojo under the case-resampling interval rule & \PthreeValue & \PthreeOutcome \\
-P4 & At least 75\% of non-identified pairs occur on \agentdojo or \tauthree under the case-resampling interval rule & \PfourValue & \PfourOutcome \\
+\tauthree & \TAUWidth & \TAUTopUnresolve & \fillfromdata \\
+\appworld & \APPWidth & \APPTopUnresolve & \fillfromdata \\
+\webarena & \WAVWidth & \WAVTopUnresolve & \fillfromdata \\
+\agentdojo & \ADJWidth & \ADJTopUnresolve & \fillfromdata \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\subsection{Result 2: Counted-only scores are conditional on decidability}
-\label{sec:conditional-score}
-
-The counted-only score \(S/(S+F)\) remains useful because it says how agents
-perform on records for which the benchmark can decide the claim. It is not the
-headline all-record estimate when \(U>0\). Table~\ref{tab:main-results-A}
-therefore always reports it next to coverage, lower bound, upper bound, and
-width. A high counted-only score with low coverage means ``high success on the
-decidable subset, low measurement support,'' not a strong all-record agent
-result. Descriptive case-resampling intervals for the same quantities appear in
-Appendix~\ref{app:supplemental-results}.
-
-\subsection{Result 3: Some native rankings are not evidence-identified}
+\subsection{Evaluation 3: Model rankings require separated bounds}
 \label{sec:robust-rankings}
 
-Evidence-supported bounds also change how agent rankings are reported.
-Table~\ref{tab:main-results-C} reports a directional ordering only when one
-agent's lower bound exceeds another agent's upper bound. A question mark means
-the ordering is not identified from stored evidence, not that the agents are
-tied. This distinction is central for benchmark reporting: a native point score
-can impose a strict order even when the evidence-supported bounds do not
-support any strict order.
+The third result asks whether leaderboard comparisons survive unresolved
+records. Table~\ref{tab:main-results-C} reports a directional ordering only
+when one model's lower endpoint exceeds another model's upper endpoint. A
+question mark means the ordering is not identified from stored evidence; it is
+not a tie. This is deliberately stricter than comparing native point scores,
+because the point scores may differ only inside the unresolved part of the
+evaluation set.
 
 \begin{table*}[t]
 \centering
-\caption{Directional pairwise robust-ranking matrix. Four agents induce six
-pairwise comparisons per domain. A cell \(A>B\) is reported only when
+\caption{Directional pairwise robust-ranking matrix. Three agents induce three
+pairwise comparisons per benchmark. A cell \(A>B\) is reported only when
 \(\mathrm{LB}_{A,d}>\mathrm{UB}_{B,d}\); \(?\) denotes bound overlap. An
 asterisk marks unadjusted case-resampling stability, not statistical
 significance. It is added only when the observed bounds are separated and the
@@ -936,28 +883,30 @@ positive.}
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.14}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}lccccccr@{}}
+\begin{tabular}{@{}lcccr@{}}
 \toprule
-Domain & A--B & A--C & A--D & B--C & B--D & C--D & Non-identified pairs \\
+Benchmark & GPT-5.4--Claude 4.6 & GPT-5.4--DeepSeek V4 Pro & Claude 4.6--DeepSeek V4 Pro & Non-identified pairs \\
 \midrule
-\agentdojo & \ADJpairAB & \ADJpairAC & \ADJpairAD & \ADJpairBC & \ADJpairBD & \ADJpairCD & \ADJUnidentifiedPairs \\
-\appworld & \APPpairAB & \APPpairAC & \APPpairAD & \APPpairBC & \APPpairBD & \APPpairCD & \APPUnidentifiedPairs \\
-\webarena & \WAVpairAB & \WAVpairAC & \WAVpairAD & \WAVpairBC & \WAVpairBD & \WAVpairCD & \WAVUnidentifiedPairs \\
-\tauthree & \TAUpairAB & \TAUpairAC & \TAUpairAD & \TAUpairBC & \TAUpairBD & \TAUpairCD & \TAUUnidentifiedPairs \\
+\tauthree & \TAUpairAB & \TAUpairAC & \TAUpairBC & \TAUUnidentifiedPairs \\
+\appworld & \APPpairAB & \APPpairAC & \APPpairBC & \APPUnidentifiedPairs \\
+\webarena & \WAVpairAB & \WAVpairAC & \WAVpairBC & \WAVUnidentifiedPairs \\
+\agentdojo & \ADJpairAB & \ADJpairAC & \ADJpairBC & \ADJUnidentifiedPairs \\
 \midrule
-All domains & \multicolumn{6}{c}{Unsupported native strict orderings: \ALLUnsupportedNative; native conflicts: \ALLNativeConflicts} & \ALLUnidentifiedPairs \\
+All benchmarks & \multicolumn{3}{c}{Unsupported native strict orderings: \ALLUnsupportedNative; native conflicts: \ALLNativeConflicts} & \ALLUnidentifiedPairs \\
 \bottomrule
 \end{tabular}%
 }
 \end{table*}
 
-\subsection{Result 4: Counting decisions are inspectable}
+\subsection{Evaluation 4: Counting decisions are inspectable}
 \label{sec:inspectable}
 
-The evidence rule is useful only if its decisions are inspectable. The rerun
-subset and blinded human audit in Table~\ref{tab:audit-rerun} test that
-property directly. Disagreements are not hidden; they identify cases where the
-fixed evidence requirements or \texttt{UNRESOLVE} taxonomy needs clarification.
+The fourth result checks that the labels are not just another opaque judge.
+The blinded audit samples counted records, unresolved records, and
+native/evidence disagreements. The rerun subset checks whether labels remain
+stable on a small repeated-execution probe. Disagreements are useful: they
+identify cases where the requirement text, artifact capture, or reason
+taxonomy needs clarification.
 
 \begin{table}[t]
 \centering
@@ -975,14 +924,14 @@ estimate.}
 \renewcommand{\arraystretch}{1.14}
 \begin{tabularx}{\linewidth}{@{}l r l r r r X@{}}
 \toprule
-Domain & Audit items & Audit strata & Audit agreement & Countability \(\kappa\) & Taxonomy \(\kappa\) & Rerun agreement / dominant disagreement \\
+Benchmark & Audit items & Audit strata & Audit agreement & Countability \(\kappa\) & Taxonomy \(\kappa\) & Rerun agreement / dominant disagreement \\
 \midrule
-\agentdojo & 25 & \ADJAuditStrata & \ADJAuditAgreement & \ADJCountabilityKappa & \ADJTaxonomyKappa & \ADJRerunAgreement; \ADJRerunPattern \\
+\tauthree & 25 & \TAUAuditStrata & \TAUAuditAgreement & \TAUCountabilityKappa & \TAUTaxonomyKappa & \TAURerunAgreement; \TAURerunPattern \\
 \appworld & 25 & \APPAuditStrata & \APPAuditAgreement & \APPCountabilityKappa & \APPTaxonomyKappa & \APPRerunAgreement; \APPRerunPattern \\
 \webarena & 25 & \WAVAuditStrata & \WAVAuditAgreement & \WAVCountabilityKappa & \WAVTaxonomyKappa & \WAVRerunAgreement; \WAVRerunPattern \\
-\tauthree & 25 & \TAUAuditStrata & \TAUAuditAgreement & \TAUCountabilityKappa & \TAUTaxonomyKappa & \TAURerunAgreement; \TAURerunPattern \\
+\agentdojo & 25 & \ADJAuditStrata & \ADJAuditAgreement & \ADJCountabilityKappa & \ADJTaxonomyKappa & \ADJRerunAgreement; \ADJRerunPattern \\
 \midrule
-All domains & 100 & \ALLAuditStrata & \ALLAuditAgreement & \ALLCountabilityKappa & \ALLTaxonomyKappa & \ALLRerunAgreement; \ALLRerunPattern \\
+All benchmarks & 100 & \ALLAuditStrata & \ALLAuditAgreement & \ALLCountabilityKappa & \ALLTaxonomyKappa & \ALLRerunAgreement; \ALLRerunPattern \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -990,35 +939,40 @@ All domains & 100 & \ALLAuditStrata & \ALLAuditAgreement & \ALLCountabilityKappa
 \section{Discussion}
 \label{sec:discussion}
 
-This paper offers an evidence-aware reporting method, not a full theory of
-benchmark validity and not a replacement for native evaluators. Its claim is
-narrow: when stored artifacts do not decide some completed records under the
-benchmark's own claim, the benchmark should report the resulting measurement
-uncertainty rather than collapse it into a single all-record point score.
+The central empirical interpretation should be filled from
+Table~\ref{tab:main-results-A} and Figure~\ref{fig:evidence-bound-plot}. In the
+final version, this paragraph should state which benchmark has the largest
+evidence gap, whether the strong-evaluator controls have narrow bounds, and
+whether native scores fall inside the evidence-supported endpoints:
+\fillfromdata. This is the main falsification check for the paper. If strong
+state-based controls have wide bounds, the case checklists are too conservative
+or the stored artifacts are weaker than expected; if evidence-sensitive domains
+have wide bounds while controls remain narrow, the method is detecting a real
+outcome-evidence difference rather than mechanically lowering scores.
 
-The method also does not redefine benchmark tasks. The guardrail is simple:
-required evidence must be grounded in evaluator semantics, task text, policy,
-or schema. If a requirement goes beyond the benchmark's own claim, it is
-labeled as a stronger measurement claim and reported separately. This
-distinction prevents the reporting layer from silently turning a benchmark into
-a stricter benchmark.
+The method is deliberately narrower than a new evaluator. It does not change
+tasks, prompts, environments, agents, or the native score. Its claim is that a
+benchmark report should distinguish what the released evaluator counted from
+what stored artifacts can support. The discussion of rankings should therefore
+be filled from Table~\ref{tab:main-results-C}: \fillfromdata. A non-identified
+ordering is not a tie; it means the stored evidence supports more than one
+completion of the unresolved records.
 
-The bounds should not be confused with confidence intervals. They are induced
-by unresolved evidence; case-cluster bootstrap intervals answer a different
-question about finite-case resampling conditional on stored traces. This is why
-\appworld and \webarena are important calibration checks: narrow bounds on
-strong evaluator domains show that the layer recognizes when released artifacts
-already decide the claim, while large widths there would falsify the evidence
-requirements.
+The bounds are also not confidence intervals. They are induced by unresolved
+evidence. Case-cluster bootstrap intervals answer a separate question about
+finite-case resampling conditional on stored traces and fixed agent versions.
+The audit and rerun checks should be summarized here once filled:
+\fillfromdata. Their role is inspectability, not a repeated-execution
+performance estimate.
 
-The main limits follow from the same design. A vague benchmark claim cannot be
-rescued by formal bounds; the seven-category \texttt{UNRESOLVE} taxonomy is a
-stable vocabulary for this study rather than a universal ontology; four agents
-are measurement probes rather than a definitive leaderboard; and repeated
-execution uncertainty is outside the main intervals. The practical implication
-is still direct: benchmark reports should include supported successes,
-supported failures, unresolved records, coverage, counted-only score, lower and
-upper bounds, bound width, and inspectable reason labels.
+The main limitations follow from the design. A vague benchmark claim cannot be
+rescued by a cleaner report; the seven-category \texttt{UNRESOLVE} taxonomy is
+a study vocabulary rather than a universal ontology; three agents are
+measurement probes rather than a definitive leaderboard; and stronger checks
+must remain separate from the native claim. The practical implication is direct:
+benchmark reports should include supported successes, supported failures,
+unresolved records, coverage, counted-only score, lower and upper endpoints,
+width, and reason labels.
 
 \section{Conclusion}
 
@@ -1027,9 +981,10 @@ execution is not the same as evidence-supported measurement. We introduced a
 reporting layer tied to each benchmark's own claim: it classifies completed
 records as supported success, supported failure, or \texttt{UNRESOLVE}, then reports the
 evidence-supported bounds implied by unresolved records. Across \agentdojo,
-\appworld, \webarena, and \tauthree, the registered pattern tests whether
-uncertainty concentrates in evidence-sensitive domains and remains narrow on
-strong-evaluator controls. Future benchmark reports should include supported
+\appworld, \webarena, and \tauthree, the evaluation asks whether uncertainty is
+visible where stored artifacts do not decide the benchmark claim and remains
+narrow where native evaluators already provide strong state-based evidence.
+Future benchmark reports should include supported
 successes, supported failures, unresolved records, and bounds, so that a score
 is read together with the evidence that can actually support it.
 
@@ -1040,138 +995,47 @@ is read together with the evidence that can actually support it.
 \clearpage
 \appendix
 
-\section{Per-Agent Bound Breakdown}
-\label{app:per-agent}
+\section{Experiment Manifest}
+\label{app:experiment-manifest}
 
-The main tables report domain-level aggregates. This appendix reports the
-per-agent bounds in each domain, together with case-cluster bootstrap 95\%
-case-resampling intervals for lower endpoint, upper endpoint, width, and
-coverage under the eligible-case-population interpretation. The
-per-agent bounds underlie the robust pairwise rankings summarized in
-Table~\ref{tab:main-results-C}.
-
-\begin{table}[h]
-\centering
-\caption{Per-agent evidence-supported bounds by domain. Each cell reports
-\([\mathrm{LB},\mathrm{UB}]\), width, and counted-only score.}
-\label{tab:per-agent}
-\footnotesize
-\setlength{\tabcolsep}{4pt}
-\renewcommand{\arraystretch}{1.14}
-\begin{tabularx}{\linewidth}{@{}l X X X X@{}}
-\toprule
-Domain & Agent~A & Agent~B & Agent~C & Agent~D \\
-\midrule
-\IfFileExists{outputs/latex/per_agent_rows.tex}{\input{outputs/latex/per_agent_rows.tex}}{%
-\agentdojo & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata \\
-\appworld & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata \\
-\webarena & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata \\
-\tauthree & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata \\
-}
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\section{Supplemental Result Tables and Examples}
-\label{app:supplemental-results}
-
-This appendix contains reporting views and longer result tables that support
-the main claims without carrying the main narrative.
-
-\subsection{\texttt{UNRESOLVE} Reason Labels}
-\label{app:unresolve-taxonomy}
-\label{sec:taxonomy}
-
-A record labeled \texttt{UNRESOLVE} is tagged with exactly one upstream
-blocking reason. The categories are not meant as a universal ontology for all
-future benchmarks; they are the stable reason set used by the scorers and
-auditors in this study.
+The appendix now contains only material needed to audit the claims in the main
+paper: the workload manifest, the case-level checklist used for scoring,
+additional result tables, the human audit protocol, and release requirements.
+Exploratory domains, judge-only diagnostics, benchmark-maintenance experiments,
+and duplicate formal notation are intentionally omitted from the main appendix
+until the corresponding experiments are complete.
 
 \begin{table}[h]
 \centering
-\caption{\texttt{UNRESOLVE}-reason labels. The upstream-priority rule assigns
-the reason that, if resolved first, would unblock the other missing evidence.}
-\label{tab:unresolve-taxonomy}
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.18}
-\begin{tabularx}{\linewidth}{@{}l X X@{}}
-\toprule
-\texttt{UNRESOLVE} reason & What is missing & Representative example \\
-\midrule
-\textbf{R1: Missing state query} &
-The benchmark's own claim depends on a backend or environment state value that
-was never queried or stored. &
-\appworld task expects a row added to a CRM table; trace contains no read of
-that table after the action. \\
-\textbf{R2: Unobservable side effect} &
-The action is performed, but its consequence, such as delivery, send, payment,
-or receipt, is not exposed in any artifact. &
-\agentdojo agent appears to send a confirmation, but the messaging tool returns
-no receipt or message-id. \\
-\textbf{R3: Ambiguous identity mapping} &
-Multiple records or recipients match the claim and the trace does not pin down
-which one was acted on. &
-\tauthree task asks to update a customer's address; two customers with matching
-name exist, and no unique id is logged. \\
-\textbf{R4: Required state-preservation evidence absent} &
-The benchmark's own task, policy, evaluator, or reported claim requires
-non-modification of unrelated state, but no diff or snapshot evidence is
-available. &
-A task requires editing one calendar event and preserving all other events, but
-no post-run diff over other events is captured. \\
-\textbf{R5: Paired-arm asymmetry} &
-A paired case requires both arms to be decidable; one arm is decidable and the
-other is not. &
-\agentdojo benign arm has clean state-diff evidence; injected arm's security
-claim is undecidable. \\
-\textbf{R6: Evaluator output ambiguity} &
-The released evaluator emits a label, but its inputs do not uniquely determine
-that label under the fixed benchmark claim. &
-\webarena verifier accepts a string match, but the stored verifier inputs do
-not show whether the required structured target was reached. \\
-\textbf{R7: Claim-scope mismatch} &
-The trace shows the agent solving a related task that does not match the
-specified claim, with no evidence on the claim actually being reported. &
-\tauthree agent gives a semantically helpful refund response, but the
-policy-relevant backend record required by the benchmark claim is absent. \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\begin{table*}[h]
-\centering
-\caption{Descriptive case-resampling intervals for evidence-supported bound
-quantities. The bounds themselves are induced by records that are undecidable
-from stored evidence. The 95\% intervals are case-cluster bootstrap intervals
-for the eligible-case population interpretation, conditional on stored traces
-and fixed agent versions. They do not include repeated-execution randomness,
-API drift, or environment volatility.}
-\label{tab:main-results-B}
+\caption{Main experiment manifest. Each benchmark contributes 100 sampled case
+units evaluated by three agents. For \agentdojo, a record contains the paired
+benign/injected arms needed for the benchmark's native claim, so the episode
+count is twice the record count.}
+\label{tab:workload-manifest}
 \footnotesize
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.14}
-\begin{tabularx}{\textwidth}{@{}l X X X X X@{}}
+\begin{tabularx}{\linewidth}{@{}l c c c c X@{}}
 \toprule
-Domain & Lower \(S/N\) (95\% case-resampling interval) & Upper \((S+U)/N\) (95\% case-resampling interval) & Width \(U/N\) (95\% case-resampling interval) & Counted-only score \(S/(S+F)\) (95\% case-resampling interval) & Native score inside bounds \\
+Benchmark & Case units & Agents & Records & Episodes & Stored artifacts expected for scoring \\
 \midrule
-\agentdojo & \ADJLowerCI & \ADJUpperCI & \ADJWidthCI & \ADJCountedScoreCI & \ADJNativeInside \\
-\appworld & \APPLowerCI & \APPUpperCI & \APPWidthCI & \APPCountedScoreCI & \APPNativeInside \\
-\webarena & \WAVLowerCI & \WAVUpperCI & \WAVWidthCI & \WAVCountedScoreCI & \WAVNativeInside \\
-\tauthree & \TAULowerCI & \TAUUpperCI & \TAUWidthCI & \TAUCountedScoreCI & \TAUNativeInside \\
+\tauthree & 100 & 3 & \TAUTotal & 300 & Tool traces, policy-relevant backend state, customer/order identifiers, native evaluator output \\
+\appworld & 100 & 3 & \APPTotal & 300 & Database snapshots, unit-test inputs and outputs, tool traces, native evaluator output \\
+\webarena & 100 & 3 & \WAVTotal & 300 & Browser trace, verifier inputs and outputs, relevant page or backend state, native evaluator output \\
+\agentdojo & 100 & 3 & \ADJTotal & 600 & Paired benign/injected traces, tool-call logs, security-policy state, native evaluator output \\
 \midrule
-All domains & \ALLLowerCI & \ALLUpperCI & \ALLWidthCI & \ALLCountedScoreCI & \ALLNativeInside \\
+All benchmarks & 400 & 3 & \ALLTotal & 1500 & Case checklist, stored artifacts, native label, evidence label, reason label when unresolved \\
 \bottomrule
 \end{tabularx}
-\end{table*}
+\end{table}
 
 \begin{table*}[h]
 \centering
 \caption{Denominator audit. Only infrastructure or pre-run failures are
-excluded before forming the evaluation set. Agent-caused aborts, invalid
-actions, and timeouts after normal benchmark execution starts are counted as
-\texttt{FAIL} when the native benchmark would fail them, and they remain
-visible in the all-attempt audit.}
+excluded before forming the completed evaluation set. Agent-caused aborts,
+invalid actions, and timeouts after normal benchmark execution starts remain in
+the denominator and are counted as failures when the native benchmark would fail
+them.}
 \label{tab:denominator-audit}
 \footnotesize
 \setlength{\tabcolsep}{2.6pt}
@@ -1189,7 +1053,7 @@ Domain & Attempted & \shortstack{Infra/pre-run\\excluded} & Completed & \shortst
 \midrule
 \agentdojo & \ADJAttempted & \ADJInfraExcluded & \ADJTotal & \ADJAgentCausedFail & Paired benign/injected arms remain linked at the case-unit level. \\
 \appworld & \APPAttempted & \APPInfraExcluded & \APPTotal & \APPAgentCausedFail & Native database-state failures remain in the evaluation set. \\
-\textsc{WebArena-V} & \WAVAttempted & \WAVInfraExcluded & \WAVTotal & \WAVAgentCausedFail & Browser-task timeouts after start remain in the evaluation set. \\
+\webarena & \WAVAttempted & \WAVInfraExcluded & \WAVTotal & \WAVAgentCausedFail & Browser-task timeouts after start remain in the evaluation set. \\
 \tauthree & \TAUAttempted & \TAUInfraExcluded & \TAUTotal & \TAUAgentCausedFail & Tool misuse and policy-path failures remain in the evaluation set. \\
 \midrule
 All domains & \ALLAttempted & \ALLInfraExcluded & \ALLTotal & \ALLAgentCausedFail & Exclusions are not allowed to depend on whether the agent likely succeeded. \\
@@ -1197,182 +1061,54 @@ All domains & \ALLAttempted & \ALLInfraExcluded & \ALLTotal & \ALLAgentCausedFai
 \end{tabularx}
 \end{table*}
 
-\begin{table*}[h]
-\centering
-\caption{Pairwise dominance margins for bound-separated comparisons. For a
-reported ordering \(i>j\), the margin is
-\(M_{i>j}=\mathrm{LB}_{i,d}-\mathrm{UB}_{j,d}\). An asterisk marks unadjusted
-case-resampling stability, not statistical significance. Because the tag is
-post-selection and unadjusted over 24 comparisons, it should be read as
-descriptive stability rather than a formal significance test.}
-\label{tab:pairwise-margins}
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.14}
-\begin{tabularx}{\textwidth}{@{}l l l l X@{}}
-\toprule
-Domain & Pair & Bound decision & Margin and 95\% case-resampling interval & Interpretation \\
-\midrule
-\IfFileExists{outputs/latex/pairwise_margin_rows.tex}{%
-\input{outputs/latex/pairwise_margin_rows.tex}%
-}{%
-\textsc{fill from scored manifest} & -- & -- & -- &
-Include every bound-separated pair and its case-cluster bootstrap dominance margin.\\
-}
-\bottomrule
-\end{tabularx}
-\end{table*}
+\section{Case Checklists and Scoring Inputs}
+\label{app:requirement-drafting-details}
+
+Before scoring, we create one fixed case checklist per sampled case unit. The
+checklist is drafted with an LLM and then reviewed by two researchers in two
+cross-validation rounds. The draft records the user's goal, what the official
+benchmark oracle or evaluator checks, what actions or state changes are needed
+for completion, and which stored artifacts would let a scorer decide the
+benchmark's own claim. If a draft item is unsupported, ambiguous, or stronger
+than the native claim, reviewers edit it or regenerate that item and review it
+again. The checklist is locked before agent identities, agent traces, native
+scores, or evidence labels are shown to the scorer.
+
+After each run, we collect the stored artifacts and score the record twice: the
+native benchmark evaluator gives the official/native label, and our scorer uses
+the locked checklist to assign supported success, supported failure, or
+\texttt{UNRESOLVE}. This separation is important: the paper reports both what
+the original benchmark would have counted and what the stored artifacts can
+support under the additional case checklist.
 
 \begin{table}[h]
 \centering
-\caption{Dominant \texttt{UNRESOLVE} reasons by domain. The full
-\texttt{UNRESOLVE}-reason histogram is released with the case-level manifest;
-this table reports the largest source of undecidable evidence in each main
-domain.}
-\label{tab:top-unresolve-reasons}
+\caption{Fields in the locked case checklist. The checklist is a plain-language
+scoring aid, not a new benchmark task.}
+\label{tab:case-checklist-fields}
 \footnotesize
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.14}
 \begin{tabularx}{\linewidth}{@{}l X@{}}
 \toprule
-Domain & Top \texttt{UNRESOLVE} reason \\
+Field & Purpose \\
 \midrule
-\agentdojo & \ADJTopUnresolve \\
-\appworld & \APPTopUnresolve \\
-\webarena & \WAVTopUnresolve \\
-\tauthree & \TAUTopUnresolve \\
+User goal & Restates the task in benchmark language, including the intended object or recipient when available. \\
+Native success claim & States what the released benchmark score claims to measure for this case. \\
+Official oracle or evaluator & Points to the official unit test, verifier, reward function, policy rule, or evaluator output used by the benchmark. \\
+Completion requirements & Lists the minimal state changes or side effects needed for the native claim to be true. \\
+Evidence needed & Lists stored artifacts that can verify the claim, such as state diffs, database rows, receipts, verifier inputs, or unique identifiers. \\
+Success/failure/unresolved rule & Gives the scorer a deterministic rule for assigning the three labels from stored artifacts. \\
+Stronger-check flag & Separates useful but non-native checks from the benchmark-claim result. \\
+Review notes & Records reviewer edits, regeneration reason, and final approval in two cross-validation rounds. \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \begin{table}[h]
 \centering
-\caption{Reporting views used in the paper. The evidence-supported bounds are
-the headline object. Point scores are diagnostics and are never treated as
-unbiased all-record performance estimates when records labeled
-\texttt{UNRESOLVE} exist.}
-\label{tab:views}
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{\linewidth}{@{}l p{2.7cm} p{3.2cm} X@{}}
-\toprule
-View & Denominator & Undecidable-record handling & Purpose \\
-\midrule
-Evidence-supported bounds & Completed records & Bounds \([S/N,(S+U)/N]\) & Headline measurement uncertainty induced by records that cannot be decided from stored evidence \\
-Counted-only score & Counted records only & Excluded from the point score, but reported as \texttt{UNRESOLVE} & Diagnostic success rate conditional on decidability; not all-record performance \\
-Native benchmark & Benchmark default & Whatever the released benchmark reports & Compare against what a user would normally publish \\
-Optimistic endpoint & Completed records & \texttt{UNRESOLVE} \(\to\) success-supporting & Upper evidence-supported bound \\
-Pessimistic endpoint & Completed records & \texttt{UNRESOLVE} \(\to\) not success-supporting & Lower evidence-supported bound \\
-Judge-only & Judge-readable records & Judge may assign \texttt{SUCCESS}/\texttt{FAIL}/\texttt{INCONCLUSIVE} & Diagnostic comparison to semantic trace judgment \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\begin{figure}[h]
-\centering
-\newcommand{\casefield}[2]{\noindent\textbf{#1}\quad #2\par\vspace{0.28em}}
-\newcommand{\casecard}[3]{%
-\begin{tikzpicture}[baseline=(card.north)]
-\node[
-  name=card,
-  draw=#1!75,
-  fill=#1!12,
-  rounded corners=2pt,
-  line width=0.6pt,
-  inner sep=0pt,
-  text width=0.465\textwidth
-] {%
-  \begin{minipage}{\linewidth}
-  \setlength{\fboxsep}{3pt}
-  \noindent\colorbox{#1!75}{%
-    \parbox{\dimexpr\linewidth-2\fboxsep\relax}{%
-      \textcolor{white}{\bfseries\footnotesize #2}}}%
-  \vspace{0.35em}
-  {\scriptsize\color{figline}#3}%
-  \vspace{0.15em}
-  \end{minipage}
-};
-\end{tikzpicture}%
-}
-
-\casecard{figorange}{Evidence-sensitive record \ ($\tau^3$-bench retail)}{%
-  \casefield{Task}{Update the intended customer's mailing address to ``123 Maple St.''}
-  \casefield{Benchmark claim}{The intended customer record has its address updated.}
-  \casefield{Available evidence}{Tool call \texttt{update\_address(...)}; assistant message ``address updated.''}
-  \casefield{Missing piece}{No post-update backend query; the trace also lacks a unique customer id, so target identity cannot be verified.}
-  \casefield{Counting decision}{\unresolvedOutcome (R3 upstream over R1).}
-  \casefield{Scope guardrail}{A no-collateral-change check would be reported only if required by the native task or as a separate stronger measurement claim.}
-  \casefield{Effect on report}{The record stays in \(N\), contributes one unit to \(U\), and widens \([S/N,(S+U)/N]\).}
-}
-\hfill
-\casecard{figteal}{Negative-control record \ (AppWorld)}{%
-  \casefield{Task}{Add a \$42.50 grocery expense from yesterday to the expenses tracker.}
-  \casefield{Benchmark claim}{New row in \texttt{expenses} with amount 42.50, category ``groceries,'' and correct date, under the released unit-test semantics.}
-  \casefield{Available evidence}{Post-run database snapshot and unit-test fixture that directly checks the relevant fields.}
-  \casefield{Missing piece}{None for this trace under the benchmark claim.}
-  \casefield{Counting decision}{\supportedSuccess.}
-  \casefield{Effect on report}{The record contributes one unit to \(S\), appears in the counted-only score, and does not widen the bounds.}
-}
-\par\vspace{0.6em}
-\caption{Two records walked through the method. A record assigned
-\unresolvedOutcome is not a fail, not a success, and not removed; it widens the
-evidence-supported bounds. The example also shows the benchmark-claim
-guardrail: stronger checks are not silently folded into the benchmark-claim
-result.}
-\label{fig:case-cards}
-\end{figure}
-
-\section{Cost of Adopting the Method}
-\label{app:cost}
-
-The method is only useful if benchmark builders can actually adopt it. We track
-the human time required to instantiate the evidence-reporting layer on each
-main domain.
-
-\begin{table}[h]
-\centering
-\caption{Approximate human-time cost of instantiating the evidence-reporting
-method on top of an existing benchmark. Times are wall-clock minutes from a
-trained annotator and exclude execution compute. The LLM-assisted first draft
-reduces initial writing time but does not replace human review.}
-\label{tab:cost}
-\footnotesize
-\setlength{\tabcolsep}{4pt}
-\renewcommand{\arraystretch}{1.14}
-\begin{tabularx}{\linewidth}{@{}l c c c X@{}}
-\toprule
-Domain & Draft/fix requirements (min/case) & Score evidence (min/record) & Tag \texttt{UNRESOLVE} (min/record) & Per-domain one-time setup \\
-\midrule
-\IfFileExists{outputs/latex/cost_rows.tex}{\input{outputs/latex/cost_rows.tex}}{%
-\agentdojo & \fillfromdata & \fillfromdata & \fillfromdata & evidence schema for paired arms \\
-\appworld & \fillfromdata & \fillfromdata & \fillfromdata & reuse native unit-test scaffolding \\
-\webarena & \fillfromdata & \fillfromdata & \fillfromdata & reuse verifier; document benchmark-claim requirements \\
-\tauthree & \fillfromdata & \fillfromdata & \fillfromdata & policy-path manifest from official policy doc \\
-}
-\bottomrule
-\end{tabularx}
-\end{table}
-
-Predeclaration is the most expensive step but is one-time per case unit.
-Scoring additional records on the same case unit is cheaper because the fixed
-requirements are reused. On strong-evaluator domains, much of the work is a
-documentation refactor: making the verifier's implicit assumptions explicit.
-
-\section{Evidence-Requirement Drafting Details}
-\label{app:requirement-drafting-details}
-
-The requirements drafter is recorded as part of the experimental manifest
-rather than inferred from the manuscript text. In the main study, the drafter model is
-\ContractDrafterModel, queried with temperature \ContractDrafterTemperature
-using prompt version \ContractPromptVersion. The drafter is used only to
-propose evidence requirements before scoring. It does not see agent identities,
-agent traces, native scores, or outcome labels.
-
-\begin{table}[h]
-\centering
-\caption{Evidence-requirement drafting and review metadata. These fields are
-filled from the fixed manifest and released with the review package.}
+\caption{Case-checklist drafting metadata. These values are filled from the
+scored manifest and released with the review package.}
 \label{tab:requirement-drafting-metadata}
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -1381,258 +1117,251 @@ filled from the fixed manifest and released with the review package.}
 \toprule
 Field & Value \\
 \midrule
-Drafter model & \ContractDrafterModel \\
-Temperature & \ContractDrafterTemperature \\
-Prompt version & \ContractPromptVersion \\
-Visible inputs & Task text; official policy; evaluator code or description; relevant schema; trace schema; available post-run artifact types \\
-Hidden inputs & Agent identity; agent trace; native score; outcome label; alternate view verdicts \\
-Human review rule & Two researchers cross-validate every proposed requirement in two review rounds before scoring. Unsupported requirements are edited or regenerated, then rechecked; requirements that go beyond the benchmark claim are labeled as stronger measurement claims. \\
+Drafter model & \ChecklistDrafterModel \\
+Temperature & \ChecklistDrafterTemperature \\
+Prompt version & \ChecklistPromptVersion \\
+Visible inputs & Task text; official policy, if any; evaluator code or evaluator description; database/API/browser/file/tool schema; trace schema; available post-run artifact types \\
+Hidden inputs & Agent identity; agent trace; native score; outcome label; alternate-view verdicts \\
+Human review rule & Two researchers cross-validate every checklist in two rounds before scoring. Unsupported requirements are edited or regenerated, then rechecked. Requirements that go beyond the benchmark claim are kept separate. \\
 Source hierarchy & Evaluator semantics first; task text and policy second; schema constraints needed to interpret evaluator-visible state third. \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-The prompt template requires the drafter to separate evidence tied to the
-benchmark claim from stronger measurement evidence. The released prompt version contains the
-following fields:
-
-\begin{lstlisting}
-You are drafting evidence requirements tied to an interactive-agent benchmark's
-own claim.
+\begin{lstlisting}[caption={Compact checklist-generation prompt skeleton. The released prompt version contains benchmark-specific input fields and formatting constraints.},label={lst:checklist-prompt}]
+Draft a case checklist for evidence-supported scoring.
 
 Inputs:
 - task text
 - official policy, if any
-- evaluator code or evaluator description
-- database/API/browser/file/tool schema
+- official oracle, evaluator code, or evaluator description
+- relevant database/API/browser/file/tool schema
 - trace schema and available post-run artifacts
 
 Rules:
-1. State the benchmark's native success claim.
-2. Cite the source of each required evidence item:
-   evaluator, task text, policy, or schema.
-3. Use the fixed source hierarchy:
-   evaluator semantics > task text/policy > schema constraints.
-4. Do not add requirements from intuition alone.
-5. If a requirement goes beyond the benchmark claim, label it as
-   stronger_measurement and keep it separate from the native_aligned claim.
-6. Do not infer outcomes. Do not use agent identity, traces, or scores.
-
-Return:
-claim_text: ...
-native_sources: ...
-required_artifacts: ...
-success_rule: ...
-fail_rule: ...
-unresolve_rule: ...
-claim_scope: native_aligned | stronger_measurement
-minimality_rationale: ...
-source_support:
-  evaluator: ...
-  task_or_policy: ...
-  schema: ...
+1. State the user's goal and the benchmark's native success claim.
+2. List the official oracle or evaluator signal.
+3. List the minimal completion requirements implied by the native claim.
+4. List the stored artifacts needed to verify those requirements.
+5. Define SUCCESS, FAIL, and UNRESOLVE from artifacts only.
+6. Mark any useful check that goes beyond the native claim as stronger_check.
+7. Do not infer outcomes and do not use agent identity, traces, or scores.
 \end{lstlisting}
 
-\section{Additional Domains and Stress Tests}
-\label{app:aux-domains}
+\section{\texttt{UNRESOLVE} Reason Taxonomy}
+\label{app:unresolve-taxonomy}
+\label{sec:taxonomy}
 
-The main paper uses four domains because the headline claim is about evidence
-uncertainty, not benchmark breadth. This appendix adds two further negative
-controls and one higher-noise stress test.
-
-\subsection{\androidworld as an additional negative control}
-
-\androidworld is reported separately because its task-specific setup and
-success checking make it a useful additional negative control rather than a
-likely main source of evidence uncertainty. We score a fixed appendix manifest
-and report the same bound decomposition. Large bound widths would invite the same
-falsification reasoning as in P1.
-
-\subsection{\workarena as an additional negative control}
-
-\workarena is reported separately for a similar reason. These results do not
-alter the headline claim, but they test whether the method remains stable
-outside the four main domains.
-
-\section{\osworld as a Higher-Noise Stress Test}
-\label{app:osworld}
-
-We intentionally do not use \osworld as a co-equal main domain. Its practical
-setup combines richer operating-system tasks with higher engineering noise,
-including environment volatility and evaluator complexity. Accordingly, the
-\osworld appendix reports three counts for the fixed appendix manifest:
-\begin{enumerate}
-\item episodes that fail before the benchmark can execute normally because of
-infrastructure or pre-run problems;
-\item episodes that execute but whose benchmark-side evaluator fails or is
-unstable; and
-\item episodes that execute and evaluate but still remain \texttt{UNRESOLVE}
-under the fixed evidence requirements.
-\end{enumerate}
-This keeps execution failure, evaluator failure, and evidence uncertainty
-separate.
-
-\section{Judge-Only Scoring Diagnostic}
-\label{app:judge}
-
-Judge-only scoring is reported as a diagnostic rather than a headline baseline.
-For each judge-readable completed record, a fixed blinded judge model receives
-the task, fixed claim, trace, and available artifacts, but not the agent
-identity, evidence label, or \texttt{UNRESOLVE} reason. The point is not to
-claim that judge labels are ground truth. It is to identify records where
-semantic trace judgment produces a verdict even though the benchmark's stated
-claim remains undecidable from stored artifacts.
-
-We report judge-only disagreement rates by domain, together with the fraction
-of records on which judge-only scoring assigns a success/fail label to a record
-that remains \texttt{UNRESOLVE} under the evidence rule.
-
-\section{Supporting Benchmark-Maintenance Study}
-\label{app:update}
-
-The main paper focuses on fixed traces. This appendix asks whether the same
-counted-versus-\texttt{UNRESOLVE} distinction also changes how benchmark
-maintenance is reported.
-
-\subsection{Fixed update round}
-
-We run one small fixed update round on the four main domains. Each domain
-contributes six raw proposals, giving 24 raw proposals total. We select three
-proposals per domain for materialization or execution, giving 12 selected
-candidates. Because selected \agentdojo candidates are paired, the round yields
-additional paired-arm episodes. The round is reported as a funnel,
-\[
-\text{proposed}\rightarrow\text{selected}\rightarrow\text{executed}
-\rightarrow\text{checked}\rightarrow\{\text{counted},\text{ \texttt{UNRESOLVE}}\},
-\]
-rather than as a raw proposal total. A proposal becomes benchmark progress only
-when it becomes a newly countable case unit or narrows the evidence-supported bounds of
-a previously \texttt{UNRESOLVE} case.
+A record labeled \texttt{UNRESOLVE} receives exactly one upstream blocking
+reason. The labels are designed to make missing evidence actionable for
+benchmark authors; they are not meant to be a universal ontology.
 
 \begin{table}[h]
 \centering
-\caption{Supporting micro-update round.}
-\label{tab:update}
+\caption{\texttt{UNRESOLVE}-reason labels. The upstream-priority rule assigns
+the reason that, if resolved first, would unblock the other missing evidence.}
+\label{tab:unresolve-taxonomy}
 \footnotesize
 \setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.15}
-\resizebox{\linewidth}{!}{%
-\begin{tabular}{@{}lrrrrrrl@{}}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{\linewidth}{@{}l X X@{}}
 \toprule
-Domain & Proposed & Selected & Executed & Checked & Counted & UNRESOLVE & Top \texttt{UNRESOLVE} reason \\
+Reason & What is missing & Representative example \\
 \midrule
-\IfFileExists{outputs/latex/update_rows.tex}{\input{outputs/latex/update_rows.tex}}{%
-\agentdojo & 6 & 3 & 6 & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata \\
-\appworld & 6 & 3 & 3 & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata \\
-\webarena & 6 & 3 & 3 & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata \\
-\tauthree & 6 & 3 & 3 & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata \\
-\midrule
-Total & 24 & 12 & 15 & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata \\
-}
+R1: Missing state query & The benchmark claim depends on a backend or environment state value that was never queried or stored. & A database task has no post-run read of the relevant table. \\
+R2: Unobservable side effect & The action is performed, but delivery, send, payment, receipt, or another side effect is not exposed in any artifact. & A message appears to be sent, but the tool returns no receipt or message id. \\
+R3: Ambiguous identity mapping & Multiple records or recipients match the claim and the trace does not identify which one was acted on. & Two customers share the same name and no unique id is logged. \\
+R4: Missing state-preservation evidence & The native task or policy requires preserving unrelated state, but no snapshot or diff can check it. & A calendar edit requires preserving other events, but no post-run diff is captured. \\
+R5: Paired-arm asymmetry & A paired case requires both arms to be decidable, but one arm is decidable and the other is not. & The benign arm is verifiable while the injected arm's security claim is not. \\
+R6: Evaluator-output ambiguity & The released evaluator emits a label, but its stored inputs do not uniquely support that label under the benchmark claim. & A verifier accepts a string match without evidence that the structured target state was reached. \\
+R7: Claim-scope mismatch & The trace supports a related task, but not the benchmark claim being reported. & The agent gives a helpful refund response, but the policy-relevant backend update required by the claim is absent. \\
 \bottomrule
-\end{tabular}%
-}
+\end{tabularx}
 \end{table}
 
-\subsection{Matched-budget controls}
+\section{Additional Evaluation Tables}
+\label{app:supplemental-results}
+\label{app:per-agent}
 
-We compare the evidence-aware update process against matched-budget controls
-that receive the same proposal and selection budget. The controls are one-shot
-generation, evidence-blind generation, and static benchmark refresh. The key
-question is not which control writes the most candidate tasks, but which one
-produces the most countable updates or the largest reduction in bound width.
+The main text keeps only the tables needed to follow the argument. This section
+holds the longer tables that will be filled directly from the scored manifest.
 
-\section{Responsible Release Plan}
+\begin{table}[h]
+\centering
+\caption{Per-agent evidence-supported bounds by benchmark. Each cell reports
+native score, counted-only score, lower endpoint, upper endpoint, and width.}
+\label{tab:per-agent}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{tabularx}{\linewidth}{@{}l X X X@{}}
+\toprule
+Benchmark & OpenAI GPT-5.4 & Claude 4.6 & DeepSeek V4 Pro \\
+\midrule
+\IfFileExists{outputs/latex/per_agent_rows.tex}{\input{outputs/latex/per_agent_rows.tex}}{%
+\agentdojo & \fillfromdata & \fillfromdata & \fillfromdata \\
+\appworld & \fillfromdata & \fillfromdata & \fillfromdata \\
+\webarena & \fillfromdata & \fillfromdata & \fillfromdata \\
+\tauthree & \fillfromdata & \fillfromdata & \fillfromdata \\
+}
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table*}[h]
+\centering
+\caption{Descriptive case-resampling intervals for evidence-supported
+quantities. These intervals condition on stored traces and fixed agent versions;
+they do not include repeated-execution randomness, API drift, tool
+nondeterminism, or environment volatility.}
+\label{tab:main-results-B}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{tabularx}{\textwidth}{@{}l X X X X X@{}}
+\toprule
+Domain & Lower endpoint & Upper endpoint & Width & Counted-only score & Native score inside bounds \\
+\midrule
+\agentdojo & \ADJLowerCI & \ADJUpperCI & \ADJWidthCI & \ADJCountedScoreCI & \ADJNativeInside \\
+\appworld & \APPLowerCI & \APPUpperCI & \APPWidthCI & \APPCountedScoreCI & \APPNativeInside \\
+\webarena & \WAVLowerCI & \WAVUpperCI & \WAVWidthCI & \WAVCountedScoreCI & \WAVNativeInside \\
+\tauthree & \TAULowerCI & \TAUUpperCI & \TAUWidthCI & \TAUCountedScoreCI & \TAUNativeInside \\
+\midrule
+All domains & \ALLLowerCI & \ALLUpperCI & \ALLWidthCI & \ALLCountedScoreCI & \ALLNativeInside \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\begin{table*}[h]
+\centering
+\caption{Full unresolved-reason distribution. The main text reports the top
+reason per benchmark; this table exposes the complete reason histogram.}
+\label{tab:unresolve-reason-histogram}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{tabularx}{\textwidth}{@{}lrrrrrrrX@{}}
+\toprule
+Benchmark & R1 & R2 & R3 & R4 & R5 & R6 & R7 & Interpretation \\
+\midrule
+\IfFileExists{outputs/latex/unresolve_reason_rows.tex}{\input{outputs/latex/unresolve_reason_rows.tex}}{%
+\agentdojo & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata \\
+\appworld & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata \\
+\webarena & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata \\
+\tauthree & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata & \fillfromdata \\
+}
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\begin{table*}[h]
+\centering
+\caption{Pairwise dominance margins for bound-separated comparisons. For a
+reported ordering \(i>j\), the margin is
+\(M_{i>j}=\mathrm{LB}_{i,d}-\mathrm{UB}_{j,d}\). The bootstrap interval is a
+descriptive stability check, not a formal significance test.}
+\label{tab:pairwise-margins}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{tabularx}{\textwidth}{@{}l l l l X@{}}
+\toprule
+Domain & Pair & Bound decision & Margin and case-resampling interval & Interpretation \\
+\midrule
+\IfFileExists{outputs/latex/pairwise_margin_rows.tex}{%
+\input{outputs/latex/pairwise_margin_rows.tex}%
+}{%
+\textsc{fill from scored manifest} & -- & -- & -- & Include every bound-separated pair and its case-cluster bootstrap dominance margin.\\
+}
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\section{Audit, Rerun, and Adoption Cost}
+\label{app:audit-protocol}
+\label{app:cost}
+
+The audit checks whether the evidence labels are reproducible under human
+inspection. The rerun check is narrower: it probes label stability for a fixed
+reference model on a small repeated-execution subset. Neither check is used to
+change the denominator or to estimate repeated-execution performance
+uncertainty.
+
+\begin{table}[h]
+\centering
+\caption{Audit protocol. The final report should fill the sampled counts and
+agreement statistics from the audit spreadsheet.}
+\label{tab:audit-protocol}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{tabularx}{\linewidth}{@{}l X@{}}
+\toprule
+Protocol item & Planned reporting \\
+\midrule
+Audit sample & 25 records per benchmark, stratified across counted records, unresolved records, and native/evidence disagreements. \\
+Blinding & Auditors see task text, trace, artifacts, and locked checklist; they do not see model identity, native label, evidence label, or reason label. \\
+Primary agreement & Three-way label agreement and countability \(\kappa\). \\
+Reason agreement & \texttt{UNRESOLVE}-reason \(\kappa\), computed only when both auditors mark the record unresolved. \\
+Rerun subset & OpenAI GPT-5.4 on ten case units per benchmark; report evidence-label agreement and dominant disagreement pattern. \\
+Resolution rule & Disagreements trigger checklist clarification or reason-label correction; they are logged rather than silently overwritten. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Approximate human-time cost of adopting the method on top of an
+existing benchmark. Times are wall-clock minutes from trained annotators and
+exclude execution compute.}
+\label{tab:cost}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{tabularx}{\linewidth}{@{}l c c c X@{}}
+\toprule
+Domain & Draft/fix checklist & Score evidence & Tag unresolved & Setup note \\
+\midrule
+\IfFileExists{outputs/latex/cost_rows.tex}{\input{outputs/latex/cost_rows.tex}}{%
+\agentdojo & \fillfromdata & \fillfromdata & \fillfromdata & paired-arm files \\
+\appworld & \fillfromdata & \fillfromdata & \fillfromdata & unit tests/db \\
+\webarena & \fillfromdata & \fillfromdata & \fillfromdata & verifier state \\
+\tauthree & \fillfromdata & \fillfromdata & \fillfromdata & policy/id fields \\
+}
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Release and Result Files}
 \label{app:release}
-
-Interactive-agent evaluations may touch state-changing workflows, security
-policies, user records, and communication channels. Public artifacts should
-expose enough information to make denominators and bounds auditable without
-releasing exploit-enabling operational details.
-
-\begin{itemize}\itemsep0.15em
-\item \textbf{Released, fully public.} Per-case manifests with task IDs,
-fixed claim, evidence requirements, claim-scope label, \texttt{UNRESOLVE} taxonomy
-code, bound contributions, the rescorer source code and tests, per-domain
-summary statistics, robust-ranking matrices, denominator audits, and audit
-instructions.
-\item \textbf{Released under access control.} Full traces for \agentdojo paired
-arms involving prompt-injection content, and trace fragments that contain
-placeholder credentials, API tokens, or synthetic personal data, after
-credential scrubbing and sandbox re-pinning.
-\item \textbf{Not released.} Live-account credentials, real third-party API
-keys, and environment artifacts that would let a reader reproduce a side effect
-against a non-sandboxed service.
-\item \textbf{\texttt{UNRESOLVE}-record visibility.} Even when full traces are
-gated, \texttt{UNRESOLVE} records remain visible through case identifier,
-fixed claim, evidence requirements, taxonomy code, and bound contribution.
-\item \textbf{Versioning.} The manifest, rescorer, evidence-requirement template,
-evidence-requirement drafting prompt, and \texttt{UNRESOLVE} taxonomy each carry a semantic
-version. Reported bounds are always paired with a
-\((\textit{rescorer},\textit{manifest},\textit{requirements},\textit{taxonomy})\)
-version tuple.
-\end{itemize}
-
-\section{Formal Definitions}
-
-\subsection{Trajectory}
-
-A run produces a trajectory:
-\begin{lstlisting}
-tau = (x_0, a_0, x_1, a_1, ..., x_T)
-\end{lstlisting}
-where \texttt{x\_t} is the observed environment state or observation and
-\texttt{a\_t} is the agent action.
-
-\subsection{Evidence function}
-
-An evidence function extracts evidence:
-\begin{lstlisting}
-E(tau, env) -> e
-\end{lstlisting}
-where \texttt{e} may include logs, receipts, state diffs, hashes, tool-call
-records, verifier inputs, or other domain-specific measurements.
-
-\subsection{Evidence rule}
-
-An evidence rule family maps evidence to verdicts:
-\begin{lstlisting}
-R_k(e, policy) -> {SUCCESS, FAIL, INCONCLUSIVE, NOT_APPLICABLE}
-\end{lstlisting}
-
-\subsection{Counting and interval}
-
-A completed record is counted only when the executed run, fixed claim, and
-available evidence jointly satisfy the evidence rule:
-\begin{lstlisting}
-Countable(case, agent, run, evidence, rule) = true
-\end{lstlisting}
-If countable, the rule returns \texttt{SUCCESS} or \texttt{FAIL}; otherwise
-the record remains \texttt{UNRESOLVE} with a blocking reason. For any completed
-record set, the reported all-record performance object is:
-\begin{lstlisting}
-TOTAL = SUCCESS + FAIL + UNRESOLVE
-COVERAGE = (SUCCESS + FAIL) / TOTAL
-COUNTED_ONLY_SCORE = SUCCESS / (SUCCESS + FAIL)
-LOWER = SUCCESS / TOTAL
-UPPER = (SUCCESS + UNRESOLVE) / TOTAL
-WIDTH = UNRESOLVE / TOTAL
-\end{lstlisting}
-
-\section{Result Macro Requirements}
 \label{app:macro-requirements}
 
-The final camera-ready build should be produced from the scored manifest. The
-manifest-generated file \texttt{outputs/latex/results\_macros.tex} should set
-\verb|\resultdatatrue| and define the domain-level macros used in
-Tables~\ref{tab:main-results-A}--\ref{tab:main-results-C}. It should also
-define the requirement-drafting metadata macros consumed by the manuscript.
-The separate row files
-\texttt{pairwise\_margin\_rows.tex}, \texttt{per\_agent\_rows.tex},
-\texttt{cost\_rows.tex}, and \texttt{update\_rows.tex} populate the longer
-appendix tables. This check prevents the manuscript from silently replacing
-missing empirical results or requirement metadata with synthetic values.
+Public release should make denominators and bounds auditable without exposing
+live credentials, real third-party keys, or side-effecting services.
 
+\begin{itemize}\itemsep0.15em
+\item \textbf{Released publicly.} Case ids, locked case checklists, native
+claim, stronger-check flag, native label, evidence label, reason code, bound
+contribution, denominator audit, aggregate tables, plotting scripts, and audit
+instructions.
+\item \textbf{Released under access control when needed.} Full traces that
+contain prompt-injection content, synthetic personal data, or credential-shaped
+strings after scrubbing and sandbox re-pinning.
+\item \textbf{Not released.} Live credentials, real API keys, or artifacts that
+would reproduce side effects against non-sandboxed services.
+\item \textbf{Versioning.} Reported bounds are paired with a version tuple for
+the scorer, manifest, checklist template, checklist-generation prompt, and
+\texttt{UNRESOLVE} taxonomy.
+\end{itemize}
+
+The camera-ready build should be produced from the scored manifest. The file
+\texttt{outputs/latex/results\_macros.tex} should set
+\verb|\resultdatatrue| and define the domain-level macros used in
+Tables~\ref{tab:main-results-A}--\ref{tab:main-results-C}. The separate row
+files \texttt{per\_agent\_rows.tex}, \texttt{pairwise\_margin\_rows.tex},
+\texttt{unresolve\_reason\_rows.tex}, and \texttt{cost\_rows.tex} populate the
+longer appendix tables. Missing values should remain visibly marked as
+\fillfromdata rather than replaced by guessed numbers.
 \clearpage
 \IfFileExists{checklist.tex}{\clearpage\input{checklist.tex}}{}
 
