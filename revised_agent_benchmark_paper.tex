@@ -835,101 +835,72 @@ from the main bounds tied to the benchmark's own claim.
 \label{sec:evidence-counting}
 \label{sec:method}
 
-The method turns completed benchmark runs into an evidence-supported report. It
-keeps the benchmark's native view, namely the released evaluator's pass/fail
-label, and adds an evidence view that asks whether the stored artifacts are
-sufficient to decide the same underlying outcome claim. The layer is post-run
-with respect to agent execution but fixed before evidence scoring: it does not
-change the task, prompt, agent, environment, native evaluator, or native score.
+The method turns completed runs into an evidence-supported report. It keeps the
+released evaluator's pass/fail label as the native view, then adds an evidence
+view asking whether stored artifacts decide the same outcome claim. The layer
+is post-run but fixed before evidence scoring: it does not change the task,
+agent, environment, native evaluator, or native score.
 
 \runin{What Unknown means.}
-Unknown is not a third kind of agent behavior. A record receives the Unknown
-label when the available artifacts do not decide whether the benchmark's own
-success claim is true. A clicked \texttt{Save} button, a final confirmation
-message, or a passed proxy check may be insufficient if the retained state does
-not show that the intended record changed. Conversely, timeouts, invalid
-actions, tool misuse, and aborts after task start are failures when the native
-benchmark would fail them; they are not moved into Unknown. Nor is Unknown a
-label for scorer hesitation: if the released benchmark records a completed
-failure and the artifacts support that failure, the record is Evidence Fail. In
-an ideal state-based benchmark with explicit claims, aligned evaluators,
-complete retained state, and unique entity mappings, Unknown records should be
-rare or absent. Their presence measures an evidence gap in the benchmark report,
-not task difficulty or agent uncertainty.
+Unknown is not a third kind of agent behavior. A record receives the label only
+when the available artifacts do not decide the benchmark's own success claim. A
+confirmation message or passed proxy check may be insufficient if retained state
+does not show the intended change. Conversely, timeouts, invalid actions, tool
+misuse, and aborts after task start remain failures when the native benchmark
+would fail them. If the native benchmark records a completed failure and the
+artifacts support that failure, the record is Evidence Fail, not Unknown. In an
+ideal state-based benchmark with explicit claims, aligned evaluators, complete
+state, and unique entity mappings, Unknown records should be rare or absent.
 
 \runin{Case checklist.}
-For each case unit, we first make the outcome claim explicit. An LLM-assisted
-drafter reads the user goal, task text, official policy when present, released
-evaluator or oracle code, and relevant state schemas. It proposes a compact
-case checklist: what the user is trying to achieve, what condition the
-benchmark reports as success, which official code or oracle checks that
-condition, which artifacts would decide it after execution, and when the record
-should be Unknown. For every checklist field filled by the LLM-assisted
-drafter, the checklist must include either a rationale or a source pointer
-identifying the file and location from which the information was derived. Human
-reviewers source-check each checklist against the hierarchy in
-Section~\ref{sec:related-prelim}. The checklist is not a new task or answer
-key; it states what stored evidence would be sufficient to verify the
-benchmark's own claim. In addition, the LLM-assisted drafter may propose
-conditions that would require a stronger-measurement claim, together with a
-brief rationale for why those conditions go beyond the benchmark's native
-success criterion. Human reviewers adjudicate these proposed conditions, and we
-report them separately from the native-aligned result.
+For each case unit, an LLM-assisted drafter reads the user goal, task text,
+official policy when present, evaluator or oracle code, and state schemas. It
+proposes a compact checklist: the intended outcome, the benchmark's reported
+success condition, the official code or oracle that checks it, the artifacts
+that would decide it, and when the record should be Unknown. Each filled field
+must carry a rationale or source pointer, and human reviewers source-check the
+checklist against Section~\ref{sec:related-prelim}. The checklist is not a new
+answer key; it states what evidence would verify the benchmark's own claim.
+Proposed stronger-measurement conditions are adjudicated and reported
+separately.
 
 \runin{Evidence scoring.}
-We then run the benchmark normally and retain the artifacts available for
-review: traces, tool calls, evaluator inputs and outputs, final messages, and
-saved database, browser, file, or API state. For each completed record, the
-native view records the released evaluator's label. The evidence view applies
-the locked case checklist to the stored artifacts and assigns one of
-three labels: \evidencePass, if the artifacts support success under the
-benchmark claim; \evidenceFail, if they support failure; and \unknownLabel, if
-they do not decide the claim. For every judgment made or proposed by an
-LLM-assisted scorer, the record must include either a rationale or a source
-pointer identifying the file and location from which the information was
-derived. Thus the evidence view is an additional report over the same runs, not
-a replacement for the native benchmark score.
+We run the benchmark normally and retain traces, tool calls, evaluator inputs
+and outputs, final messages, and saved database, browser, file, or API state
+when available. For each completed record, the native view records the released
+label. The evidence view applies the locked checklist and assigns
+\evidencePass, \evidenceFail, or \unknownLabel. Each LLM-assisted judgment must
+include a rationale or source pointer, making the evidence view an auditable
+report over the same runs rather than a replacement score.
 
 \runin{Human review and correction.}
-The LLM-assisted scores are provisional until reviewed. Before computing the
-final aggregate counts, human reviewers inspect records flagged by a
-native/evidence disagreement, an Unknown label, a stronger-measurement
-downgrade, or a sampled audit trigger. Reviewers classify each flagged record
-as a benchmark/evaluator issue, an evidence gap, a stronger-only issue, a
-scorer/checklist mismatch, or pending adjudication. Scorer/checklist mismatches
-are corrected before the final reported counts are generated. Benchmark and
-evaluator issues remain in the results as findings about what the original
-score supports; stronger-only issues stay outside the native-aligned score. We
-release the item-level review ledger and a benchmark-level audit summary so the
-amount of human correction is visible rather than hidden inside the final
-numbers.
+LLM-assisted scores are provisional. Before aggregation, reviewers inspect
+records flagged by native/evidence disagreement, Unknown labels,
+stronger-measurement downgrades, or sampled audit triggers. They classify each
+flag as a benchmark/evaluator issue, evidence gap, stronger-only issue,
+scorer/checklist mismatch, or pending item. Scorer/checklist mismatches are
+corrected before reporting; benchmark/evaluator issues remain as findings about
+what the original score supports. We release the item-level ledger and audit
+summary.
 
 \runin{Counting rule.}
 \label{sec:bounds}
-The reporting rule uses only the three evidence-state counts. For agent \(a\)
-in domain \(d\), let \(N_{a,d}\) be the number of completed records in the
-evaluation set, and let \(P_{a,d}\), \(F_{a,d}\), and \(U_{a,d}\) be the counts
-of \evidencePass, \evidenceFail, and \unknownLabel records, so
-\(N_{a,d}=P_{a,d}+F_{a,d}+U_{a,d}\). The counted-only
-score answers a conditional question: among records the stored artifacts
-decide, what fraction are successes? The bound answers the all-record question:
-over every completed record, what performance values are still compatible with
-the stored evidence? Writing \(P,F,U,N\) for the counts in a given agent-domain
-cell, we report
+The reporting rule uses only the three evidence-state counts. For each
+agent-domain cell, let \(N=P+F+U\), where \(P\), \(F\), and \(U\) count
+\evidencePass, \evidenceFail, and \unknownLabel records. The counted-only score
+asks what fraction of decidable records are successes; the bound asks what
+all-record performance values remain compatible with the evidence:
 \[
 \mathrm{CountedScore}(a,d)=\frac{P}{P+F},\quad
 \mathrm{Perf}(a,d)\in\left[\frac{P}{N},\frac{P+U}{N}\right],\quad
 \mathrm{Width}(a,d)=\frac{U}{N}.
 \]
 The lower endpoint counts only Evidence Pass records; the upper endpoint treats
-every Unknown record as a possible success. The width is exactly the Unknown
-share. When \(U=0\), the bound collapses to the all-record score.
-When \(U>0\), a single point estimate must make an unobserved decision about
-records the artifacts did not decide. These intervals are not confidence
-intervals; they are partial-identification bounds describing what the stored
-evidence can and cannot identify \citep{manski2003partial}. The counted-only
-score remains useful as a diagnostic conditional on decidability, but the
-headline object is the evidence-supported bound.
+every Unknown as a possible success. When \(U=0\), the bound collapses to the
+all-record score. When \(U>0\), any point estimate makes an unobserved decision
+about unresolved records. These are partial-identification bounds, not
+confidence intervals \citep{manski2003partial}; the counted-only score is only
+a diagnostic conditional on decidability.
 
 Two diagnostics will recur. The \emph{Unknown share}, \(U/N\), is the fraction
 of completed records whose native claim is not identified by retained evidence;
@@ -943,64 +914,48 @@ many released native outcomes.
 \label{sec:interval-meaning}
 \label{sec:pairwise}
 We keep three diagnostics separate from the headline bounds. First,
-case-cluster bootstrap intervals describe sensitivity to the finite set of
-sampled cases. Each replicate resamples case units within a domain and keeps
-all agent records attached to the resampled case unit. These intervals
-condition on the stored traces and fixed agent versions; they do not measure
-uncertainty from repeated executions, API drift, tool nondeterminism, or
-environment volatility.
+case-cluster bootstrap intervals describe sensitivity to the sampled cases:
+each replicate resamples case units and keeps all attached model records. These
+intervals condition on stored traces and fixed agent versions; they do not
+measure API drift, tool nondeterminism, or repeated-execution uncertainty.
 
-Second, the same bounds determine what leaderboard claims the benchmark can
-support. A benchmark can still print a point-score ordering when bounds overlap,
-but that ordering is not identified by the stored evidence: Unknown records
-could change the direction or erase the gap. We therefore treat pairwise
-separation as a benchmark-usefulness diagnostic. If many model pairs are marked
-``?'', the benchmark may still be useful for finding failures, but it is weak
-evidence for a strict leaderboard. Formally, for agents \(i\) and \(j\) in
-domain \(d\), \(\Delta(i,j;d)=[\mathrm{LB}_{i,d}-\mathrm{UB}_{j,d},
-\mathrm{UB}_{i,d}-\mathrm{LB}_{j,d}]\). We report \(i\succ j\) only if
-\(\mathrm{LB}_{i,d}>\mathrm{UB}_{j,d}\), and \(j\succ i\) only if
-\(\mathrm{LB}_{j,d}>\mathrm{UB}_{i,d}\); otherwise the pair is marked ``?''
-rather than treated as a tie. For a separated ordering \(i\succ j\), the margin
-is \(M_{i>j}=\mathrm{LB}_{i,d}-\mathrm{UB}_{j,d}\). An asterisk means the 2.5th
-percentile of the case-cluster bootstrap distribution of \(M_{i>j}\) remains
-positive; it is a descriptive stability tag, not a significance test.
+Second, bounds determine which leaderboard claims are supported. If two
+agents' bounds overlap, the benchmark may still print a point-score ordering,
+but the stored evidence does not identify a directional winner. We report
+\(i\succ j\) only if \(\mathrm{LB}_{i,d}>\mathrm{UB}_{j,d}\), and \(j\succ i\)
+only if \(\mathrm{LB}_{j,d}>\mathrm{UB}_{i,d}\); otherwise the pair is marked
+``?''. For a separated ordering, the margin is
+\(M_{i>j}=\mathrm{LB}_{i,d}-\mathrm{UB}_{j,d}\). An asterisk means the 2.5th
+percentile of the case-cluster bootstrap distribution remains positive; it is
+a descriptive stability tag, not a significance test.
 
 Third, every Unknown record receives one blocking reason, so the bound width is
-not just a number. In the current audits, Unknown usually means the run trace is
-available but the decisive state is not: for example, a tool return says an
-order was updated but no independent post-run database state is retained, or a
-paired utility/security task keeps the two arm traces but not the final
-workspace, inbox, transaction, or calendar snapshots needed to decide both
-arms. Appendix~\ref{app:unresolve-taxonomy} reports the empirical distribution
-of these reasons and defines the study vocabulary.
+not just a number. In the current audits, the trace is often available but the
+decisive final state is not, such as a missing post-run database read or missing
+paired-arm workspace, inbox, transaction, or calendar snapshots.
+Appendix~\ref{app:unresolve-taxonomy} reports the empirical distribution.
 
 \section{Experiments}
 \label{sec:study-design}
 \label{sec:experimental-setup}
 \label{sec:experiments}
 
-We evaluate whether the reporting layer changes what benchmark scores can
-claim, not which model wins a leaderboard. The experiment fixes five public
-interactive-agent benchmarks, three models, and a 100-case sample per
-benchmark. Each run is scored twice: once by the benchmark's native evaluator
-and once by the evidence-supported reporting layer.
+We evaluate what benchmark scores can claim, not which model wins. The study
+fixes five public interactive-agent benchmarks, three models, and 100 sampled
+case units per benchmark. Each run is scored by the native evaluator and by the
+evidence-supported layer.
 
 \runin{Benchmark suite.}
 The suite spans five evaluator and artifact regimes: mobile UI tasks, paired
 utility/security labels, stateful API tasks, retail tool-use state, and web UI
-microtasks. We do not assume in advance that any benchmark should be easy to
-verify. The test is whether the layer stays narrow when retained artifacts
-decide the claim, and exposes uncertainty only when they do not.
-Across domains, the evidence view uses artifacts retained by the normal
-benchmark run: traces, tool calls, evaluator inputs and outputs, final
-messages, and saved database, browser, file, or API state when available. Table
-\ref{tab:domains} reports the official candidate pools used for deterministic
-selection, rather than the total number of examples advertised by each
-benchmark. For example, \appworld uses the official \texttt{test\_normal}
-split, \tauthree uses the retail \texttt{base} pool because its train/test
-splits are smaller than 100 tasks, and \miniwob excludes three smoke tasks from
-the BrowserGym MiniWoB++ catalog
+microtasks. Across domains, the evidence view uses artifacts retained by normal
+runs: traces, tool calls, evaluator inputs and outputs, final messages, and
+saved database, browser, file, or API state when available.
+Table~\ref{tab:domains} reports the official candidate pools used for
+deterministic selection, not each benchmark's advertised total size. \appworld
+uses \texttt{test\_normal}, \tauthree uses the retail \texttt{base} pool because
+its train/test splits are smaller than 100 tasks, and \miniwob excludes three
+smoke tasks from the BrowserGym MiniWoB++ catalog
 \citep{rawles2025androidworlddynamicbenchmarkingenvironment,barres2026tau3bench,yao2024tau,agentdojo,appworld2024,liu2018reinforcement,lesellierdechezelles2024browsergym}.
 
 \begin{table}[t]
@@ -1030,84 +985,55 @@ Benchmark & Interaction surface & \makecell{Screen/\\DOM} & \makecell{Tool/\\API
 \runin{Models and workload.}
 \label{sec:agents}
 We run OpenAI GPT-5.4, Claude Opus 4.7, and DeepSeek V4 Pro through
-OpenRouter. All three use temperature \(0\), a 4096-token output budget, a
-120-second timeout, and two retries. The paper does not treat these models as
-an exhaustive comparison set. They are fixed measurement probes used to test
-whether outcome-evidence uncertainty is a property of benchmark evidence
-rather than an artifact of one model family. The release records concrete
-model identifiers, prompts, tool wrappers, run dates, and API settings.
+OpenRouter, with temperature \(0\), a 4096-token output budget, a 120-second
+timeout, and two retries. They are fixed measurement probes rather than an
+exhaustive model comparison. The release records model identifiers, prompts,
+tool wrappers, run dates, and API settings.
 
-For each benchmark, the manifest selects 100 eligible case units using a
-deterministic hash order after locking benchmark-specific smoke exclusions. Each
-case unit is run once per model, giving \(5\times100\times3=1500\) completed
-record slots before infrastructure exclusions. \agentdojo executes two arms per
-record, so the main experiment stores 1800 execution episodes in total: 600 for
-\agentdojo and 300 for each of the other four benchmarks.
+For each benchmark, a deterministic hash order selects 100 eligible case units
+after smoke exclusions. Each case unit is run once per model, giving
+\(5\times100\times3=1500\) record slots before infrastructure exclusions.
+\agentdojo executes two arms per record, so the study stores 1800 execution
+episodes: 600 for \agentdojo and 300 for each other benchmark.
 
 \runin{Execution and evidence scoring.}
 Every model run uses the benchmark's original task interface, tools,
-environment, and released evaluator. Evidence collection is handled by
-benchmark-specific adapters that save raw run records, artifact manifests,
-native evaluator outputs, traces, logs, and available post-run state. The
-adapters do not make final evidence-label decisions, so the native score remains
-directly recoverable from the saved artifacts.
-
-Before evidence scoring, an LLM-assisted drafter produces one case checklist
-per case unit from the task text, official policy or evaluator when present,
-state schemas, and retained artifact schema. Each LLM-filled field must include
-a rationale or source pointer. Two researchers cross-validate the checklists in
-two rounds; unsupported items are edited or regenerated and reviewed again.
-Once locked, checklists cannot be changed based on agent outcomes. Proposed
-stronger-measurement conditions are adjudicated separately and scored outside
-the native-aligned result.
-
-Initial evidence scoring then applies the locked checklist to each saved
-evidence directory with a read-only LLM-assisted scorer. The score bundle stores
-the label, rationale/source pointers, logs, telemetry, event stream, and
-prompt/schema hashes so every Evidence Pass, Evidence Fail, or Unknown judgment
-can be audited. The release contents are summarized in
-Appendix~\ref{app:release}.
-
-The final evidence table is produced only after human adjudication of flagged
-records. The adjudication ledger uses the same schema for every benchmark:
-case id, model id, layer, trigger, current labels, human audit label,
-recommended correction, final label fields, evidence summary, and source
-pointers. This makes the process extensible as additional benchmark results
-arrive, and prevents LLM-scoring mistakes from being silently folded into the
-reported aggregate.
+environment, and evaluator. Benchmark-specific adapters save raw run records,
+artifact manifests, native evaluator outputs, traces, logs, and available
+post-run state without making evidence-label decisions. Before scoring, an LLM-assisted drafter produces one checklist per case unit
+from the task, official policy or evaluator, schemas, and retained artifacts.
+Each filled field needs a rationale or source pointer. Two researchers
+cross-validate checklists in two rounds; unsupported items are edited or
+regenerated and reviewed again. Once locked, checklists cannot be changed based
+on agent outcomes. A read-only LLM-assisted scorer applies the locked checklist to each evidence
+directory and stores labels, rationales/source pointers, logs, telemetry, event
+streams, and prompt/schema hashes. The final table is produced only after human
+adjudication of flagged records using a common ledger schema across benchmarks.
+Appendix~\ref{app:release} summarizes the release contents.
 
 \runin{Denominator rule.}
-Only infrastructure or pre-run failures are excluded from the evaluation set.
-Examples include a sandbox that fails before the task is presented, a missing
-benchmark asset, or an external service outage that prevents normal execution.
-Agent-caused invalid actions, tool misuse, timeouts after task start, malformed
-final answers, and benchmark-facing aborts remain in \(N\). When the native
-benchmark would fail them, we count them as failures. This prevents evidence
-filtering from raising scores by removing difficult or agent-induced failures.
+Only infrastructure or pre-run failures are excluded from \(N\). Agent-caused
+invalid actions, tool misuse, timeouts after task start, malformed final
+answers, and benchmark-facing aborts remain in \(N\); when the native benchmark
+would fail them, we count them as failures. This prevents evidence filtering
+from raising scores by removing hard runs.
 
 \runin{Sample size and precision.}
-The primary unit for uncertainty is the case unit, not the record. Each benchmark
-has 100 case units crossed with three models, and the three records attached to a
-case unit can be correlated because the models face the same task. We therefore
-avoid formal precision claims based on 300 independent records per benchmark. A
-record-level binomial calculation would be, at best, an independence lower bound
-and is not used for inference. All resampling intervals are case-clustered and
-condition on the stored traces.
+The uncertainty unit is the case unit, not the record: the three model records
+for one case can be correlated because the models face the same task. We avoid
+precision claims based on 300 independent records per benchmark; all resampling
+intervals are case-clustered and condition on stored traces.
 
 \runin{Human audit and rerun checks.}
 \label{sec:audit}
 Two researchers audit records triggered by native/evidence disagreement,
-Unknown labels, stronger-measurement downgrades, and sampled audit checks.
-Auditors inspect the task, evaluator output, trace, artifacts, checklist, and
-score rationale, then mark whether the label stands, needs a scorer/checklist
-correction, reveals a benchmark/evaluator issue, or remains pending. Aggregate
-result tables use corrected labels, while the audit summary
-reports how much correction was needed. In this audit, released evaluator
-booleans are labels rather than independent evidence. Tool calls and trace
-outputs can decide a record when they directly establish the claimed state
-change; hidden state, absence claims, side effects, and security-sensitive
-outcomes require retained state or artifact evidence. We also rerun OpenAI
-GPT-5.4 on ten case units per benchmark as a small repeated-execution probe;
+Unknown labels, stronger-measurement downgrades, and sampled checks. Auditors
+inspect the task, evaluator output, trace, artifacts, checklist, and score
+rationale, then mark whether the label stands, needs correction, reveals a
+benchmark/evaluator issue, or remains pending. Aggregate tables use corrected
+labels, while the audit summary reports how much correction was needed. We also
+rerun OpenAI GPT-5.4 on ten case units per benchmark as a small
+repeated-execution probe;
 this is not used as a model-performance uncertainty interval.
 
 \section{Evaluation}
@@ -1142,7 +1068,7 @@ successes, failures, and Unknown records across models.
 
 \begin{table*}[t]
 \centering
-\caption{Main measurement report. Counts are over completed records after
+\caption{Evidence support for released scores. Counts are over completed records after
 excluding only infrastructure/pre-run failures. Native score is the released
 benchmark score on the same completed records. Bound is the all-record
 evidence-supported interval \([\mathrm{Lower},\mathrm{Upper}]\). Unknown share
@@ -1353,41 +1279,19 @@ report rather than a hidden assumption behind a single success rate.
 \label{app:unresolve-taxonomy}
 \label{sec:taxonomy}
 
-Each Unknown record receives one primary blocking reason. The labels are meant
-to answer a concrete repair question: what artifact would have made this record
-decidable? They are not a universal ontology, and we do not keep unused
-categories. We assign the earliest missing artifact that blocks the benchmark's
-own claim, not every artifact that would make the review easier.
-
-The current completed audits make the pattern clear. Table~\ref{tab:unknown-reason-counts}
-summarizes the primary reason assigned to each native Unknown record. The
-assignment uses the most specific missing artifact that blocks the native claim:
-paired-arm structure alone does not override a missing message receipt,
-transaction ledger, web-request log, or protected-state snapshot. In \tauthree, the only
-Unknown record is a retail address-change case where the trace contains a
-successful tool return, but the retained bundle does not include an independent
-post-run database read for the target order. In \agentdojo, 50 of 300 records
-are Unknown: 21 workspace records, 12 travel records, 10 Slack records, and 7
-banking records. These are not mostly ambiguous conversations. They are mostly
-artifact-retention gaps in paired tasks: the retained packet often contains
-benign and injected traces, but not the durable message, payment, reservation,
-calendar, inbox, transaction, web-request, or protected-state evidence needed to
-check both utility and security claims. \miniwob calibrates the opposite boundary. Its provisional native
-Unknown records were unfinished reward-zero episodes; after human audit they are
-Evidence Fail, not Unknown, because the native benchmark itself treats them as
-failures and the retained artifacts support that label. Thus the taxonomy below
-is artifact-centered: it describes missing evidence for the native claim, not
-agent failure, scorer uncertainty, or stronger-measurement dissatisfaction.
+Each Unknown record receives one primary blocking reason: the earliest missing
+artifact that prevents deciding the benchmark's own claim. The labels answer a
+repair question, not a universal ontology. Table~\ref{tab:unknown-reason-counts}
+summarizes the completed audits. \tauthree has one missing post-state read;
+\agentdojo has 50 Unknown records, mostly missing paired-arm final state or
+durable receipts; and \miniwob has no native Unknown after reward-zero
+unfinished runs were audited as Evidence Fail.
 
 \begin{table}[h]
 \centering
-\caption{Empirical distribution of native Unknown reasons in the completed
-audits. Counts use the priority rule in this appendix: each Unknown record
-receives one primary blocking reason, even if secondary artifacts are also
-missing. In paired-arm benchmarks, R2 is used only when the paired final-state
-comparison itself is the first blocker; when a narrower missing receipt or
-protected-state artifact blocks the claim, the record is counted under R3 or
-R4.}
+\caption{Native Unknown reasons in completed audits. Each record receives one
+primary blocking reason; narrower missing receipts or protected-state artifacts
+take priority over the generic paired-arm label.}
 \label{tab:unknown-reason-counts}
 \scriptsize
 \setlength{\tabcolsep}{3pt}
@@ -1396,9 +1300,9 @@ R4.}
 \toprule
 Benchmark & \makecell{Native\\Unknown} & R1 & R2 & R3 & R4 & \makecell{Primary\\repair} \\
 \midrule
-\tauthree & 1 & 1 & 0 & 0 & 0 & Retain an independent final read of the target retail object. \\
-\agentdojo & 50 & 0 & 5 & 10 & 35 & Retain arm-indexed final state plus durable receipts for side effects and protected-state non-effects. \\
-\miniwob & 0 & 0 & 0 & 0 & 0 & No native Unknown remains after audit; reward-zero unfinished runs are Evidence Fail. \\
+\tauthree & 1 & 1 & 0 & 0 & 0 & Retain a final read of the target retail object. \\
+\agentdojo & 50 & 0 & 5 & 10 & 35 & Retain arm-indexed final state plus receipts for side effects and non-effects. \\
+\miniwob & 0 & 0 & 0 & 0 & 0 & Reward-zero unfinished runs are Evidence Fail, not Unknown. \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -1415,10 +1319,10 @@ the first missing artifact that prevents deciding the benchmark's own claim.}
 \toprule
 Reason & What blocks the decision & Observed example and repair \\
 \midrule
-R1: No authoritative post-state & The trace or tool return suggests a state change, but no independent final database or environment state is retained for the target object. & \tauthree T34 has a successful address-change tool return, but no post-run order record for the changed order. Repair: retain a final state read or database snapshot keyed by the target id. \\
-R2: Paired-arm comparability gap & A paired benchmark claim requires benign and injected arms to be checked together, but the retained evidence does not provide comparable arm-level final state and no narrower side-effect or non-effect artifact is the first blocker. & Some \agentdojo records retain two traces but not enough comparable arm-level final state to apply the paired utility/security conjunction. Repair: store pre/post state for each arm under stable arm identifiers. \\
-R3: Missing side-effect log or receipt & The claim depends on a message, payment, web request, reservation, or file operation that is not exposed as a durable artifact. & Slack and banking records may show tool calls but lack final message, transaction, or request logs. Repair: retain receipts or final object lists for externally visible effects. \\
-R4: Missing non-effect evidence & The claim requires showing that something did \emph{not} happen, such as no phishing send, no attacker payment, or no unrelated calendar change, but the complete final state is absent. & AgentDojo security arms often need inbox, transaction, trash, or calendar snapshots to rule out attacker effects. Repair: retain full final state or a signed diff over protected state. \\
+R1: No authoritative post-state & A state change is suggested, but no independent final state is retained for the target object. & \tauthree T34 lacks a post-run order record. Repair: retain a target-state snapshot. \\
+R2: Paired-arm comparability gap & A paired claim needs comparable benign/injected final states, and no narrower artifact is the first blocker. & Some \agentdojo records lack comparable arm-level final state. Repair: store pre/post state under stable arm ids. \\
+R3: Missing side-effect log or receipt & The claim depends on a message, payment, request, reservation, or file operation without a durable receipt. & Slack and banking records can lack final message, transaction, or request logs. Repair: retain receipts or final object lists. \\
+R4: Missing non-effect evidence & The claim requires proving something did \emph{not} happen, but complete final state is absent. & AgentDojo security arms need inbox, transaction, trash, or calendar snapshots. Repair: retain final protected state or signed diffs. \\
 \bottomrule
 \end{tabularx}
 \end{table}
