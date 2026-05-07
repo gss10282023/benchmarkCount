@@ -1,0 +1,91 @@
+# Case Packet
+
+## Case Metadata
+
+- domain: `webarena_verified`
+- case_unit_id: `112`
+- task_id: `112`
+
+## Source Inventory
+
+- `derived/task.json`
+
+## Packet Source Files
+
+### `derived/task.json`
+
+Source ref: `<REPO_ROOT>/experiments/official_splits/webarena_verified_official_812.json#task_id=112`
+
+```json
+{
+  "eval": [
+    {
+      "evaluator": "AgentResponseEvaluator",
+      "expected": {
+        "error_details": null,
+        "retrieved_data": [
+          "Hannah Lim"
+        ],
+        "status": "SUCCESS",
+        "task_type": "RETRIEVE"
+      },
+      "ordered": false,
+      "results_schema": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      }
+    }
+  ],
+  "instantiation_dict": {
+    "product": "Circe fleece"
+  },
+  "intent": "Return the customer nickname(s) who gave a rating of 3 stars or below for Circe fleece",
+  "intent_template": "Return the customer nickname(s) who gave a rating of 3 stars or below for {{product}}",
+  "intent_template_id": 245,
+  "revision": 2,
+  "sites": [
+    "shopping_admin"
+  ],
+  "start_urls": [
+    "__SHOPPING_ADMIN__"
+  ],
+  "task_id": 112
+}
+```
+
+## Raw Source Provenance
+
+```json
+{
+  "case_unit_id": "112",
+  "copied_files": [
+    "derived/task.json",
+    "official/webarena-verified.json"
+  ],
+  "derived_files": [
+    "derived/task.json"
+  ],
+  "domain": "webarena_verified",
+  "file_sources": {
+    "derived/task.json": "<REPO_ROOT>/experiments/official_splits/webarena_verified_official_812.json#task_id=112",
+    "official/webarena-verified.json": "<REPO_ROOT>/experiments/official_splits/webarena_verified_official_812.json"
+  },
+  "official_files": [
+    "official/webarena-verified.json"
+  ],
+  "packet_files": [
+    "derived/task.json"
+  ],
+  "sha256_per_file": {
+    "derived/task.json": "f1e3342d31946754ffcaaef9b8256a2799ea8297f3982ea54ff64218b154fedb",
+    "official/webarena-verified.json": "10752f67cb4652831da85419925863cc5315db9c53bae42370046b70f032484f"
+  },
+  "source_refs": [
+    "<REPO_ROOT>/experiments/official_splits/webarena_verified_official_812.json",
+    "<REPO_ROOT>/experiments/official_splits/webarena_verified_official_812.json#task_id=112"
+  ],
+  "task_id": "112"
+}
+```
