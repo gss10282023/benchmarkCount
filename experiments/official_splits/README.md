@@ -11,15 +11,15 @@ These files are the pre-scoring candidate pools used by
   selected execution manifest must still fix the AgentDojo attack strategy
   before any scoring run.
 - `appworld_test_normal.txt`: copied from
-  `/root/benchmarks/appworld/project/data/datasets/test_normal.txt` on
+  `<APPWORLD_INSTALL_ROOT>/project/data/datasets/test_normal.txt` on
   `other-vps-01`. The AppWorld project describes the normal and challenge test
   sets separately; this source uses the normal test set as the strong negative
   control pool.
 - `webarena_verified_official_812.json`: copied from
-  `/root/benchmarks/webarena-verified/assets/webarena-verified.json` on
+  `<WEBARENA_VERIFIED_INSTALL_ROOT>/assets/webarena-verified.json` on
   `webarena-vps-01`.
 - `tau3_retail_split_tasks.json`: copied from
-  `/root/benchmarks/tau2-bench/data/tau2/domains/retail/split_tasks.json` on
+  `<TAU2_BENCH_INSTALL_ROOT>/data/tau2/domains/retail/split_tasks.json` on
   `other-vps-01`. The selection command uses the `base` key because `train`
   and `test` are below 100 eligible tasks and `base` is the full official
   retail task pool in that file.
@@ -38,6 +38,10 @@ These files are the pre-scoring candidate pools used by
 
 The merged LLM-drafter source bundle is
 `../evidence_contracts/source_bundles/main_case_units_source_bundle.json`.
+
+The local full-case packet corpus used by the drafter now lives under
+`../case_packets/`. `official_splits/` remains the official selection/source
+basis; it is not the materialized per-case packet store.
 
 ## Smoke-test exclusions
 

@@ -19,7 +19,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from evidence_system.core.errors import EvidenceSystemError
 from evidence_system.core.hashing import sha256_bytes
-from evidence_system.core.paths import resolve_repo_path
+from evidence_system.core.paths import repo_root, resolve_repo_path
 
 
 REQUIRED_SCHEMA_FILES = (
@@ -59,10 +59,12 @@ CANONICAL_DOMAIN_IDS = frozenset(
     {
         "agentdojo",
         "appworld",
+        "miniwob",
         "webarena_verified",
         "tau3_retail",
         "androidworld",
         "workarena",
+        "toolsandbox",
         "osworld_verified",
         "judge_only",
         "maintenance_update",
@@ -75,7 +77,9 @@ EXPERIMENT_TYPES = frozenset(
     {"main", "appendix", "diagnostic", "audit", "maintenance_update", "matched_budget_control"}
 )
 PRIORITIES = frozenset({"P0", "P1", "P2", "P3"})
-AGENT_IDS = ("Agent A", "Agent B", "Agent C", "Agent D")
+AGENT_IDS = ("Agent A", "Agent B", "Agent C")
+LLM_ROLE_IDS = AGENT_IDS + ("contract_drafter", "judge_only")
+LLM_PROMPT_ROLE_IDS = frozenset({"contract_drafter", "judge_only"})
 P0_MAIN_DOMAIN_IDS = frozenset({"agentdojo", "appworld", "webarena_verified", "tau3_retail"})
 P0_DEFAULT_CASE_UNITS_PER_DOMAIN = 100
 P0_DEFAULT_PLANNED_RECORD_SLOTS = len(P0_MAIN_DOMAIN_IDS) * P0_DEFAULT_CASE_UNITS_PER_DOMAIN * len(AGENT_IDS)
@@ -183,6 +187,18 @@ COST_TABLE_ACTIVITY_TYPES = frozenset(
         "evidence_scoring_review",
         "unresolve_tagging",
         "setup",
+    }
+)
+
+DEPLOY_COLLECT_RESUME_WORKFLOW_STAGES = frozenset(
+    {
+        "deploy_all",
+        "deploy_webarena",
+        "deploy_osworld",
+        "deploy_other_vps",
+        "deploy_local_androidworld",
+        "collect_results",
+        "resume_failed",
     }
 )
 
@@ -468,6 +484,8 @@ def validate_cross_object_consistency(
             issues.extend(_aggregate_denominator_consistency_issues(payload, items, f"${name}"))
         if payload.get("schema_version") == "paper_output/v1":
             issues.extend(_paper_output_source_mapping_issues(payload, items, paper_mappings, f"${name}"))
+        if payload.get("schema_version") == "failure_record/v1":
+            issues.extend(_failure_record_deployment_manifest_issues(payload, items, f"${name}"))
         issues.extend(_native_decisive_artifact_manifest_issues(payload, items, f"${name}"))
         issues.extend(_native_decisive_locked_artifact_mapping_issues(payload, items, f"${name}"))
     if manifest is not None:
@@ -732,6 +750,7 @@ def _semantic_issues(
         "aggregate_metrics": _validate_aggregate_metrics_semantics,
         "experiment_manifest": _validate_experiment_manifest_semantics,
         "agent_config": _validate_agent_config_semantics,
+        "infra_config": _validate_infra_config_semantics,
         "llm_call": _validate_llm_call_semantics,
         "human_review": _validate_human_review_semantics,
         "contract_review": _validate_contract_review_semantics,
@@ -941,6 +960,7 @@ def _validate_experiment_manifest_semantics(
 
     if formal:
         issues.extend(_p0_main_manifest_issues(domains, "$.domains"))
+        issues.extend(_llm_roles_issues(payload))
 
     for index, lock in enumerate(payload.get("contract_locks", [])):
         if not isinstance(lock, Mapping):
@@ -956,7 +976,7 @@ def _validate_experiment_manifest_semantics(
     agent_ids = [a.get("agent_id") for a in agents]
     present_agents = set(agent_ids)
     if len(agents) != len(AGENT_IDS) or present_agents != set(AGENT_IDS) or len(agent_ids) != len(present_agents):
-        issues.append(_issue("$.agents", "manifest agents must be exactly one each of Agent A-D"))
+        issues.append(_issue("$.agents", "manifest agents must be exactly one each of Agent A-C"))
     for agent in AGENT_IDS:
         if agent not in present_agents:
             issues.append(_issue("$.agents", f"missing required {agent} entry"))
@@ -980,7 +1000,7 @@ def _validate_agent_config_semantics(payload: Mapping[str, Any], *, formal: bool
     if isinstance(agents, Mapping):
         observed_agents = set(str(agent) for agent in agents)
         if observed_agents != set(AGENT_IDS):
-            issues.append(_issue("$.experimental_agents", "experimental_agents must contain exactly Agent A-D and no extra execution agents"))
+            issues.append(_issue("$.experimental_agents", "experimental_agents must contain exactly Agent A-C and no extra execution agents"))
         for agent in AGENT_IDS:
             agent_config = agents.get(agent)
             if not isinstance(agent_config, Mapping):
@@ -1008,7 +1028,46 @@ def _validate_agent_config_semantics(payload: Mapping[str, Any], *, formal: bool
             for domain_id, mapped_agents in domain_map.items():
                 if domain_id in P0_MAIN_DOMAIN_IDS:
                     if not isinstance(mapped_agents, list) or set(str(agent) for agent in mapped_agents) != set(AGENT_IDS) or len(mapped_agents) != len(AGENT_IDS):
-                        issues.append(_issue(f"$.main_domain_agent_map.{domain_id}", "P0 main domains must map to exactly Agent A-D"))
+                        issues.append(_issue(f"$.main_domain_agent_map.{domain_id}", "P0 main domains must map to exactly Agent A-C"))
+    return issues
+
+
+def _validate_infra_config_semantics(payload: Mapping[str, Any], *, formal: bool, **_: Any) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    if not formal:
+        return issues
+
+    domain_constraints = payload.get("domain_machine_constraints")
+    if isinstance(domain_constraints, Mapping):
+        for domain_id in domain_constraints:
+            if str(domain_id) not in CANONICAL_DOMAIN_IDS:
+                issues.append(_issue(f"$.domain_machine_constraints.{domain_id}", "infra_config domain keys must use canonical identifiers"))
+
+    machines = payload.get("machines")
+    if isinstance(machines, list):
+        for machine_index, machine in enumerate(machines):
+            if not isinstance(machine, Mapping):
+                continue
+            allowed_domains = machine.get("allowed_domains")
+            if isinstance(allowed_domains, list):
+                for domain_index, domain_id in enumerate(allowed_domains):
+                    if str(domain_id) not in CANONICAL_DOMAIN_IDS:
+                        issues.append(
+                            _issue(
+                                f"$.machines[{machine_index}].allowed_domains[{domain_index}]",
+                                "infra_config allowed_domains must use canonical identifiers",
+                            )
+                        )
+            benchmarks = machine.get("benchmarks")
+            if isinstance(benchmarks, Mapping):
+                for domain_id in benchmarks:
+                    if str(domain_id) not in CANONICAL_DOMAIN_IDS:
+                        issues.append(
+                            _issue(
+                                f"$.machines[{machine_index}].benchmarks.{domain_id}",
+                                "infra_config benchmark keys must use canonical identifiers",
+                            )
+                        )
     return issues
 
 
@@ -1030,14 +1089,20 @@ def _p0_main_domain_issues(
     expected_case_units = exception.get("eligible_case_units") if exception is not None else P0_DEFAULT_CASE_UNITS_PER_DOMAIN
     if exception is None and domain.get("official_split_exception_id") is not None:
         issues.append(_issue(f"{base}.official_split_exception_id", "official_split_exception_id must reference a recorded exception"))
-    if exception is None and eligible_units != P0_DEFAULT_CASE_UNITS_PER_DOMAIN:
-        issues.append(_issue(f"{base}.official_split_eligible_case_units", "P0 main domains without split exception require 100 eligible case units"))
+    if exception is None:
+        if eligible_units is None:
+            issues.append(_issue(f"{base}.official_split_eligible_case_units", "P0 main domains require official_split_eligible_case_units"))
+        elif eligible_units < P0_DEFAULT_CASE_UNITS_PER_DOMAIN:
+            issues.append(
+                _issue(
+                    f"{base}.official_split_eligible_case_units",
+                    "P0 main domains with fewer than 100 eligible case units require a recorded split exception",
+                )
+            )
     if case_units != expected_case_units:
         issues.append(_issue(f"{base}.case_unit_count", "P0 main case_unit_count must match planned eligible case units"))
-    if eligible_units is not None and case_units is not None and exception is None and case_units != eligible_units:
-        issues.append(_issue(f"{base}.case_unit_count", "P0 main case_unit_count must equal official_split_eligible_case_units"))
     if record_slots is not None and case_units is not None and record_slots != case_units * len(AGENT_IDS):
-        issues.append(_issue(f"{base}.record_slot_count", "P0 main record_slot_count must equal case_unit_count x 4 fixed agents"))
+        issues.append(_issue(f"{base}.record_slot_count", "P0 main record_slot_count must equal case_unit_count x 3 fixed agents"))
     if not _is_hash(domain.get("planned_record_slot_ids_hash")):
         issues.append(_issue(f"{base}.planned_record_slot_ids_hash", "P0 main domains require planned_record_slot_ids_hash"))
     return issues
@@ -1063,9 +1128,57 @@ def _p0_main_manifest_issues(domains: Sequence[Mapping[str, Any]], base: str) ->
     expected_total = sum(((_int(domain.get("case_unit_count")) or 0) * len(AGENT_IDS)) for domain in p0_main_domains)
     has_exception = any(domain.get("official_split_exception_id") is not None for domain in p0_main_domains)
     if not has_exception and not missing and not extra and total != P0_DEFAULT_PLANNED_RECORD_SLOTS:
-        issues.append(_issue(base, "formal P0 main manifest must plan 1600 record slots without split exceptions"))
+        issues.append(_issue(base, "formal P0 main manifest must plan 1200 record slots without split exceptions"))
     if total != expected_total:
-        issues.append(_issue(base, "formal P0 main total record_slot_count must equal planned case units x 4 agents"))
+        issues.append(_issue(base, "formal P0 main total record_slot_count must equal planned case units x 3 agents"))
+    return issues
+
+
+def _llm_roles_issues(payload: Mapping[str, Any]) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    roles = payload.get("llm_roles")
+    if not isinstance(roles, Mapping):
+        return [_issue("$.llm_roles", "formal manifest requires locked llm_roles for Agent A-C, contract_drafter, and judge_only")]
+
+    observed = set(str(role) for role in roles)
+    missing = set(LLM_ROLE_IDS) - observed
+    extra = observed - set(LLM_ROLE_IDS)
+    for role in LLM_ROLE_IDS:
+        role_payload = roles.get(role)
+        base = f"$.llm_roles.{role}"
+        if role in missing:
+            issues.append(_issue(base, "formal manifest missing locked LLM role config"))
+            continue
+        if not isinstance(role_payload, Mapping):
+            issues.append(_issue(base, "formal manifest LLM role config must be an object"))
+            continue
+        required = {
+            "provider",
+            "model",
+            "model_version",
+            "api_key_env",
+            "temperature",
+            "max_tokens",
+            "timeout_seconds",
+            "retry",
+            "rate_limit",
+            "save_response_metadata",
+            "cost_tracking",
+        }
+        if role in LLM_PROMPT_ROLE_IDS:
+            required.update({"prompt_version", "prompt_hash", "prompt_hash_method"})
+        for field in sorted(required):
+            value = role_payload.get(field)
+            if field not in role_payload or value is None or (isinstance(value, str) and not value):
+                issues.append(_issue(f"{base}.{field}", "formal manifest LLM role config field is required"))
+            if field == "rate_limit" and not isinstance(value, Mapping):
+                issues.append(_issue(f"{base}.{field}", "formal manifest LLM role rate_limit must be an object"))
+            if field == "prompt_hash" and not _is_hash(value):
+                issues.append(_issue(f"{base}.{field}", "formal manifest prompt_hash must be sha256"))
+            if field == "prompt_hash_method" and value != "sha256":
+                issues.append(_issue(f"{base}.{field}", "formal manifest prompt_hash_method must be sha256"))
+    for role in sorted(extra):
+        issues.append(_issue(f"$.llm_roles.{role}", "formal manifest contains undeclared LLM role"))
     return issues
 
 
@@ -1126,7 +1239,7 @@ def _validate_llm_call_semantics(payload: Mapping[str, Any], **_: Any) -> list[V
     if role in AGENT_IDS:
         for field in ("run_id", "record_slot_id", "attempt_id", "case_unit_id", "task_id"):
             if not payload.get(field):
-                issues.append(_issue(f"$.{field}", "Agent A-D execution calls require run/case linkage"))
+                issues.append(_issue(f"$.{field}", "Agent A-C execution calls require run/case linkage"))
     if role == "contract_drafter":
         required = (
             "contract_draft_id",
@@ -1231,6 +1344,14 @@ def _validate_audit_label_semantics(payload: Mapping[str, Any], **_: Any) -> lis
 
 def _validate_evidence_contract_semantics(payload: Mapping[str, Any], **_: Any) -> list[ValidationIssue]:
     issues = _stronger_measurement_issues(payload, "$")
+    support = payload.get("source_support")
+    if isinstance(support, Mapping):
+        for field in ("evaluator", "task_or_policy", "schema"):
+            if not isinstance(support.get(field), str) or not support.get(field).strip():
+                issues.append(_issue(f"$.source_support.{field}", "source_support must include evaluator, task_or_policy, and schema support strings"))
+    else:
+        issues.append(_issue("$.source_support", "source_support must be a mapping with evaluator, task_or_policy, and schema"))
+    issues.extend(_repo_local_absolute_path_issues(payload, "$"))
     status = payload.get("contract_status")
     if status == "locked" and (not payload.get("locked_at") or not payload.get("locked_by")):
         issues.append(_issue("$.locked_at", "locked contracts require locked_at and locked_by"))
@@ -1256,6 +1377,20 @@ def _validate_evidence_contract_semantics(payload: Mapping[str, Any], **_: Any) 
                     "native-aligned required artifacts must declare contract_requirement_id",
                 )
             )
+    return issues
+
+
+def _repo_local_absolute_path_issues(value: Any, path: str) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    root = str(repo_root())
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            issues.extend(_repo_local_absolute_path_issues(child, f"{path}.{key}"))
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        for index, child in enumerate(value):
+            issues.extend(_repo_local_absolute_path_issues(child, f"{path}[{index}]"))
+    elif isinstance(value, str) and root in value:
+        issues.append(_issue(path, "repo-local absolute paths must be recorded as repo-relative source refs"))
     return issues
 
 
@@ -1603,6 +1738,7 @@ def _validate_freeze_manifest_semantics(payload: Mapping[str, Any], *, formal: b
 def _validate_failure_record_semantics(payload: Mapping[str, Any], **_: Any) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     provenance = payload.get("provenance")
+    workflow_stage = payload.get("workflow_stage")
     required = (
         "command_hash",
         "config_hash",
@@ -1625,6 +1761,45 @@ def _validate_failure_record_semantics(payload: Mapping[str, Any], **_: Any) -> 
     for field in ("command_hash", "workflow_stage", "machine_id"):
         if payload.get(field) and provenance.get(field) and payload.get(field) != provenance.get(field):
             issues.append(_issue(f"$.provenance.{field}", "failure provenance must match top-level failure field"))
+    failure_linkage = provenance.get("failure_linkage")
+    if isinstance(failure_linkage, Mapping) and workflow_stage in DEPLOY_COLLECT_RESUME_WORKFLOW_STAGES:
+        top_deployment_path = payload.get("deployment_manifest_path")
+        linked_deployment_path = failure_linkage.get("deployment_manifest_path")
+        if not _is_nonempty_string(top_deployment_path):
+            issues.append(
+                _issue(
+                    "$.deployment_manifest_path",
+                    "deploy/collect/resume failure records require deployment manifest provenance",
+                )
+            )
+        if not _is_nonempty_string(linked_deployment_path):
+            issues.append(
+                _issue(
+                    "$.provenance.failure_linkage.deployment_manifest_path",
+                    "deploy/collect/resume failure records require deployment manifest provenance",
+                )
+            )
+        elif _is_nonempty_string(top_deployment_path) and linked_deployment_path != top_deployment_path:
+            issues.append(
+                _issue(
+                    "$.provenance.failure_linkage.deployment_manifest_path",
+                    "failure linkage deployment_manifest_path must match top-level deployment_manifest_path",
+                )
+            )
+    if workflow_stage == "collect_results" and not _is_nonempty_string(payload.get("collect_results_manifest_path")):
+        issues.append(
+            _issue(
+                "$.collect_results_manifest_path",
+                "collect_results failure records require collect_results_manifest_path",
+            )
+        )
+    if workflow_stage == "resume_failed" and not _is_nonempty_string(payload.get("resume_manifest_path")):
+        issues.append(
+            _issue(
+                "$.resume_manifest_path",
+                "resume_failed failure records require resume_manifest_path",
+            )
+        )
     return issues
 
 
@@ -1635,6 +1810,71 @@ def _validate_deployment_manifest_semantics(payload: Mapping[str, Any], **_: Any
         issues.append(_issue("$.artifacts", "collect_results deployment manifests require collected artifact provenance"))
     if workflow_stage == "resume_failed" and not payload.get("failure_record_paths"):
         issues.append(_issue("$.failure_record_paths", "resume_failed manifests require failure record linkage"))
+    return issues
+
+
+def _failure_record_deployment_manifest_issues(
+    payload: Mapping[str, Any],
+    objects: Iterable[tuple[str, Mapping[str, Any]]],
+    base: str,
+) -> list[ValidationIssue]:
+    workflow_stage = payload.get("workflow_stage")
+    if workflow_stage not in DEPLOY_COLLECT_RESUME_WORKFLOW_STAGES:
+        return []
+
+    issues: list[ValidationIssue] = []
+    linkage = payload.get("provenance", {}).get("failure_linkage") if isinstance(payload.get("provenance"), Mapping) else None
+    expected_paths = {
+        str(path)
+        for path in (
+            payload.get("deployment_manifest_path"),
+            linkage.get("deployment_manifest_path") if isinstance(linkage, Mapping) else None,
+        )
+        if _is_nonempty_string(path)
+    }
+    deployment_manifests = [
+        candidate
+        for _, candidate in objects
+        if candidate.get("schema_version") == "deployment_manifest/v1"
+    ]
+    if not deployment_manifests:
+        return [
+            _issue(
+                f"{base}.deployment_manifest_path",
+                "deploy/collect/resume failure records require loaded deployment_manifest artifact",
+            )
+        ]
+    matching_manifests: list[Mapping[str, Any]] = []
+    for manifest in deployment_manifests:
+        actual_paths = {
+            str(path)
+            for path in (manifest.get("__path"), manifest.get("__abs_path"))
+            if _is_nonempty_string(path)
+        }
+        if expected_paths and expected_paths.isdisjoint(actual_paths):
+            continue
+        matching_manifests.append(manifest)
+    if not matching_manifests:
+        return [
+            _issue(
+                f"{base}.deployment_manifest_path",
+                "failure_record deployment_manifest_path must resolve to a loaded deployment_manifest/v1 artifact",
+            )
+        ]
+
+    provenance = payload.get("provenance")
+    provenance_map = provenance if isinstance(provenance, Mapping) else {}
+    for manifest in matching_manifests:
+        for field in ("workflow_stage", "machine_id", "command_hash", "domain", "phase", "experiment_type", "priority"):
+            observed = payload.get(field)
+            expected = manifest.get(field)
+            if observed is not None and expected is not None and observed != expected:
+                issues.append(_issue(f"{base}.{field}", "failure_record deployment manifest linkage field mismatch"))
+        for field in ("config_hash", "manifest_hash", "environment_hash"):
+            observed = provenance_map.get(field)
+            expected = manifest.get(field)
+            if observed is not None and expected is not None and observed != expected:
+                issues.append(_issue(f"{base}.provenance.{field}", "failure_record deployment manifest provenance hash mismatch"))
     return issues
 
 
@@ -1665,7 +1905,7 @@ def _validate_pairwise_matrix_semantics(payload: Mapping[str, Any], **_: Any) ->
     agents = [agent for agent in payload.get("agents", []) if isinstance(agent, str)]
     if payload.get("experiment_type") == "main" and payload.get("priority") == "P0":
         if set(agents) != set(AGENT_IDS) or len(agents) != len(AGENT_IDS):
-            issues.append(_issue("$.agents", "P0 main pairwise_matrix must contain exactly one each of Agent A-D"))
+            issues.append(_issue("$.agents", "P0 main pairwise_matrix must contain exactly one each of Agent A-C"))
     expected_pairs = {tuple(sorted((a, b))) for i, a in enumerate(agents) for b in agents[i + 1 :]}
     seen_pairs: set[tuple[str, str]] = set()
     for index, cell in enumerate(payload.get("cells", [])):
@@ -1909,8 +2149,14 @@ def _stronger_measurement_issues(payload: Mapping[str, Any], base: str) -> list[
             )
         if payload.get("experiment_type") == "main" and payload.get("entered_evidence_denominator") is True:
             issues.append(_issue(f"{base}.claim_scope", "stronger_measurement cannot enter native-aligned main envelope"))
-    elif claim_scope == "native_aligned" and mapping is not None:
-        issues.append(_issue(f"{base}.stronger_measurement_mapping", "native_aligned records must not carry stronger mapping"))
+    elif claim_scope == "native_aligned" and isinstance(mapping, Mapping):
+        if mapping.get("enters_native_aligned_main_envelope") is not False:
+            issues.append(
+                _issue(
+                    f"{base}.stronger_measurement_mapping.enters_native_aligned_main_envelope",
+                    "native_aligned stronger-measurement sidecar mapping must not enter native-aligned main envelope",
+                )
+            )
     return issues
 
 
@@ -2159,6 +2405,10 @@ def _freeze_drift_issues(payload: Mapping[str, Any], freeze_manifest: Mapping[st
         observed_freeze_hash = payload.get("freeze_manifest_hash")
         if actual_freeze_hash is not None and observed_freeze_hash != actual_freeze_hash:
             issues.append(_issue(f"{base}.freeze_manifest_hash", "freeze_manifest_hash does not match freeze manifest artifact sha256"))
+        frozen_at = _parse_time(freeze_manifest.get("frozen_at"))
+        scoring_started_at = _parse_time(payload.get("started_at"))
+        if frozen_at is not None and scoring_started_at is not None and frozen_at > scoring_started_at:
+            issues.append(_issue(f"{base}.started_at", "freeze time must be at or before scoring start"))
     elif schema_version == "aggregate_metrics/v1":
         actual_freeze_hash = freeze_manifest.get("__sha256")
         observed_freeze_hash = payload.get("freeze_manifest_hash")
@@ -2194,6 +2444,24 @@ def _formal_context_hash_issues(
             issues.append(_issue("$.freeze_manifest.agents_config_hash", "freeze agents_config_hash must match manifest agents_config_hash"))
         if manifest.get("infra_config_hash") != freeze_manifest.get("infra_config_hash"):
             issues.append(_issue("$.freeze_manifest.infra_config_hash", "freeze infra_config_hash must match manifest infra_config_hash"))
+        if manifest.get("source_bundle_hash") != freeze_manifest.get("source_bundle_hash"):
+            issues.append(_issue("$.freeze_manifest.source_bundle_hash", "freeze source_bundle_hash must match manifest source_bundle_hash"))
+        deterministic = manifest.get("deterministic_selection")
+        if isinstance(deterministic, Mapping):
+            for field in (
+                "hash_function",
+                "hash_salt_hash",
+                "eligible_case_unit_set_hash",
+                "excluded_smoke_case_units",
+                "smoke_exclusion_hash",
+                "case_selection_order_hash",
+                "bootstrap_seed",
+                "bootstrap_resample_count",
+                "audit_sample_seed",
+                "rerun_subset_selection_rule",
+            ):
+                if deterministic.get(field) != freeze_manifest.get(field):
+                    issues.append(_issue(f"$.freeze_manifest.{field}", f"freeze {field} must match manifest deterministic_selection"))
     for index, paper_mapping in enumerate(paper_mappings):
         paper_sha = paper_mapping.get("__sha256")
         if paper_sha is None:
@@ -2896,6 +3164,10 @@ def _int(value: Any) -> int | None:
 
 def _is_hash(value: Any) -> bool:
     return isinstance(value, str) and bool(HASH_RE.match(value))
+
+
+def _is_nonempty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value)
 
 
 def _parse_time(value: Any) -> datetime | None:

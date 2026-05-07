@@ -34,7 +34,7 @@ The package CLI may wrap this via `python -m evidence_system.cli.run_domain`.
   "domain_display_name": "...",
   "case_unit_id": "...",
   "task_id": "...",
-  "agent_id": "Agent A|Agent B|Agent C|Agent D",
+  "agent_id": "Agent A|Agent B|Agent C",
   "seed": 0,
   "attempt_id": "...",
   "attempt_index": 1,
@@ -52,7 +52,7 @@ The package CLI may wrap this via `python -m evidence_system.cli.run_domain`.
 }
 ```
 
-`agent_config_ref` resolves to `configs/agents.yaml` plus locked manifest metadata. The job may include a resolved config snapshot for reproducibility, but formal validation fails if it disagrees with config and locked manifest. The job cannot hardcode Agent A-D, contract_drafter, or judge_only model/version/prompt values outside those sources.
+`agent_config_ref` resolves to `configs/agents.yaml` plus locked manifest metadata. The job may include a resolved config snapshot for reproducibility, but formal validation fails if it disagrees with config and locked manifest. The job cannot hardcode Agent A-C, contract_drafter, or judge_only model/version/prompt values outside those sources.
 
 ## Raw Run Output
 

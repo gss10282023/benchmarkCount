@@ -47,6 +47,7 @@ CANONICAL_CLI_MODULES = [
     "draft_contracts",
     "review_contracts",
     "lock_contracts",
+    "record_contract_clarification",
     "update_manifest_contract_locks",
     "freeze_predictions",
     "run_preflight",
@@ -110,6 +111,14 @@ def test_validate_config_cli_reads_checked_in_configs() -> None:
 
 
 def test_canonical_cli_modules_exist_and_bootstrap_check() -> None:
+    implemented_after_bootstrap = {
+        "validate_contracts",
+        "draft_contracts",
+        "review_contracts",
+        "lock_contracts",
+        "record_contract_clarification",
+        "update_manifest_contract_locks",
+    }
     for module_name in CANONICAL_CLI_MODULES:
         importlib.import_module(f"evidence_system.cli.{module_name}")
         if module_name == "validate_config":
@@ -129,7 +138,15 @@ def test_canonical_cli_modules_exist_and_bootstrap_check() -> None:
             capture_output=True,
         )
         assert result.returncode == 0, f"{module_name}: {result.stderr}"
-        assert '"formal_logic": "not_implemented_in_step_2"' in result.stdout
+        if module_name == "draft_contracts":
+            expected = "implemented_step_6_openrouter_transport_available"
+        elif module_name == "freeze_predictions":
+            expected = "implemented_step_5_check_only"
+        elif module_name == "run_full":
+            expected = "implemented_step_8_controlled_raw_collection"
+        else:
+            expected = "implemented_step_4" if module_name in implemented_after_bootstrap else "not_implemented_in_step_2"
+        assert f'"formal_logic": "{expected}"' in result.stdout
 
 
 def test_formal_actions_fail_closed_by_default() -> None:

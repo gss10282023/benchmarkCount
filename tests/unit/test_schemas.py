@@ -8,6 +8,8 @@ import hashlib
 from copy import deepcopy
 from pathlib import Path
 
+import yaml
+
 from evidence_system.core.schemas import (
     REQUIRED_SCHEMA_FILES,
     SchemaValidationError,
@@ -166,6 +168,8 @@ def test_schema_registry_files_are_formal_not_placeholders() -> None:
         assert schema["x-step"] == "Step 3 Schema / Provenance / Validator"
         assert "Placeholder" not in schema["description"]
         assert "not_implemented_in_step_2" not in json.dumps(schema)
+        fixture_name = f"valid_{filename.removesuffix('.schema.json')}.json"
+        assert (FIXTURES / fixture_name).exists(), fixture_name
 
 
 def test_valid_core_fixtures_pass() -> None:
@@ -176,17 +180,29 @@ def test_valid_core_fixtures_pass() -> None:
         ("raw_run", "valid_raw_run.json"),
         ("job", "valid_job.json"),
         ("artifact_manifest", "valid_artifact_manifest.json"),
+        ("aggregate_metrics", "valid_aggregate_metrics.json"),
         ("aggregate_metrics", "valid_aggregate_no_counted.json"),
         ("paper_mapping", "valid_paper_mapping.json"),
         ("experiment_manifest", "valid_experiment_manifest.json"),
         ("evidence_contract", "valid_evidence_contract.json"),
         ("contract_review", "valid_contract_review.json"),
         ("agent_config", "valid_agent_config.json"),
+        ("infra_config", "valid_infra_config.json"),
+        ("llm_call", "valid_llm_call.json"),
         ("llm_call", "valid_llm_call_missing_cost.json"),
         ("human_review", "valid_human_review.json"),
         ("human_time", "valid_human_time.json"),
+        ("audit_item", "valid_audit_item.json"),
+        ("audit_label", "valid_audit_label.json"),
+        ("audit_sampling_plan", "valid_audit_sampling_plan.json"),
+        ("bootstrap_plan", "valid_bootstrap_plan.json"),
         ("deployment_manifest", "valid_deployment_manifest.json"),
         ("failure_record", "valid_failure_record.json"),
+        ("pairwise_matrix", "valid_pairwise_matrix.json"),
+        ("prediction_outcome", "valid_prediction_outcome.json"),
+        ("release_artifact", "valid_release_artifact.json"),
+        ("rerun_record", "valid_rerun_record.json"),
+        ("rerun_subset", "valid_rerun_subset.json"),
         ("stats_plan", "valid_stats_plan.json"),
         ("freeze_manifest", "valid_freeze_manifest.json"),
         ("denominator_audit", "valid_denominator_audit.json"),
@@ -208,9 +224,14 @@ def test_unresolve_requires_fixed_reason_and_level() -> None:
     payload["unresolve_reason"] = None
     assert_invalid("scored_record", payload, "R1-R7")
 
-    payload = load_fixture("valid_scored_unresolve.json")
-    payload["unresolve_reason"] = "R5 Paired-arm asymmetry"
-    assert_invalid("scored_record", payload, "R5 Paired-arm asymmetry")
+    for legacy_reason in (
+        "R5 Paired-arm asymmetry",
+        "R6 Evaluator output ambiguity",
+        "R7 Claim-scope mismatch",
+    ):
+        payload = load_fixture("valid_scored_unresolve.json")
+        payload["unresolve_reason"] = legacy_reason
+        assert_invalid("scored_record", payload, legacy_reason)
 
 
 def test_success_fail_cannot_carry_unresolve_metadata() -> None:
@@ -321,6 +342,20 @@ def test_stronger_measurement_requires_mapping_and_cannot_enter_main_envelope() 
         "enters_native_aligned_main_envelope": True,
     }
     assert_invalid("scored_record", payload, "must not enter native-aligned main envelope")
+
+
+def test_native_aligned_allows_non_entering_stronger_measurement_sidecar_mapping() -> None:
+    payload = load_fixture("valid_evidence_contract.json")
+    payload["claim_scope"] = "native_aligned"
+    payload["stronger_measurement_mapping"] = {
+        "mapping_type": "appendix",
+        "mapping_id": "stronger-measurement-contract-001",
+        "path": "experiments/evidence_contracts/stronger_measurement/contract-001.json",
+        "sha256": "0" * 64,
+        "enters_native_aligned_main_envelope": False,
+    }
+
+    assert_valid("evidence_contract", payload)
 
 
 def test_canonical_domain_and_phase_experiment_type_are_fail_closed() -> None:
@@ -475,11 +510,11 @@ def test_manifest_requires_agent_rationale_and_records_short_split_exception() -
 
     payload = load_fixture("valid_experiment_manifest.json")
     payload["agents"][0]["agent_id"] = "Agent B"
-    assert_invalid("experiment_manifest", payload, "exactly one each of Agent A-D")
+    assert_invalid("experiment_manifest", payload, "exactly one each of Agent A-C")
 
     payload = load_fixture("valid_experiment_manifest.json")
     payload["agents"].append(deepcopy(payload["agents"][0]))
-    assert_invalid("experiment_manifest", payload, "exactly one each of Agent A-D")
+    assert_invalid("experiment_manifest", payload, "exactly one each of Agent A-C")
 
     payload = load_fixture("valid_experiment_manifest.json")
     payload["domains"][0]["official_split_eligible_case_units"] = 99
@@ -507,13 +542,27 @@ def test_formal_manifest_enforces_fixed_p0_main_denominator() -> None:
     payload = load_fixture("valid_experiment_manifest.json")
     assert_valid("experiment_manifest", payload, formal=True, labels=paper_mapping_labels())
 
+    missing_llm_roles = deepcopy(payload)
+    del missing_llm_roles["llm_roles"]
+    assert_invalid("experiment_manifest", missing_llm_roles, "formal manifest requires locked llm_roles", formal=True)
+
+    missing_drafter_prompt = deepcopy(payload)
+    del missing_drafter_prompt["llm_roles"]["contract_drafter"]["prompt_hash"]
+    assert_invalid("experiment_manifest", missing_drafter_prompt, "LLM role config field is required", formal=True)
+
+    overlarge_official_split = deepcopy(payload)
+    overlarge_official_split["domains"][0]["official_split_eligible_case_units"] = 812
+    overlarge_official_split["domains"][0]["case_unit_count"] = 100
+    overlarge_official_split["domains"][0]["record_slot_count"] = 300
+    assert_valid("experiment_manifest", overlarge_official_split, formal=True, labels=paper_mapping_labels())
+
     missing_domain = deepcopy(payload)
     missing_domain["domains"] = [d for d in missing_domain["domains"] if d["domain"] != "tau3_retail"]
     assert_invalid("experiment_manifest", missing_domain, "missing required P0 main domain", formal=True)
 
     low_denominator = deepcopy(payload)
     low_denominator["domains"][0]["record_slot_count"] = 3
-    assert_invalid("experiment_manifest", low_denominator, "record_slot_count must equal case_unit_count x 4", formal=True)
+    assert_invalid("experiment_manifest", low_denominator, "record_slot_count must equal case_unit_count x 3", formal=True)
 
     case_mismatch = deepcopy(payload)
     case_mismatch["domains"][0]["case_unit_count"] = 90
@@ -522,7 +571,7 @@ def test_formal_manifest_enforces_fixed_p0_main_denominator() -> None:
     split_exception = deepcopy(payload)
     split_exception["domains"][0]["case_unit_count"] = 99
     split_exception["domains"][0]["official_split_eligible_case_units"] = 99
-    split_exception["domains"][0]["record_slot_count"] = 396
+    split_exception["domains"][0]["record_slot_count"] = 297
     split_exception["domains"][0]["official_split_exception_id"] = "short-agentdojo"
     split_exception["official_split_exceptions"] = [
         {
@@ -539,30 +588,47 @@ def test_formal_manifest_enforces_fixed_p0_main_denominator() -> None:
 
 
 def test_formal_agent_config_fails_on_unresolved_probe_rationale_placeholders() -> None:
-    current = json.loads((ROOT / "configs" / "agents.yaml").read_text(encoding="utf-8"))
+    current = yaml.safe_load((ROOT / "configs" / "agents.yaml").read_text(encoding="utf-8"))
     assert_invalid("agent_config", current, "unresolved placeholder", formal=True)
 
 
 def test_agent_config_requires_exact_fixed_agent_universe() -> None:
     payload = load_fixture("valid_agent_config.json")
     payload["experimental_agents"]["Agent E"] = deepcopy(payload["experimental_agents"]["Agent A"])
-    assert_invalid("agent_config", payload, "exactly Agent A-D", formal=True)
+    assert_invalid("agent_config", payload, "exactly Agent A-C", formal=True)
 
     payload = load_fixture("valid_agent_config.json")
-    del payload["experimental_agents"]["Agent D"]
-    assert_invalid("agent_config", payload, "exactly Agent A-D", formal=True)
+    del payload["experimental_agents"]["Agent C"]
+    assert_invalid("agent_config", payload, "exactly Agent A-C", formal=True)
 
     payload = load_fixture("valid_agent_config.json")
     payload["main_domain_agent_map"]["agentdojo"] = ["Agent A", "Agent B", "Agent C"]
-    assert_invalid("agent_config", payload, "P0 main domains must map to exactly Agent A-D", formal=True)
+    assert_valid("agent_config", payload, formal=True)
 
     payload = load_fixture("valid_agent_config.json")
     payload["main_domain_agent_map"]["agentdojo"] = ["Agent A", "Agent B", "Agent C", "Agent C"]
-    assert_invalid("agent_config", payload, "P0 main domains must map to exactly Agent A-D", formal=True)
+    assert_invalid("agent_config", payload, "P0 main domains must map to exactly Agent A-C", formal=True)
 
     payload = load_fixture("valid_agent_config.json")
     del payload["main_domain_agent_map"]["appworld"]
     assert_invalid("agent_config", payload, "missing P0 main domain agent map", formal=True)
+
+
+def test_formal_infra_config_requires_canonical_domain_ids() -> None:
+    payload = load_fixture("valid_infra_config.json")
+    assert_valid("infra_config", payload, formal=True)
+
+    bad_constraints = load_fixture("valid_infra_config.json")
+    bad_constraints["domain_machine_constraints"]["AgentDojo"] = bad_constraints["domain_machine_constraints"].pop("agentdojo")
+    assert_invalid("infra_config", bad_constraints, "domain keys must use canonical identifiers", formal=True)
+
+    bad_allowed = load_fixture("valid_infra_config.json")
+    bad_allowed["machines"][0]["allowed_domains"][0] = "AgentDojo"
+    assert_invalid("infra_config", bad_allowed, "allowed_domains must use canonical identifiers", formal=True)
+
+    bad_benchmark = load_fixture("valid_infra_config.json")
+    bad_benchmark["machines"][0]["benchmarks"]["AgentDojo"] = bad_benchmark["machines"][0]["benchmarks"].pop("agentdojo")
+    assert_invalid("infra_config", bad_benchmark, "benchmark keys must use canonical identifiers", formal=True)
 
 
 def test_paper_mapping_missing_required_label_fails_coverage() -> None:
@@ -801,6 +867,92 @@ def test_deployment_and_failure_provenance_are_required() -> None:
     payload["provenance"] = {}
     assert_invalid("failure_record", payload, "failure provenance field is required")
 
+    payload = load_fixture("valid_failure_record.json")
+    payload["deployment_manifest_path"] = None
+    assert_invalid("failure_record", payload, "deployment manifest provenance")
+
+    payload = load_fixture("valid_failure_record.json")
+    payload["provenance"]["failure_linkage"]["deployment_manifest_path"] = None
+    assert_invalid("failure_record", payload, "deployment manifest provenance")
+
+    payload = load_fixture("valid_failure_record.json")
+    payload["provenance"]["failure_linkage"]["deployment_manifest_path"] = "results/manifests/other-deploy.json"
+    assert_invalid("failure_record", payload, "must match top-level deployment_manifest_path")
+
+    payload = load_fixture("valid_failure_record.json")
+    payload["collect_results_manifest_path"] = None
+    assert_invalid("failure_record", payload, "collect_results_manifest_path")
+
+    payload = load_fixture("valid_failure_record.json")
+    payload["workflow_stage"] = "resume_failed"
+    payload["provenance"]["workflow_stage"] = "resume_failed"
+    payload["resume_manifest_path"] = None
+    assert_invalid("failure_record", payload, "resume_manifest_path")
+
+
+def test_deploy_collect_resume_failure_records_require_loaded_deployment_manifest() -> None:
+    failure = load_fixture("valid_failure_record.json")
+    missing_report = validate_cross_object_consistency(
+        [("failure_record", failure)],
+        raise_on_error=False,
+    )
+    assert not missing_report.ok
+    assert "require loaded deployment_manifest artifact" in json.dumps(missing_report.to_dict())
+
+    deployment = annotate_fixture("valid_deployment_manifest.json")
+    deployment["__path"] = "results/manifests/deploy.json"
+    deployment["__abs_path"] = str(ROOT / "results" / "manifests" / "deploy.json")
+    valid_report = validate_cross_object_consistency(
+        [("deployment_manifest", deployment), ("failure_record", failure)],
+        raise_on_error=False,
+    )
+    assert valid_report.ok, valid_report.to_dict()
+
+    mismatched = deepcopy(deployment)
+    mismatched["machine_id"] = "different-machine"
+    mismatch_report = validate_cross_object_consistency(
+        [("deployment_manifest", mismatched), ("failure_record", failure)],
+        raise_on_error=False,
+    )
+    assert not mismatch_report.ok
+    assert "deployment manifest linkage field mismatch" in json.dumps(mismatch_report.to_dict())
+
+
+def test_step3_auxiliary_schema_fixtures_have_fail_closed_semantics() -> None:
+    audit_item = load_fixture("valid_audit_item.json")
+    audit_item["forbidden_input_assertion_hash"] = None
+    assert_invalid("audit_item", audit_item, "forbidden-input assertion")
+
+    audit_label = load_fixture("valid_audit_label.json")
+    audit_label["evidence_label"] = "FAIL"
+    audit_label["unresolve_reason"] = "R1"
+    assert_invalid("audit_label", audit_label, "SUCCESS/FAIL cannot carry")
+
+    audit_plan = load_fixture("valid_audit_sampling_plan.json")
+    audit_plan["strata"] = ["counted_records", "unresolve_records"]
+    assert_invalid("audit_sampling_plan", audit_plan, "native_evidence_disagreement")
+
+    bootstrap_plan = load_fixture("valid_bootstrap_plan.json")
+    bootstrap_plan["cluster_unit"] = "attempt"
+    assert_invalid("bootstrap_plan", bootstrap_plan, "case_unit")
+
+    prediction = load_fixture("valid_prediction_outcome.json")
+    prediction["ci_lower"] = prediction["threshold"]
+    prediction["outcome"] = "supported"
+    assert_invalid("prediction_outcome", prediction, "touching threshold")
+
+    rerun_record = load_fixture("valid_rerun_record.json")
+    rerun_record["original_unresolve_reason"] = "R1"
+    assert_invalid("rerun_record", rerun_record, "counted original rerun labels")
+
+    rerun_subset = load_fixture("valid_rerun_subset.json")
+    rerun_subset["agent_id"] = "Agent B"
+    assert_invalid("rerun_subset", rerun_subset, "Agent A")
+
+    release_artifact = load_fixture("valid_release_artifact.json")
+    release_artifact["release_status"] = "access_controlled"
+    assert_invalid("release_artifact", release_artifact, "release_status must match visibility")
+
 
 def test_contract_review_full_ordering_fails_when_lock_after_scoring() -> None:
     payload = load_fixture("valid_contract_review.json")
@@ -934,7 +1086,7 @@ def test_p0_pairwise_matrix_requires_exact_fixed_agent_universe() -> None:
         "source_aggregate_metrics_hash": "a" * 64,
         "bootstrap_plan_hash": "b" * 64,
     }
-    assert_invalid("pairwise_matrix", payload, "exactly one each of Agent A-D")
+    assert_invalid("pairwise_matrix", payload, "exactly one each of Agent A-C")
 
 
 def test_paper_output_formal_sources_must_resolve_and_match_paper_mapping() -> None:
@@ -1154,9 +1306,9 @@ def test_denominator_audit_cross_checks_manifest_planned_slots() -> None:
     split_manifest = deepcopy(manifest)
     split_manifest["domains"][0]["case_unit_count"] = 99
     split_manifest["domains"][0]["official_split_eligible_case_units"] = 99
-    split_manifest["domains"][0]["record_slot_count"] = 396
+    split_manifest["domains"][0]["record_slot_count"] = 297
     split_manifest["domains"][0]["official_split_exception_id"] = "short-agentdojo"
-    split_manifest["domains"][0]["planned_record_slot_ids_hash"] = planned_record_slot_ids_hash("agentdojo", 396)
+    split_manifest["domains"][0]["planned_record_slot_ids_hash"] = planned_record_slot_ids_hash("agentdojo", 297)
     split_manifest["official_split_exceptions"] = [
         {
             "exception_id": "short-agentdojo",
@@ -2043,6 +2195,34 @@ def test_validate_manifest_cli_checks_paper_mapping_coverage() -> None:
     assert result.returncode == 0, result.stderr + result.stdout
 
 
+def test_validate_manifest_cli_accepts_yaml_manifest(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "valid_experiment_manifest.yaml"
+    manifest_path.write_text(
+        yaml.safe_dump(load_fixture("valid_experiment_manifest.json"), sort_keys=False),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "evidence_system.cli.validate_manifest",
+            "--formal",
+            "--manifest",
+            str(manifest_path),
+            "--paper-mapping",
+            str(FIXTURES / "valid_paper_mapping.json"),
+            "--json",
+        ],
+        cwd=ROOT,
+        env=subprocess_env(),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert '"schema_version": "experiment_manifest/v1"' in result.stdout
+
+
 def test_formal_cli_rejects_markdown_paper_mapping(tmp_path: Path) -> None:
     markdown_mapping = tmp_path / "paper_mapping.md"
     labels_payload = load_fixture("valid_paper_mapping.json")
@@ -2270,6 +2450,35 @@ def test_validate_results_formal_requires_and_uses_cross_object_context() -> Non
         check=False,
     )
     assert ok.returncode == 0, ok.stderr + ok.stdout
+
+
+def test_validate_results_formal_failure_record_requires_deployment_manifest_context() -> None:
+    missing_deployment = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "evidence_system.cli.validate_results",
+            "--formal",
+            "--failure-record",
+            str(FIXTURES / "valid_failure_record.json"),
+            "--manifest",
+            str(FIXTURES / "valid_experiment_manifest.json"),
+            "--freeze-manifest",
+            str(FIXTURES / "valid_freeze_manifest.json"),
+            "--evidence-contract",
+            str(FIXTURES / "valid_evidence_contract.json"),
+            "--paper-mapping",
+            str(FIXTURES / "valid_paper_mapping.json"),
+            "--json",
+        ],
+        cwd=ROOT,
+        env=subprocess_env(),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert missing_deployment.returncode == 1
+    assert "require loaded deployment_manifest artifact" in missing_deployment.stdout
 
 
 def test_formal_native_decisive_evidence_requires_loaded_artifact_manifest(tmp_path: Path) -> None:

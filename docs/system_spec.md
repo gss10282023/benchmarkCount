@@ -58,7 +58,7 @@ The system uses these terms consistently:
 
 Evidence-envelope denominators use only completed scored records. Denominator audit covers attempted record slots, infra exclusions, completed records, agent-caused failures, and formally blocked slots. Retry attempts do not create additional samples.
 
-P0 planned record slots are fixed at 1600: 4 main domains x 100 case units x 4 agents. If the frozen paper or manifest requires 1600 completed_records strictly, recoverable infra exclusions must be retried until completed, or the run is `P0-incomplete`. If infra exclusions remain after the allowed retry policy, the main envelope `N` uses completed scored records only, while the denominator audit reports `attempted=1600`, `completed`, `infra_excluded`, `agent_caused_failures`, and formally blocked slots.
+P0 planned record slots are fixed at 1200: 4 main domains x 100 case units x 3 agents. If the frozen paper or manifest requires 1200 completed_records strictly, recoverable infra exclusions must be retried until completed, or the run is `P0-incomplete`. If infra exclusions remain after the allowed retry policy, the main envelope `N` uses completed scored records only, while the denominator audit reports `attempted=1200`, `completed`, `infra_excluded`, `agent_caused_failures`, and formally blocked slots.
 
 ## Formal Entry Points
 
@@ -84,9 +84,9 @@ Additional package CLIs required by the lifecycle include `validate_config`, `dr
 
 ## Configuration And Model Rules
 
-Agent A-D, `contract_drafter`, and `judge_only` model IDs, version pins, temperatures, prompt versions, prompt hashes, provider fields, retry settings, and API-key environment variable names must not be hardcoded in code, tests, docs-as-data, runner logic, scorer logic, or paper generation. Formal code reads them from `configs/agents.yaml` and the locked manifest. If the two disagree or a value is missing for a formal run, the system fails closed.
+Agent A-C, `contract_drafter`, and `judge_only` model IDs, version pins, temperatures, prompt versions, prompt hashes, provider fields, retry settings, and API-key environment variable names must not be hardcoded in code, tests, docs-as-data, runner logic, scorer logic, or paper generation. Formal code reads them from `configs/agents.yaml` and the locked manifest. If the two disagree or a value is missing for a formal run, the system fails closed.
 
-Agent A-D are fixed measurement probes, not leaderboard entries. Each Agent A-D entry must include `agent_probe_rationale` with:
+Agent A-C are fixed measurement probes, not leaderboard entries. Each Agent A-C entry must include `agent_probe_rationale` with:
 
 ```text
 non_redundant_measurement_probe
@@ -98,9 +98,9 @@ leaderboard_interpretation=false
 
 Unresolved rationale fields remain `需要从 locked manifest 确认` during specification and draft manifest work, but formal runs fail until resolved.
 
-The paper interpretation is frozen: Agent A-D are non-redundant measurement probes used to test whether evidence uncertainty is structured by domain, not leaderboard entries and not a factorial model comparison. Concrete model identifiers, version pins, temperatures, provider settings, prompt versions, and prompt hashes are config/locked-manifest data only.
+The paper interpretation is frozen: Agent A-C are non-redundant measurement probes used to test whether evidence uncertainty is structured by domain, not leaderboard entries and not a factorial model comparison. Concrete model identifiers, version pins, temperatures, provider settings, prompt versions, and prompt hashes are config/locked-manifest data only.
 
-Static gates must scan code, tests, runner logic, scorer logic, paper generation, and review packets for hardcoded Agent A-D, `contract_drafter`, or `judge_only` concrete model ids, version pins, temperatures, prompt hashes, prompt versions, and API-key environment variable values. Such values fail unless they appear inside an explicitly synthetic config fixture that cannot be used by formal runs.
+Static gates must scan code, tests, runner logic, scorer logic, paper generation, and review packets for hardcoded Agent A-C, `contract_drafter`, or `judge_only` concrete model ids, version pins, temperatures, prompt hashes, prompt versions, and API-key environment variable values. Such values fail unless they appear inside an explicitly synthetic config fixture that cannot be used by formal runs.
 
 API key values, SSH private keys, and other secrets must never be written to repository files, logs, review packets, manifests, or paper outputs. Only environment variable names and redacted/hashed references may be recorded.
 
@@ -133,7 +133,7 @@ human_review.schema.json
 release_manifest.schema.json
 ```
 
-Schemas must cover experiment id, canonical domain id, phase, experiment_type, priority, paper labels, case counts, official splits, deterministic selection metadata, agents, Agent A-D rationale, contract metadata, raw logs, artifact provenance, metrics, tables, figures, machine role, failure status, human time, LLM logging, deployment provenance, paper-output source mapping, audit/rerun plans, and release metadata.
+Schemas must cover experiment id, canonical domain id, phase, experiment_type, priority, paper labels, case counts, official splits, deterministic selection metadata, agents, Agent A-C rationale, contract metadata, raw logs, artifact provenance, metrics, tables, figures, machine role, failure status, human time, LLM logging, deployment provenance, paper-output source mapping, audit/rerun plans, and release metadata.
 
 ## Paper Mapping Coverage
 
@@ -168,8 +168,8 @@ Any gate failure blocks the next formal stage. Critical gates include:
 
 The following are not formal values in this Step 1 draft:
 
-- Agent A-D concrete model version pins: `需要从 locked manifest 确认`.
-- Agent A-D full probe rationale fields: `需要从 locked manifest 确认`.
+- Agent A-C concrete model version pins: `需要从 locked manifest 确认`.
+- Agent A-C full probe rationale fields: `需要从 locked manifest 确认`.
 - Contract drafter model/version/temperature/prompt version/prompt hash: `需要从 locked manifest 确认`.
 - Judge-only model/version/temperature/prompt version/prompt hash: `需要从 locked manifest 确认`.
 - Appendix case counts for AndroidWorld, WorkArena, OSWorld-Verified, judge-only, maintenance update, and matched-budget controls: `需要从 locked manifest 确认`.

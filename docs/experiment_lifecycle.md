@@ -108,13 +108,13 @@ Failed formal preflight validation blocks the full run. Recovery is limited to r
 
 ## P0 Run Semantics
 
-The P0 planned record-slot count is 1600:
+The P0 planned record-slot count is 1200:
 
 ```text
-4 main domains x 100 case units x 4 agents
+4 main domains x 100 case units x 3 agents
 ```
 
-AgentDojo stores two episodes per record, benign and injected, for 800 AgentDojo episodes. The other three main domains store 400 episodes each. The main study stores 2000 episodes total.
+AgentDojo stores two episodes per record, benign and injected, for 600 AgentDojo episodes. The other three main domains store 300 episodes each. The main study stores 1500 episodes total.
 
 Before final result gate, every P0 record_slot has exactly one final state:
 

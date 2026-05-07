@@ -170,7 +170,7 @@ retry_attempt_count
 notes
 ```
 
-P0 denominator audit must be able to report attempted=1600 even when completed scored denominator `N` is smaller due to allowed infra exclusions.
+P0 denominator audit must be able to report attempted=1200 even when completed scored denominator `N` is smaller due to allowed infra exclusions.
 
 ## Paper Output Source Mapping
 

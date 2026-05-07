@@ -38,6 +38,8 @@ python -m evidence_system.cli.deploy_local_androidworld
 python -m evidence_system.cli.monitor
 python -m evidence_system.cli.collect_results
 python -m evidence_system.cli.resume_failed
+python -m evidence_system.cli.webarena_runtime reset
+python -m evidence_system.cli.webarena_runtime baseline-check
 ```
 
 Any `scripts/*.py` equivalent is a thin wrapper.
@@ -90,3 +92,5 @@ Deployment must be idempotent and must not overwrite formal raw logs, full resul
 `collect_results` preserves original machine path, run id, attempt id, config hash, git commit, raw logs, artifact manifests, LLM logs, and failure records. It must be repeatable without duplicate samples.
 
 `resume_failed` retries only recoverable infra/pre-run/logging failures under policy. It preserves all attempts and identifies exactly one final_attempt. It does not retry UNRESOLVE as a failure.
+
+`webarena_runtime reset` performs per-site WebArena environment reinitialization on the configured `webarena_vps` using the benchmark reset command declared in `configs/infra.yaml`. For the current original `web-arena-x/webarena` path, that command maps to the repo-local reset script that recreates the official site containers and reapplies base URL configuration. `webarena_runtime baseline-check` verifies container liveness, site reachability, and fixed non-LLM sentinels (including the shopping-admin review query and a map routing distance probe) so formal runs can distinguish environment drift from agent failure. `run_full` automatically runs a `with_reset=True` WebArena baseline-check once before the first `webarena_verified` batch executes in a non-plan-only full run and blocks the batch if the runtime check fails.

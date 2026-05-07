@@ -2,13 +2,13 @@
 
 ## Scope
 
-LLM logging covers Agent A-D calls, contract_drafter calls, judge_only diagnostic calls, and any future LLM role declared in config/manifest. It records audit and cost metadata. It does not fill `tab:cost`; `tab:cost` uses human-time logs only.
+LLM logging covers Agent A-C calls, contract_drafter calls, judge_only diagnostic calls, and any future LLM role declared in config/manifest. It records audit and cost metadata. It does not fill `tab:cost`; `tab:cost` uses human-time logs only.
 
 ## Configuration Source
 
 Provider, model, model version, API key environment variable name, temperature, max_tokens, timeout, retry, rate limit, prompt version, prompt hash, response metadata setting, and cost tracking setting are read from `configs/agents.yaml` and locked manifest. Formal run fails closed on disagreement.
 
-Values for Agent A-D, `contract_drafter`, and `judge_only` must not be hardcoded in code, tests, scorer, runner, paper output, or review packets. API key values are read from environment variables and are never logged.
+Values for Agent A-C, `contract_drafter`, and `judge_only` must not be hardcoded in code, tests, scorer, runner, paper output, or review packets. API key values are read from environment variables and are never logged.
 
 ## LLM Call Log Schema
 
@@ -31,7 +31,7 @@ Each call writes `llm_call/v1`:
   "phase": "...",
   "experiment_type": "...",
   "priority": "...",
-  "agent_id_or_role": "Agent A|Agent B|Agent C|Agent D|contract_drafter|judge_only",
+  "agent_id_or_role": "Agent A|Agent B|Agent C|contract_drafter|judge_only",
   "provider": "...",
   "model": "...",
   "model_version": "...",
@@ -69,7 +69,7 @@ Each call writes `llm_call/v1`:
 }
 ```
 
-For Agent A-D execution calls, run-centric fields (`run_id`, `record_slot_id`, `attempt_id`) are required. For contract-drafting calls, which happen before benchmark runs and before locked contract hashes exist, the required linkage fields are:
+For Agent A-C execution calls, run-centric fields (`run_id`, `record_slot_id`, `attempt_id`) are required. For contract-drafting calls, which happen before benchmark runs and before locked contract hashes exist, the required linkage fields are:
 
 ```text
 contract_draft_id

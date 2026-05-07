@@ -61,11 +61,11 @@ Appendix labels and named appendix sections:
 | `tab:denominator-audit` | Denominator audit | Attempted, infra/pre-run excluded, completed, agent-caused FAIL, notes | Completed totals explicit; other values are `\fillfromdata` |
 | `tab:main-results-B` | Case-resampling intervals | Lower CI, Upper CI, Width CI, Counted-only score CI, native score inside envelope | All empirical interval cells are `\fillfromdata` |
 | `tab:prediction-outcomes` | Pre-registered prediction outcomes | P1-P4 observed quantity and three-state outcome | Registered criteria explicit; observed values/outcomes are `\fillfromdata` |
-| `tab:main-results-C` | Directional pairwise matrix | A-B, A-C, A-D, B-C, B-D, C-D, non-identified pairs, all-domain diagnostics | Pair cells fallback to `?`; counts/diagnostics are `\fillfromdata` |
+| `tab:main-results-C` | Directional pairwise matrix | A-B, A-C, B-C, non-identified pairs, all-domain diagnostics | Pair cells fallback to `?`; counts/diagnostics are `\fillfromdata` |
 | `tab:pairwise-margins` | Pairwise dominance margins | One row per envelope-separated pair with margin and 95% case-cluster bootstrap interval | Row file required; fallback says fill from scored manifest |
 | `tab:top-unresolve-reasons` | Dominant `UNRESOLVE` reasons | Top reason by main domain | All values are `\fillfromdata` |
 | `tab:audit-rerun` | Stratified audit and rerun checks | Audit strata, agreement, countability kappa, taxonomy kappa, rerun agreement/pattern | Audit item counts explicit; metrics are `\fillfromdata` |
-| `tab:per-agent` | Per-agent envelopes | `[LB, UB]`, width, counted-only score for 4 agents x 4 domains | Row file required; fallback rows are `\fillfromdata` |
+| `tab:per-agent` | Per-agent envelopes | `[LB, UB]`, width, counted-only score for 3 agents x 4 domains | Row file required; fallback rows are `\fillfromdata` |
 | `tab:cost` | Human-time cost | Draft/lock min/case, score evidence min/record, tag `UNRESOLVE` min/record, setup notes | Setup notes explicit; time values are `\fillfromdata` |
 | `tab:contract-drafting-metadata` | Contract-drafting metadata | Drafter model, temperature, prompt version, visible/hidden inputs, human lock rule, source hierarchy | Metadata values for model/temperature/prompt are `\fillfromdata`; visible/hidden rules explicit |
 | `tab:update` | Maintenance micro-update | Proposed, selected, executed, checked, counted, `UNRESOLVE`, top reason | Proposed/selected/executed explicit; checked/counted/UNRESOLVE/top reason are `\fillfromdata` |
@@ -84,15 +84,15 @@ Main study quantities stated by the paper:
 
 - Main domains: AgentDojo, AppWorld, WebArena-Verified, tau3-bench retail.
 - Main case units: 100 per main domain, 400 total.
-- Main agents: Agent A, Agent B, Agent C, Agent D.
-- Main completed-record slots: 400 per main domain, 1600 total.
-- Main stored episodes: AgentDojo 800, each other main domain 400, 2000 total.
+- Main agents: Agent A, Agent B, Agent C.
+- Main completed-record slots: 300 per main domain, 1200 total.
+- Main stored episodes: AgentDojo 600, each other main domain 300, 1500 total.
 - AgentDojo has benign and injected paired arms, producing two episodes per record.
 - If an official split has fewer than 100 eligible verified cases, use all eligible cases and record the exception before main scoring.
 
 Values deliberately not supplied by the paper:
 
-- Concrete model identifiers for Agent A-D are configured from the provided OpenRouter mapping; exact version pins remain `需要从 locked manifest 确认`.
+- Concrete model identifiers for Agent A-C are configured from the provided OpenRouter mapping; exact version pins remain `需要从 locked manifest 确认`.
 - Seeds, deterministic hash salt, bootstrap seed, audit seed: `需要从 locked manifest 确认`.
 - Contract-drafting model, temperature, prompt version: `需要从 locked manifest 确认`.
 - Costs and trained annotator times: `需要从 scored manifest 填充`.
@@ -103,13 +103,13 @@ Values deliberately not supplied by the paper:
 
 TeX macro fallback groups:
 
-- Main measurement totals: `\ADJTotal`, `\APPTotal`, `\WAVTotal`, `\TAUTotal`, `\ALLTotal` are explicit fallback totals: 400, 400, 400, 400, 1600.
+- Main measurement totals: `\ADJTotal`, `\APPTotal`, `\WAVTotal`, `\TAUTotal`, `\ALLTotal` are explicit fallback totals: 300, 300, 300, 300, 1200.
 - Main measurement values: domain/all `Success`, `Fail`, `Unresolve`, `Coverage`, `CountedScore`, `Lower`, `Upper`, `Width` are `\fillfromdata`.
 - Case-resampling intervals: domain/all `LowerCI`, `UpperCI`, `WidthCI`, `CountedScoreCI`, `NativeInside` are `\fillfromdata`.
 - Denominator audit: domain/all `Attempted`, `InfraExcluded`, `AgentCausedFail` are `\fillfromdata`; completed uses total macros.
 - Contract-drafting metadata: `\ContractDrafterModel`, `\ContractDrafterTemperature`, `\ContractPromptVersion` are `\fillfromdata`.
 - Prediction outcomes: `\PoneValue`, `\PoneOutcome`, `\PtwoValue`, `\PtwoOutcome`, `\PthreeValue`, `\PthreeOutcome`, `\PfourValue`, `\PfourOutcome` are `\fillfromdata`.
-- Pairwise table cells: A-B/A-C/A-D/B-C/B-D/C-D fallback to `?`; non-identified pair counts and all-domain diagnostics are `\fillfromdata`.
+- Pairwise table cells: A-B/A-C/B-C fallback to `?`; non-identified pair counts and all-domain diagnostics are `\fillfromdata`.
 - Pairwise table colors/text: fallback visualization styles only, not results.
 - Top `UNRESOLVE` reasons: one macro per main domain, all `\fillfromdata`.
 - Audit/rerun metrics: domain/all audit strata, agreement, countability kappa, taxonomy kappa, rerun agreement, rerun pattern are `\fillfromdata`.

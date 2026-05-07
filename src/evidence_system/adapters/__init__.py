@@ -3,6 +3,7 @@
 CANONICAL_DOMAIN_IDS = (
     "agentdojo",
     "appworld",
+    "miniwob",
     "webarena_verified",
     "tau3_retail",
     "androidworld",

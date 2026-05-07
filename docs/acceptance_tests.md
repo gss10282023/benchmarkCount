@@ -103,7 +103,11 @@ Later schema tests must include valid and invalid fixtures for:
 
 Required tests:
 
-- P0 case unit without locked contract blocks preflight/full/scoring.
+- Step 4/5/6 engineering acceptance may use a non-formal 3 case units/domain vertical slice across the four main domains to prove draft, review, lock, manifest update, freeze/check-only, and LLM logging/cost linkage.
+- The 3/domain vertical slice must be smoke/dry_run/provisional output in temporary paths or `experiments/smoke/`; it cannot enter formal P0 scored records, formal metrics, paper outputs, or the formal `results/manifests/pre_scoring_freeze.json`.
+- For the 3/domain vertical slice, any declared slice case unit without locked contract metadata blocks the Step 4/5/6 engineering acceptance.
+- Formal P0 still requires 100 case units/domain and 400 main case units with locked contracts before the private/formal freeze; this is not a blocking condition for Step 4/5/6 engineering acceptance.
+- Formal P0 case unit without locked contract blocks preflight/full/scoring.
 - contract lock time after scoring start blocks scoring.
 - drafter forbidden inputs block contract use.
 - unsupported native-aligned requirement without stronger_measurement mapping blocks lock/freeze.
@@ -116,7 +120,7 @@ Required tests:
 - formal pre_scoring_freeze.json created during Step 5 development blocks formal progression.
 - preflight record not declared in the frozen P0 manifest enters formal scored records fails.
 - smoke or dry_run output enters formal scored records, metrics, tables, figures, appendix empirical outputs, or final report fails.
-- concrete Agent A-D, contract_drafter, or judge_only model id/version pin/temperature/prompt hash/API-key env value hardcoded in code, tests, runner, scorer, paper generation, or review packets fails unless the value is inside an explicitly synthetic config fixture.
+- concrete Agent A-C, contract_drafter, or judge_only model id/version pin/temperature/prompt hash/API-key env value hardcoded in code, tests, runner, scorer, paper generation, or review packets fails unless the value is inside an explicitly synthetic config fixture.
 
 ## Adapter Gates
 
