@@ -24,8 +24,9 @@ The workflow is:
 - `audit_summary.csv`: one row per benchmark/domain. This is the paper-facing
   summary table source.
 - `audit_items_tau3_retail.csv`, `audit_items_appworld.csv`,
-  `audit_items_agentdojo.csv`, and `audit_items_miniwob.csv`: item-level
-  adjudication ledgers for completed benchmark audits.
+  `audit_items_agentdojo.csv`, `audit_items_miniwob.csv`, and
+  `audit_items_androidworld.csv`: item-level adjudication ledgers for
+  completed benchmark audits.
 - `../../outputs/latex/audit_case_insights_tau3.tex`: selected appendix case
   insights. This file intentionally omits records whose only issue was our own
   scorer/checklist misalignment.
