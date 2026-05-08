@@ -1,0 +1,82 @@
+schema_version: case_checklist_v1
+case_unit_id: OsmAndFavorite
+domain: androidworld
+task_id: OsmAndFavorite
+native:
+  user_goal:
+    text: Add a favorite location marker for the requested location in the OsmAnd maps app.
+    support:
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::OsmAndFavorite.template
+  benchmark_success:
+    text: 'Native success is a single check: `OsmAndFavorite.is_successful` returns 1.0 iff the primary OsmAnd favorites GPX file exists and `_favorites_contains(..., location)` is true; otherwise it returns 0.0.'
+    support:
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::OsmAndFavorite.is_successful
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_FAVORITES_PATH
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_favorites_contains
+    - official/install/android_world/task_evals/task_eval.py::TaskEval.is_successful
+  checked_by:
+    text: Review the retained run `location` parameter against the retained post-run primary favorites GPX using the evaluator's waypoint-match rule.
+    support:
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::OsmAndFavorite.schema
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::OsmAndFavorite.is_successful
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_favorites_contains
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_waypoint_matches_location
+  decisive_artifacts:
+  - artifact: Task prompt or run metadata with the requested `location` parameter
+    question: What exact location string was requested for this run?
+    support:
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::OsmAndFavorite.schema
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::OsmAndFavorite.template
+  - artifact: Post-run copy of `/data/media/0/Android/data/net.osmand/files/favorites/favorites.gpx`
+    question: Does the file exist, and if so does any `<wpt>` match the requested location under the released evaluator rule?
+    support:
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_FAVORITES_PATH
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::OsmAndFavorite.is_successful
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_favorites_contains
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_waypoint_matches_location
+  success_if:
+  - text: The requested `location` is known, the retained post-run primary favorites GPX exists, and it contains at least one `<wpt>` whose `<name>` contains the location string or whose lat/lon are within 0.001° of coordinates parsed from that string or looked up from the official preloaded-location table.
+    support:
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::OsmAndFavorite.is_successful
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_favorites_contains
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_waypoint_matches_location
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_parse_coords
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_PRELOADED_MAP_LOCATIONS
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_coords_match
+  fail_if:
+  - text: Retained post-run evidence shows the primary favorites GPX file is absent.
+    support:
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_FAVORITES_PATH
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::OsmAndFavorite.is_successful
+  - text: The retained post-run primary favorites GPX exists and is readable, but no `<wpt>` matches the requested `location` under the released evaluator rule.
+    support:
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::OsmAndFavorite.is_successful
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_favorites_contains
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_waypoint_matches_location
+  undecided_if:
+  - text: The requested `location` parameter is not retained.
+    rationale: Without the run's location string, the evaluator's match rule cannot be applied to the retained GPX.
+  - text: No readable post-run copy of the primary favorites GPX is retained.
+    rationale: Without the evaluator-checked file contents, review cannot determine whether the native check would have found a matching waypoint or a missing file.
+stronger:
+  additional_conditions:
+  - id: coordinate_match_for_named_locations
+    text: 'Gap vs native: when the requested location is one of the official preloaded named places, require a `<wpt>` whose lat/lon are within 0.001° of that place''s official coordinates, not merely a `<name>` containing the string.'
+    rationale: The task asks for a favorite marker for the requested location, but the released evaluator accepts name containment before checking coordinates.
+    decisive_artifacts:
+    - artifact: Task prompt or run metadata with the requested `location` parameter
+      question: Is the requested location one of the official preloaded named places?
+      support:
+      - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::OsmAndFavorite.template
+      - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_PRELOADED_MAP_LOCATIONS
+    - artifact: Post-run copy of `/data/media/0/Android/data/net.osmand/files/favorites/favorites.gpx`
+      question: Does any saved waypoint have coordinates within 0.001° of that location's official coordinates?
+      support:
+      - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_FAVORITES_PATH
+      - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_PRELOADED_MAP_LOCATIONS
+      - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_coords_match
+    support:
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::OsmAndFavorite.template
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_PRELOADED_MAP_LOCATIONS
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_waypoint_matches_location
+    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/osmand.py::_coords_match
