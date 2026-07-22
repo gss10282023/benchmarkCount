@@ -1,0 +1,66 @@
+schema_version: case_checklist_v1
+case_unit_id: '585'
+domain: webarena_verified
+task_id: '585'
+native:
+  user_goal:
+    text: Submit a 5-star review for the recently purchased floor lamp using nickname "Emma Lopez," summary "Good purchase," and review text "I like it."
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Both configured evaluators must score 1.0: the final response must normalize to MUTATE/SUCCESS with null retrieved data, and the last matching POST to the product-review endpoint must match the specified form data and return status 302.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArena-Verified evaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then assigns task success only when every evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the parsed and normalized final response match task type MUTATE, status SUCCESS, and null retrieved data under AgentResponseEvaluator comparison?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the last matching POST event target /review/product/post/id/73063/, contain nickname="Emma Lopez", title="Good purchase", detail="I like it", and ratings[4]="20", and have response status 302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff AgentResponseEvaluator accepts the final MUTATE/SUCCESS response and NetworkEventEvaluator accepts the last matching review POST event with all configured URL, method, form-data, and response-status values; both evaluator scores are 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if the final response mismatches or errors under the expected MUTATE/SUCCESS response comparison.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: Fail if there is no matching review POST event, or if the last matching event mismatches any configured URL, method, form-data, or 302 response-status criterion; any evaluator failure or error makes the task score 0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided from retained evidence if agent_response.json or network.har is absent, unreadable, or incomplete enough that either evaluator outcome cannot be reconstructed, unless a retained official evaluator result already records failure or error.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+stronger:
+  additional_conditions:
+  - id: persisted_review_state
+    text: Beyond native scoring, require retained post-run shopping state to show that the intended floor-lamp review persisted with nickname "Emma Lopez," a 5-star rating, summary "Good purchase," and text "I like it."
+    rationale: The native evaluator checks a claimed-success response and a matching 302 POST event but does not inspect the post-run review state, so native success alone does not establish that the requested review persisted.
+    decisive_artifacts:
+    - artifact: Retained post-run shopping review record or product-review state export
+      question: Does the intended floor lamp have a persisted review with the requested nickname, 5-star rating, summary, and review text?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

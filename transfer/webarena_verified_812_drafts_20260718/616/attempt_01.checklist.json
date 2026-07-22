@@ -1,0 +1,107 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "616",
+  "domain": "webarena_verified",
+  "task_id": "616",
+  "native": {
+    "user_goal": {
+      "text": "Re-post the Thanksgiving turkey image from /f/pics to the funny forum using the image URL and the title \"from /f/pics\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the last URL/method-matching POST to ^__REDDIT__/submit.*$ with response status 302 and the specified forum, title, and image-URL form values.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator checks agent_response.json, NetworkEventEvaluator checks network.har, and TaskEvalResult.create combines their scores conjunctively.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the final response parse and normalize to the expected MUTATE task type and SUCCESS status without a structural comparison failure? For this non-retrieve task, retrieved_data is not value-compared.",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last POST candidate matching ^__REDDIT__/submit.*$ followed by status 302, with submission[forum]=10046, submission[title]=\"from /f/pics\", and submission[url]=\"__REDDIT__/submission_images/2e4fa0a328e653a97a7d07046291c298ef5b4e0d0c73a287f317ca86a8e8685f.jpg\" under evaluator normalization?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff both official checks score 1.0: the final response is accepted as MUTATE/SUCCESS, and the last matching submit POST has status 302 plus the expected forum ID, title, and Thanksgiving-turkey image URL.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either evaluator does not score 1.0, including a missing, malformed, or mismatching final response; no matching submit POST; a mismatch in the last matching POST's selected fields or status; or any evaluator error.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when agent_response.json or network.har is unavailable as retained review evidence, so the corresponding official check cannot be reconstructed; a retained artifact that itself yields a mismatch or evaluator error is failure.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_repost",
+        "text": "Require retained post-run Reddit state to confirm that the submission actually persists in funny/forum 10046 with title \"from /f/pics\" and the specified Thanksgiving-turkey image URL.",
+        "rationale": "The task asks for a repost, but the native NetworkEventEvaluator checks only a matching request and 302 response and does not inspect the resulting Reddit state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Reddit submission-state snapshot",
+            "question": "Does the persisted funny-forum submission have title \"from /f/pics\" and URL \"__REDDIT__/submission_images/2e4fa0a328e653a97a7d07046291c298ef5b4e0d0c73a287f317ca86a8e8685f.jpg\"?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

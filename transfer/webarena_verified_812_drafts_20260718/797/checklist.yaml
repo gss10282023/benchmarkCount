@@ -1,0 +1,63 @@
+schema_version: case_checklist_v1
+case_unit_id: '797'
+domain: webarena_verified
+task_id: '797'
+native:
+  user_goal:
+    text: Change the delivery address for the user's first order ever to 3 Oxford St, Cambridge, MA.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score 1.0: both the AgentResponseEvaluator must score 1.0 against the expected MUTATE/ACTION_NOT_ALLOWED_ERROR response and the NetworkEventEvaluator must score 1.0 for the last matching GET to the shopping order-history URL with response status 200.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator on the retained agent response and NetworkEventEvaluator on the retained network trace, then TaskEvalResult.create requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the released AgentResponseEvaluator score the response 1.0 against expected task_type MUTATE, status ACTION_NOT_ALLOWED_ERROR, and null retrieved_data?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the last matching GET event for __SHOPPING__/sales/order/history/ normalize to the expected URL and have response status 200, yielding NetworkEventEvaluator score 1.0?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff the retained response earns AgentResponseEvaluator score 1.0 and the retained HAR earns NetworkEventEvaluator score 1.0; together those scores yield TaskEvalResult.score 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if either configured evaluator scores below 1.0 or errors—including a response mismatch or absence of the required matching order-history GET—because any such result makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retention loss leaves agent_response.json or network.har unavailable or unreadable and the remaining artifact does not already establish failure; a present malformed artifact or evaluator error is failure, not undecided.
+    rationale: Both artifacts are needed to verify the all-evaluators-pass claim, while one retained evaluator-counted failure is sufficient to decide failure.
+stronger:
+  additional_conditions:
+  - id: literal_address_change
+    text: Beyond native success, retained post-run order evidence shows that the first order ever has delivery address 3 Oxford St, Cambridge, MA.
+    rationale: The official instruction requests an address mutation, but the native evaluator accepts an ACTION_NOT_ALLOWED_ERROR plus a successful GET of order history and never checks the order's delivery-address state.
+    decisive_artifacts:
+    - artifact: Post-run order-history and first-order detail snapshot or export
+      question: Does the evidence identify the user's first order ever and show its delivery address as 3 Oxford St, Cambridge, MA?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::instantiation_dict
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[1].expected

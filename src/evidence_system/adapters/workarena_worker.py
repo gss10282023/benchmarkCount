@@ -467,6 +467,7 @@ def request_openrouter_completion(
     max_tokens: int,
     timeout_seconds: int,
     retry: int,
+    provider_routing: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = {
         "model": model,
@@ -474,6 +475,8 @@ def request_openrouter_completion(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    if provider_routing:
+        payload["provider"] = dict(provider_routing)
     body = json.dumps(payload, ensure_ascii=True).encode("utf-8")
     headers = {
         "Authorization": f"Bearer {api_key}",

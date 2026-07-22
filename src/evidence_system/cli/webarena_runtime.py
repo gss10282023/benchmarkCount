@@ -6,23 +6,26 @@ import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
-import shlex
 import subprocess
 import time
 from typing import Any, Sequence
 
-from evidence_system.contracts.common import load_mapping, normalize_domain
+from evidence_system.contracts.common import load_mapping
 from evidence_system.orchestrator.jobs import InfraBenchmarkTarget, resolve_infra_target
+from evidence_system.webarena_sites import (
+    SITE_ORDER,
+    SlotIdentity,
+    WebArenaSiteController,
+    WebArenaSiteError,
+    load_site_lock,
+    run_verified_ssh_argv,
+    sites_for_agent_input,
+)
 
 
 DEFAULT_SITES = ("shopping", "shopping_admin", "reddit", "gitlab", "wikipedia", "map")
 DEFAULT_CONTAINER_NAMES = {
-    "shopping": "shopping",
-    "shopping_admin": "shopping_admin",
-    "reddit": "forum",
-    "gitlab": "gitlab",
-    "wikipedia": "wikipedia",
-    "map": "map",
+    site: f"webarena_verified_{site}" for site in DEFAULT_SITES
 }
 DEFAULT_TIMEOUT_SECONDS = 120
 MAP_TIMEOUT_SECONDS = 180
@@ -69,6 +72,12 @@ def build_parser() -> argparse.ArgumentParser:
         description=__doc__,
     )
     parser.add_argument("--infra-config", default="configs/infra.yaml")
+    parser.add_argument("--site-lock", default="configs/webarena_verified_sites.lock.json")
+    parser.add_argument(
+        "--machine-id",
+        default=None,
+        help="Select one configured WebArena VPS. Defaults to the first enabled target.",
+    )
     parser.add_argument("--json", action="store_true")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -77,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
         "reset",
         help="Reset selected WebArena site containers using the configured benchmark reset command.",
     )
-    reset_parser.add_argument("--json", action="store_true")
+    reset_parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
     _add_site_args(reset_parser)
     reset_parser.add_argument("--timeout-seconds", type=int, default=DEFAULT_TIMEOUT_SECONDS)
     reset_parser.add_argument("--map-timeout-seconds", type=int, default=MAP_TIMEOUT_SECONDS)
@@ -86,7 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
         "baseline-check",
         help="Run repeatable liveness and sentinel checks against the WebArena VPS runtime.",
     )
-    baseline_parser.add_argument("--json", action="store_true")
+    baseline_parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
     _add_site_args(baseline_parser)
     baseline_parser.add_argument("--timeout-seconds", type=int, default=DEFAULT_TIMEOUT_SECONDS)
     baseline_parser.add_argument("--map-timeout-seconds", type=int, default=MAP_TIMEOUT_SECONDS)
@@ -94,6 +103,50 @@ def build_parser() -> argparse.ArgumentParser:
         "--with-reset",
         action="store_true",
         help="Reset each selected site before running baseline checks.",
+    )
+
+    status_parser = subparsers.add_parser(
+        "site-status",
+        help="Verify digest-pinned images, loopback bindings, containers, and sentinels.",
+    )
+    status_parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    _add_site_args(status_parser)
+
+    slot_parser = subparsers.add_parser(
+        "slot-reset",
+        help="Atomically reset exactly the task sites and emit the required pre-slot receipt.",
+    )
+    slot_parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    slot_parser.add_argument("--slot-id", required=True)
+    slot_parser.add_argument("--task-id", required=True, type=int)
+    slot_parser.add_argument("--agent-id", required=True)
+    slot_parser.add_argument("--attempt-id", required=True, type=int)
+    slot_parser.add_argument("--seed", required=True, type=int)
+    slot_parser.add_argument("--agent-input", required=True)
+    slot_parser.add_argument("--receipt", required=True)
+
+    accept_parser = subparsers.add_parser(
+        "deployment-check",
+        help="Accept an already-running six-site deployment and emit an atomic receipt.",
+    )
+    accept_parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    accept_parser.add_argument("--receipt", required=True)
+    accept_parser.add_argument(
+        "--size-only",
+        action="store_true",
+        help="Skip the expensive full data SHA pass (never valid for final acceptance).",
+    )
+
+    deploy_parser = subparsers.add_parser(
+        "deploy",
+        help="Recreate all six pinned site containers, then verify login and sentinels.",
+    )
+    deploy_parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    deploy_parser.add_argument("--receipt", required=True)
+    deploy_parser.add_argument(
+        "--size-only",
+        action="store_true",
+        help="Skip the expensive full data SHA pass (never valid for final acceptance).",
     )
     return parser
 
@@ -112,7 +165,54 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    target = _load_webarena_target(args.infra_config)
+    target = _load_webarena_target(args.infra_config, machine_id=args.machine_id)
+    if args.command in {"site-status", "slot-reset", "deployment-check", "deploy"}:
+        try:
+            controller = _production_controller(target=target, site_lock_path=args.site_lock)
+            if args.command == "site-status":
+                payload = controller.status(args.site or SITE_ORDER)
+                payload["command"] = args.command
+            elif args.command == "slot-reset":
+                agent_input = _load_agent_input(args.agent_input)
+                selected_sites = sites_for_agent_input(agent_input, expected_task_id=int(args.task_id))
+                payload = controller.reset_slot(
+                    identity=SlotIdentity(
+                        slot_id=str(args.slot_id),
+                        task_id=int(args.task_id),
+                        agent_id=str(args.agent_id),
+                        attempt_id=int(args.attempt_id),
+                        seed=int(args.seed),
+                    ),
+                    sites=selected_sites,
+                    receipt_path=args.receipt,
+                )
+                payload["command"] = args.command
+            elif args.command == "deployment-check":
+                payload = controller.deployment_receipt(
+                    receipt_path=args.receipt,
+                    verify_full_data_sha256=not bool(args.size_only),
+                )
+                payload["command"] = args.command
+            else:
+                payload = controller.deploy_and_accept(
+                    receipt_path=args.receipt,
+                    verify_full_data_sha256=not bool(args.size_only),
+                )
+                payload["command"] = args.command
+        except (OSError, ValueError, json.JSONDecodeError, WebArenaSiteError) as exc:
+            payload = {
+                "schema_version": "webarena_verified_runtime_cli_error/v1",
+                "status": "fail",
+                "command": args.command,
+                "machine_id": target.machine_id,
+                "error": {"type": type(exc).__name__, "message": str(exc)},
+            }
+        if args.json:
+            print(json.dumps(payload, indent=2, sort_keys=True))
+        else:
+            _print_payload(payload)
+        return 0 if payload["status"] == "pass" else 1
+
     sites = _resolve_sites(target)
     selected = [sites[site] for site in (args.site or list(_configured_sites(target)))]
 
@@ -139,9 +239,50 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0 if payload["status"] == "ok" else 1
 
 
-def _load_webarena_target(infra_config_path: str | Path) -> InfraBenchmarkTarget:
+def _load_webarena_target(
+    infra_config_path: str | Path,
+    *,
+    machine_id: str | None = None,
+) -> InfraBenchmarkTarget:
     infra = load_mapping(infra_config_path)
+    if machine_id:
+        matching = [
+            machine
+            for machine in list(infra.get("machines") or [])
+            if str(machine.get("machine_id") or "") == machine_id
+        ]
+        if len(matching) != 1:
+            raise ValueError(f"infra config must contain exactly one machine_id={machine_id!r}")
+        infra = dict(infra)
+        infra["machines"] = matching
     return resolve_infra_target("webarena_verified", infra)
+
+
+def _production_controller(
+    *,
+    target: InfraBenchmarkTarget,
+    site_lock_path: str | Path,
+) -> WebArenaSiteController:
+    lock = load_site_lock(site_lock_path)
+    machine = dict(target.benchmark_config.get("site_controller") or {})
+    return WebArenaSiteController(
+        site_lock=lock,
+        run_remote=lambda argv, timeout: _run_remote(
+            target,
+            argv,
+            timeout_seconds=timeout,
+        ),
+        machine_id=target.machine_id,
+        ssh_host=target.ssh_host,
+        ssh_host_fingerprint=str(machine.get("ssh_host_fingerprint") or "") or None,
+    )
+
+
+def _load_agent_input(path: str | Path) -> dict[str, Any]:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("agent input must be a JSON object")
+    return payload
 
 
 def _configured_sites(target: InfraBenchmarkTarget) -> tuple[str, ...]:
@@ -195,11 +336,14 @@ def _reset_sites(
                 timeout_seconds=site_timeout,
             )
         else:
-            completed = _docker_exec(
-                target,
-                site.container_name,
-                ["env-ctrl", "init"],
-                timeout_seconds=site_timeout,
+            completed = subprocess.CompletedProcess(
+                ["slot-reset"],
+                returncode=2,
+                stdout="",
+                stderr=(
+                    "legacy reset is disabled: use slot-reset with task/agent identity, "
+                    "agent_input.json, and an atomic receipt path"
+                ),
             )
         duration_seconds = round(time.monotonic() - started, 3)
         ok = completed.returncode == 0
@@ -447,35 +591,16 @@ def _run_remote(
     *,
     timeout_seconds: int,
 ) -> subprocess.CompletedProcess[str]:
-    remote_command = shlex.join([str(item) for item in argv])
-    ssh_command = [
-        "ssh",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "StrictHostKeyChecking=no",
-        "-i",
-        target.ssh_key_path,
-        "-p",
-        str(target.ssh_port),
-        f"{target.ssh_user}@{target.ssh_host}",
-        remote_command,
-    ]
-    try:
-        return subprocess.run(
-            ssh_command,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=max(1, int(timeout_seconds)),
-        )
-    except subprocess.TimeoutExpired as exc:
-        return subprocess.CompletedProcess(
-            ssh_command,
-            returncode=124,
-            stdout=(exc.stdout or ""),
-            stderr=((exc.stderr or "") + f"\ncommand timed out after {timeout_seconds}s").strip(),
-        )
+    controller_config = dict(target.benchmark_config.get("site_controller") or {})
+    return run_verified_ssh_argv(
+        host=target.ssh_host,
+        user=target.ssh_user,
+        port=target.ssh_port,
+        key_path=target.ssh_key_path,
+        expected_ed25519_fingerprint=str(controller_config.get("ssh_host_fingerprint") or ""),
+        argv=argv,
+        timeout=timeout_seconds,
+    )
 
 
 def _homepage_url(site: WebArenaRuntimeSite) -> str:
@@ -488,7 +613,9 @@ def _homepage_url(site: WebArenaRuntimeSite) -> str:
 def _print_payload(payload: dict[str, Any]) -> None:
     print(f"status: {payload['status']}")
     print(f"command: {payload['command']}")
-    print(f"machine_id: {payload['machine_id']}")
+    machine = payload.get("machine")
+    nested_machine_id = machine.get("machine_id") if isinstance(machine, dict) else None
+    print(f"machine_id: {payload.get('machine_id') or nested_machine_id or 'unknown'}")
     if payload.get("with_reset") is not None:
         print(f"with_reset: {payload['with_reset']}")
     reset = payload.get("reset")

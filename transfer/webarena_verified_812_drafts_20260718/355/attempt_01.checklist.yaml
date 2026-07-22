@@ -1,0 +1,65 @@
+schema_version: case_checklist_v1
+case_unit_id: '355'
+domain: webarena_verified
+task_id: '355'
+native:
+  user_goal:
+    text: Go to the page showing kids" bedding products sorted by descending price.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Both configured evaluators score 1.0: the final response passes the NAVIGATE/SUCCESS comparison, and the selected last navigation event passes the expected GET/200 shopping-URL comparison for `/home-kitchen/bedding/kids-bedding.html` with `product_list_dir=desc`; TaskEvalResult then scores 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks the retained final response, NetworkEventEvaluator checks the retained network trace, and TaskEvalResult requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: When parsed and normalized, does the final response have the expected NAVIGATE task type and SUCCESS status without a structural comparison failure?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last evaluator-visible navigation event normalize to a GET/200 request at the kids-bedding path with `product_list_dir=desc`?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: Success iff AgentResponseEvaluator scores 1.0 for the NAVIGATE/SUCCESS response and NetworkEventEvaluator scores 1.0 for the required last navigation event; both scores must be 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native success fails if either evaluator scores other than 1.0 or errors, including a malformed or mismatching final response, no qualifying last navigation event, or a last navigation event that mismatches any required URL, query, method, or response-status criterion.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only when agent_response.json or network.har is missing or incomplete enough that its evaluator-visible input cannot be reconstructed; a present malformed response or complete trace with no match is failure, not undecided.
+    rationale: Both retained inputs are necessary to independently apply the two-evaluator all-pass rule.
+stronger:
+  additional_conditions:
+  - id: verify_price_sort_key
+    text: Beyond native success, retained post-run evidence must establish that price is the active sort key, not merely that the direction is descending.
+    rationale: The instruction requires descending price, but the released network expectation asserts only `product_list_dir=desc` and does not assert a price sort key.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the final kids-bedding navigation request or its retained response content establish a price sort key together with descending direction?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent.response_content
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.query_params

@@ -1,0 +1,114 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "37",
+  "domain": "webarena_verified",
+  "task_id": "37",
+  "native": {
+    "user_goal": {
+      "text": "Using the OSRM direction service, determine whether the police station in Pittsburgh is reachable by car from Gates Building at CMU within one hour, and return true iff it is.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "The task succeeds only when its sole configured AgentResponseEvaluator scores 1.0: the response normalizes to task_type RETRIEVE, status SUCCESS, and retrieved_data exactly the unordered singleton [true]; TaskEvalResult then assigns score 1.0 because all configured evaluator scores are 1.0.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator ingests the response and network trace, then AgentResponseEvaluator normalizes and structurally compares the expected response fields, using an exact unordered comparison for retrieved_data; TaskEvalResult composes all configured evaluator scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained final response parse and normalize without evaluator error to task_type RETRIEVE, status SUCCESS, and retrieved_data exactly [true] under the boolean schema and unordered exact comparison?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the required HAR parse into a NetworkTrace so evaluation reaches the configured evaluator without an input or context-construction error? Its route contents are not compared by this task's evaluator.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/types/eval.py::TaskEvalContext"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The network trace is successfully ingested and the sole AgentResponseEvaluator scores 1.0 because the response normalizes to the exact expected mapping RETRIEVE / SUCCESS / [true]; consequently every configured evaluator score is 1.0 and TaskEvalResult.score is 1.0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The response is malformed, causes normalization or comparison error, has a mismatching normalized object structure, task_type, or status, or has retrieved_data that is missing, null, or not exactly the singleton true; the AgentResponseEvaluator then does not score 1.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "A missing, unreadable, or invalid required input that causes evaluation or orchestration to error also fails natively: the resulting TaskEvalResult has score 0.0 rather than 1.0.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecidable only when retention loss leaves neither the complete response and trace actually evaluated nor an official TaskEvalResult recording their score. This differs from evidence that the run itself supplied a missing or malformed artifact, which is failure.",
+        "rationale": "Without the evaluated inputs or their official result, a reviewer cannot reconstruct the native score; network evidence alone cannot reveal the final-response comparison outcome."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "osrm_route_evidence",
+        "text": "Beyond native success, network.har shows a successful OSRM driving-route request for Gates Building at CMU to the Pittsburgh police station whose response indicates a driving time of at most one hour.",
+        "rationale": "The official task expressly requires using OSRM to determine reachability, while the sole configured evaluator checks only the self-reported final response and includes no NetworkEventEvaluator to verify the route request or duration.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Does the trace contain OSRM request-and-response evidence for the named driving route, with the returned duration at most 3,600 seconds?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

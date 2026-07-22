@@ -70,8 +70,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--reasoning-effort",
-        default="high",
-        choices=["minimal", "low", "medium", "high"],
+        default="xhigh",
+        choices=["minimal", "low", "medium", "high", "xhigh"],
         help="Reasoning effort passed to draft_case_checklist.py",
     )
     parser.add_argument(

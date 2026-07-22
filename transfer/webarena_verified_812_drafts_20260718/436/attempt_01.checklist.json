@@ -1,0 +1,106 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "436",
+  "domain": "webarena_verified",
+  "task_id": "436",
+  "native": {
+    "user_goal": {
+      "text": "Reorder the mattress foundation the user ordered around February or March 2023 and later cancelled.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "The task succeeds only if both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the last matching cart-add POST for product 14854 with quantity 1 and HTTP response status 200.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator checks agent_response.json, NetworkEventEvaluator checks network.har, and TaskEvalResult.create requires every evaluator score to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "After official parsing and normalization, does the final response match task_type MUTATE, status SUCCESS, and retrieved_data null as compared by AgentResponseEvaluator?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last POST matching ^__SHOPPING__/checkout/cart/add/uenc/.*/product/14854$ recorded with parsed post_data item=14854 and qty=1 and response status 200?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/tracing.py::NetworkEvent.post_data"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both checks pass: the normalized final response is accepted as MUTATE/SUCCESS, and the last URL-and-method-matching network event satisfies the expected product-14854 cart-add request, quantity 1, and HTTP 200 comparison.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "With complete artifacts, fail if either the final response comparison fails or the last matching cart-add event is absent or mismatches the expected URL, method, item, quantity, or response status; a present input that causes either evaluator to error also yields task score 0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The retained evidence is undecidable if agent_response.json or network.har is absent, unreadable, or known to be truncated such that the final response or required request-and-response fields cannot be established; the other artifact alone is insufficient.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ],
+        "rationale": "Native success is conjunctive and requires evidence for both evaluator inputs."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "new_order_created",
+        "text": "Beyond native success, retained evidence must show that checkout created a new order for one unit of product 14854; a successful add-to-cart request alone is insufficient.",
+        "rationale": "The user asks to reorder the cancelled item, while the released network check stops at the cart-add endpoint and can pass without an order being submitted or created.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Beyond the cart-add event, does the trace show a successful checkout or order-creation request whose response confirms creation of a new order for the cart containing product 14854?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected.url",
+          "derived/task.json::eval[1].expected.post_data"
+        ]
+      }
+    ]
+  }
+}

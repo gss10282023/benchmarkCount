@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '352'
+domain: webarena_verified
+task_id: '352'
+native:
+  user_goal:
+    text: Navigate to the shopping page showing nutrition bars and drinks, sorted by ascending price.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response as NAVIGATE/SUCCESS, and NetworkEventEvaluator accepts the last navigation event as a GET returning 200 for the nutrition-bars-and-drinks page with product_list_order=price.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order; TaskEvalResult.create conjoins their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: When parsed and normalized by AgentResponseEvaluator, does the response match the configured NAVIGATE/SUCCESS non-retrieve response structure and yield score 1.0?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last evaluator-visible navigation event normalize to a GET with status 200 for __SHOPPING__/health-household/diet-sports-nutrition/nutrition-bars-drinks.html and product_list_order=price, yielding NetworkEventEvaluator score 1.0?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: Success iff AgentResponseEvaluator scores 1.0 on agent_response.json and NetworkEventEvaluator scores 1.0 on network.har; their conjunction makes TaskEvalResult.score equal 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if either evaluator scores 0 or errors, including an invalid or mismatching response, no last navigation event, or a last navigation event that mismatches the configured URL, query, GET method, or 200 status; any component score below 1.0 makes the task score 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only if post-run retention omits or corrupts agent_response.json or network.har so the actual evaluator input and result cannot be recovered; a malformed artifact known to have been evaluated is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._create_eval_error_result
+stronger:
+  additional_conditions:
+  - id: verify_visible_ascending_price_order
+    text: Beyond native scoring, retained final-page evidence must show the nutrition-bars-and-drinks product cards ordered from lowest to highest displayed price, with ties allowed.
+    rationale: The official intent requires ascending price order, while the native network expectation names only the price sort key and compares no response content or displayed product-price sequence.
+    decisive_artifacts:
+    - artifact: Retained final-page DOM snapshot or full-page screenshot
+      question: Are the nutrition-bars-and-drinks product cards ordered by nondecreasing displayed price?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

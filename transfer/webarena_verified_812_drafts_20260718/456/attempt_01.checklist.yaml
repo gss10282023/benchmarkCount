@@ -1,0 +1,82 @@
+schema_version: case_checklist_v1
+case_unit_id: '456'
+domain: webarena_verified
+task_id: '456'
+native:
+  user_goal:
+    text: Disable the Cora Pant product on the shopping-admin site because of quality issues.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the last matching Cora Pant save POST with product[status]=2 and response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order, then TaskEvalResult.create applies the all-scores-equal-1.0 composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: 'Does the response produce the accepted normalized object: task_type (or performed_operation) MUTATE, status SUCCESS, and retrieved_data normalized to null, with error_details omitted so it causes neither an evaluator error nor an extra normalized key?'
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last POST event whose normalized URL matches ^__SHOPPING_ADMIN__/catalog/product/save/id/1840/type/(simple|configurable)/store/0/set/\d+/back/edit$ recorded with parsed product[status]=2 and response status 302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'AgentResponseEvaluator scores 1.0: the response parses to an object whose evaluator-normalized comparison matches task_type=MUTATE, status=SUCCESS, and retrieved_data=null; error_details is absent.'
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+  - text: 'NetworkEventEvaluator scores 1.0: the selected last URL-and-method-matching event has the configured URL, POST method, parsed product[status]=2, and response status 302.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Both component scores are simultaneously 1.0, yielding TaskEvalResult.score=1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: AgentResponseEvaluator fails or errors—for example, required normalized response fields mismatch, the response is not parseable as an accepted object, or error_details is supplied—so at least one component score is not 1.0 and the task score is 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: NetworkEventEvaluator fails or errors because no matching POST exists, or because the last matching POST has the wrong status or product[status] value; then at least one component score is not 1.0 and the task score is 0.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Evidence review is undecided only when retention does not establish the runtime contents of agent_response.json or network.har and no retained official component result resolves the missing check; an artifact demonstrably evaluated as missing or malformed is a failure, not undecided.
+    rationale: Both retained runtime inputs are needed to apply the two-component native rule, while the released scorer treats an actual evaluator error as score 0.0.
+stronger:
+  additional_conditions:
+  - id: verify_persisted_disabled_state
+    text: Beyond native scoring, retained post-run shopping-admin evidence must show that Cora Pant (catalog product 1840) is actually in the disabled state.
+    rationale: The official instruction claims a persistent site-state change, but the released native evaluator checks only the final response and a matching network request/302 response; it does not inspect the resulting product state.
+    decisive_artifacts:
+    - artifact: Post-run shopping-admin product-detail capture or product-state export
+      question: Does the retained post-run record identify Cora Pant (catalog product 1840) and show its status as disabled?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::instantiation_dict.product
+      - derived/task.json::eval[1].expected.url
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

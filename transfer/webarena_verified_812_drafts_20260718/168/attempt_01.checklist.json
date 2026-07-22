@@ -1,0 +1,114 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "168",
+  "domain": "webarena_verified",
+  "task_id": "168",
+  "native": {
+    "user_goal": {
+      "text": "Return the project ID(s) of the user's personal GitLab projects that have more than 100 stars.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success requires the sole AgentResponseEvaluator and thus TaskEvalResult to score 1.0: the submitted response must parse and normalize to an evaluator-visible object matching task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data None.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator, which parses and normalizes the response, structurally compares it with the configured expected response, and supplies the sole score used for the task score.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the exact submitted response parse and normalize under the official evaluator to task_type RETRIEVE, status NOT_FOUND_ERROR, retrieved_data None, and no evaluator-visible structural mismatch?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the run trace present and parseable so evaluation-context construction completes without a network-trace or configuration error?",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Evaluation completes without error, the response comparison produces no failing assertions against RETRIEVE, NOT_FOUND_ERROR, and no retrieved data, and both the sole evaluator score and TaskEvalResult.score are 1.0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The actual evaluated response is known and its parsed, normalized value has any structural or value mismatch, including a wrong or missing task type/status or nonempty retrieved data; the AgentResponseEvaluator then scores 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Response or HAR parsing, context construction, orchestration, or evaluator execution produces an evaluation error; TaskEvalResult then has score 0.0 rather than native success.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The retained evidence does not establish the exact response and trace supplied to evaluation, or whether evaluation completed—for example, a required artifact is missing or corrupted only in the retained bundle and no authentic tied TaskEvalResult is available.",
+        "rationale": "Loss of post-run evidence cannot distinguish an evaluator-counted failure from a successful run whose decisive artifacts were not retained."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "corroborate_not_found_with_gitlab_state",
+        "text": "Beyond native scoring, require network.har to corroborate the NOT_FOUND_ERROR with successful, exhaustive GitLab responses covering all pages of the authenticated user's personal projects and showing that none has more than 100 stars.",
+        "rationale": "The instruction asks for qualifying project IDs, but the released case expects NOT_FOUND_ERROR with no data and its sole evaluator checks only the final response; native success therefore does not establish that the no-result claim is true in GitLab.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Do retained GitLab response bodies cover all pages of the authenticated user's personal projects, expose their IDs and star counts, and establish that no project exceeds 100 stars?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[0]",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

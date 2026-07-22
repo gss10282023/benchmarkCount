@@ -1,0 +1,123 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "555",
+  "domain": "webarena_verified",
+  "task_id": "555",
+  "native": {
+    "user_goal": {
+      "text": "Use GitLab's Web IDE to create and commit `funny_pic/urls.json` in the `gimmiethat.space` repository's default branch; the file must be a JSON object whose `urls` array contains the full URLs of the five most recent `memes` forum posts, newest to oldest.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is `TaskEvalResult.score == 1.0`: both the `AgentResponseEvaluator` and `NetworkEventEvaluator` scores must equal 1.0.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "`AgentResponseEvaluator` checks the retained final response; `NetworkEventEvaluator` checks evaluation events parsed from the HAR; `TaskEvalResult.create` composes their scores conjunctively.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the response pass the evaluator's parsed and normalized structural comparison against the configured `MUTATE`/`SUCCESS` response?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last matching GitLab commit POST pass every configured URL, method, response-status, branch, action, path, and JSON-content comparison?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The retained final response yields `AgentResponseEvaluator` score 1.0 against the configured `task_type=MUTATE`, `status=SUCCESS`, and null retrieved-data expectation under the evaluator's normalization rules.",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "The last matching POST to `__GITLAB__/api/v4/projects/byteblaze%2Fgimmiethat.space/repository/commits` has response status 201 and matching selected post data: `branch=main`, `actions[0].action=create`, `actions[0].file_path=funny_pic/urls.json`, `actions[1].action=null`, and JSON-normalized `actions[0].content` with the configured ordered URLs for posts 127991, 127990, 127989, 127988, and 127987.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure is established if the intact final response produces an `AgentResponseEvaluator` score other than 1.0 or an evaluator error.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "Native failure is established if the intact HAR has no matching commit POST, or its last matching POST fails any configured comparison, produces an evaluator error, or otherwise gives `NetworkEventEvaluator` a score other than 1.0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "No intact evidence already establishes a failing evaluator, but `agent_response.json` or `network.har` is missing, truncated, or unreadable, so both required evaluator scores cannot be reconstructed.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "web_ide_provenance",
+        "text": "Beyond native success, retained browser evidence shows that the accepted commit was made through a GitLab Web IDE session.",
+        "rationale": "The instruction explicitly requires the Web IDE, while the configured network check has no Web IDE route, referrer, or header criterion and therefore verifies the commit API event without proving that UI provenance.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Does the trace contain Web IDE navigation, document, referrer, or session evidence attributable to the accepted commit request?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

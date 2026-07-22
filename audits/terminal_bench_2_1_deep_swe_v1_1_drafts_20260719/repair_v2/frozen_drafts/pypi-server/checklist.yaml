@@ -1,0 +1,80 @@
+schema_version: case_checklist_v1
+case_unit_id: pypi-server
+domain: terminal_bench_2_1
+task_id: terminal-bench/pypi-server
+native:
+  user_goal:
+    text: Create a Python package named `vectorops` at version `0.1.0`, build it, host it on a local PyPI server on port 8080, and expose `dotproduct` from the package root so `pip install --index-url http://localhost:8080/simple vectorops==0.1.0` works and the function runs correctly.
+    support:
+    - official/instruction.md::1-9
+  benchmark_success:
+    text: Native success is that the official verifier's pytest run passes `test_api`, which installs `vectorops==0.1.0` from `http://localhost:8080/simple`, runs `pip show vectorops`, imports `vectorops`, and passes all four `dotproduct` assertions.
+    support:
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::23-31
+    - official/tests/test_outputs.py::49-62
+    - official/tests/test_outputs.py::65-87
+  checked_by:
+    text: Task-specific official verifier `official/tests/test.sh`, which runs `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`.
+    support:
+    - official/tests/test.sh::18-23
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the official pytest run record `test_api` as passed or failed?
+    support:
+    - case_packet.md::61-72
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::65-87
+  - artifact: verifier/test-stdout.txt
+    question: Does verifier stdout show the `pip install --index-url http://localhost:8080/simple vectorops==0.1.0` step, the `pip show vectorops` step, and any resulting success or failure within `test_api`?
+    support:
+    - case_packet.md::61-72
+    - official/tests/test_outputs.py::23-31
+    - official/tests/test_outputs.py::49-62
+  - artifact: verifier/test-stderr.txt
+    question: If the verifier did not pass, does stderr show the subprocess, import, or assertion failure that caused `test_api` to fail?
+    support:
+    - case_packet.md::61-72
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::51-52
+    - official/tests/test_outputs.py::81-87
+  success_if:
+  - text: Retained verifier evidence establishes that the official pytest invocation passed `test_api`, including successful installation of `vectorops==0.1.0` from `http://localhost:8080/simple`, successful `pip show vectorops`, successful import of `vectorops`, and all four `dotproduct` assertions passing.
+    support:
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::49-62
+    - official/tests/test_outputs.py::81-87
+  fail_if:
+  - text: Retained verifier evidence establishes that the official pytest invocation failed `test_api`.
+    support:
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::65-87
+  - text: Verifier stdout or stderr shows `test_api` hit a failing install from `http://localhost:8080/simple`, a failing `pip show vectorops`, an import failure for `vectorops`, or a failing `dotproduct` assertion.
+    support:
+    - official/tests/test_outputs.py::49-62
+    - official/tests/test_outputs.py::81-87
+  undecided_if:
+  - text: The retained verifier artifacts are missing or too incomplete to determine whether `test_api` passed or failed, and they do not independently establish an install, `pip show`, import, or assertion failure.
+    support:
+    - case_packet.md::61-72
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::49-87
+stronger:
+  additional_conditions:
+  - id: root_init_py_requirement
+    text: Beyond native scoring, retained source or package artifacts show that `dotproduct` is exposed from the package root `__init__.py`, matching the instruction's explicit `from vectorops import dotproduct` requirement; the native verifier only checks `import vectorops` and `v.dotproduct(...)` at runtime.
+    rationale: The official instruction specifically requires package-root `__init__.py` exposure, but the released test does not inspect file placement and only verifies runtime access through the imported package object.
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: Do retained source-tree or built-package artifacts show `vectorops/__init__.py` defining or re-exporting callable `dotproduct`?
+      support:
+      - case_packet.md::61-72
+      - official/instruction.md::6-9
+    - artifact: agent/trajectory.json
+      question: If final source files are not otherwise retained, does the recorded trajectory show `vectorops/__init__.py` exporting `dotproduct`?
+      support:
+      - case_packet.md::61-72
+      - official/instruction.md::6-9
+    support:
+    - official/instruction.md::6-9
+    - official/tests/test_outputs.py::81-87

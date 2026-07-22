@@ -5,6 +5,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -41,10 +42,18 @@ EXAMPLE_CASE_PACKET_PATH = (
 sys.path.insert(0, str(REPO_ROOT))
 
 checklist_guardrails = importlib.import_module("neurips_ed_track_minimal.checklist_guardrails")
+checklist_validator = importlib.import_module(
+    "neurips_ed_track_minimal.scripts.checklist_validator"
+)
 scorer = importlib.import_module("neurips_ed_track_minimal.scripts.score_evidence_with_codex")
+claude_scorer = importlib.import_module(
+    "neurips_ed_track_minimal.scripts.score_evidence_with_claude"
+)
 case_locks = importlib.import_module("neurips_ed_track_minimal.scripts.update_case_locks")
 drafter = importlib.import_module("neurips_ed_track_minimal.scripts.draft_case_checklist")
 openrouter_batch_scorer = importlib.import_module("neurips_ed_track_minimal.scripts.run_openrouter_score_batch")
+score_batch = importlib.import_module("neurips_ed_track_minimal.scripts.run_agentdojo_score_batch")
+pending_score_batch = importlib.import_module("neurips_ed_track_minimal.scripts.run_pending_score_batch")
 
 
 def test_evidence_score_schema_is_structured_output_compatible() -> None:
@@ -167,6 +176,259 @@ def test_draft_falls_back_to_shared_openrouter_key(monkeypatch: pytest.MonkeyPat
     assert env_name == "OPENROUTER_API_KEY"
 
 
+def test_draft_codex_defaults_and_auto_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    for env_name in (
+        "OPENROUTER_DRAFT_API_KEY",
+        "OPENROUTER_API_KEY",
+        "OPENAI_API_KEY",
+    ):
+        monkeypatch.delenv(env_name, raising=False)
+    monkeypatch.setattr(drafter.shutil, "which", lambda name: "/usr/local/bin/codex")
+
+    provider = drafter.resolve_provider("auto", None)
+
+    assert provider == "codex"
+    assert drafter.resolve_model(provider, None) == "gpt-5.4"
+    assert drafter.resolve_reasoning_effort(provider, None) == "xhigh"
+    assert drafter.resolve_model("openrouter", None) == "openai/gpt-5.4"
+    assert drafter.resolve_reasoning_effort("openrouter", None) == "xhigh"
+
+
+def test_score_codex_defaults_are_gpt_5_4_xhigh_without_fast_mode() -> None:
+    assert scorer.DEFAULT_SCORE_MODEL == "gpt-5.4"
+    assert scorer.DEFAULT_SCORE_REASONING_EFFORT == "xhigh"
+    assert scorer.DEFAULT_SCORE_SERVICE_TIER == "default"
+    assert score_batch.DEFAULT_MODEL == "gpt-5.4"
+    assert score_batch.DEFAULT_REASONING_EFFORT == "xhigh"
+
+
+def test_score_claude_is_opt_in_sonnet_high_and_read_only() -> None:
+    assert claude_scorer.DEFAULT_SCORE_MODEL == "sonnet"
+    assert claude_scorer.DEFAULT_SCORE_REASONING_EFFORT == "high"
+
+    command = claude_scorer.build_claude_command(
+        model_schema={"type": "object"},
+        prompt="score",
+        model=claude_scorer.DEFAULT_SCORE_MODEL,
+        reasoning_effort=claude_scorer.DEFAULT_SCORE_REASONING_EFFORT,
+    )
+
+    assert command[:2] == ["claude", "--print"]
+    assert command[command.index("--model") + 1] == "sonnet"
+    assert command[command.index("--effort") + 1] == "high"
+    assert "--safe-mode" in command
+    assert "--no-session-persistence" in command
+    assert command[command.index("--permission-mode") + 1] == "dontAsk"
+    assert command[command.index("--tools") + 1] == "Read,Glob,Grep"
+    assert "--bare" not in command
+
+
+def test_score_claude_parses_schema_bound_output() -> None:
+    score, envelope = claude_scorer.parse_claude_json_output(
+        json.dumps(
+            {
+                "type": "result",
+                "subtype": "success",
+                "structured_output": {"native": {}, "stronger": {}},
+            }
+        )
+    )
+
+    assert score == {"native": {}, "stronger": {}}
+    assert envelope["subtype"] == "success"
+
+
+def test_score_claude_forces_login_auth_instead_of_api_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["command"] = command
+        captured["env"] = kwargs["env"]
+        return SimpleNamespace(returncode=0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(claude_scorer.shutil, "which", lambda name: "/bin/claude")
+    monkeypatch.setattr(claude_scorer.subprocess, "run", fake_run)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "must-not-be-used")
+    monkeypatch.setenv("CLAUDE_CODE_USE_BEDROCK", "1")
+    monkeypatch.setenv("HOME", str(tmp_path / "login-home"))
+
+    result = claude_scorer.run_claude(
+        workspace_root=tmp_path,
+        model_schema={"type": "object"},
+        prompt="score",
+        model="sonnet",
+        reasoning_effort="high",
+        claude_timeout_seconds=600,
+    )
+
+    assert result.returncode == 0
+    child_env = captured["env"]
+    assert isinstance(child_env, dict)
+    assert "ANTHROPIC_API_KEY" not in child_env
+    assert "CLAUDE_CODE_USE_BEDROCK" not in child_env
+    assert child_env["HOME"] == str(tmp_path / "login-home")
+
+
+def test_score_codex_command_is_isolated_and_structured(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(scorer.shutil, "which", lambda name: "/usr/local/bin/codex")
+    monkeypatch.setattr(scorer.subprocess, "run", fake_run)
+
+    result = scorer.run_codex(
+        workspace_root=tmp_path,
+        schema_path=tmp_path / "schema.json",
+        prompt="score",
+        model="gpt-5.6-sol",
+        reasoning_effort="xhigh",
+        service_tier="fast",
+        sandbox="read-only",
+        out_json_path=tmp_path / "score.json",
+        codex_timeout_seconds=600,
+    )
+
+    command = captured["command"]
+    assert isinstance(command, list)
+    assert result.returncode == 0
+    assert command[:2] == ["codex", "exec"]
+    assert "--ephemeral" in command
+    assert "--ignore-user-config" in command
+    assert command[command.index("--sandbox") + 1] == "read-only"
+    assert command[command.index("--model") + 1] == "gpt-5.6-sol"
+    assert 'model_reasoning_effort="xhigh"' in command
+    assert command[command.index("--output-schema") + 1].endswith("schema.json")
+
+
+def test_pending_score_resume_inherits_source_model_settings() -> None:
+    assert pending_score_batch.resolve_resume_model_settings(
+        requested_model=None,
+        requested_reasoning_effort=None,
+        source_plan={"model": "gpt-source", "reasoning_effort": "medium"},
+    ) == ("gpt-source", "medium")
+    assert pending_score_batch.resolve_resume_model_settings(
+        requested_model="gpt-5.6-sol",
+        requested_reasoning_effort="xhigh",
+        source_plan={"model": "gpt-source", "reasoning_effort": "medium"},
+    ) == ("gpt-5.6-sol", "xhigh")
+
+
+def test_draft_codex_command_is_ephemeral_read_only_and_structured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    codex_executable = tmp_path / "codex"
+    codex_executable.write_text("binary placeholder\n", encoding="utf-8")
+    monkeypatch.setattr(drafter.shutil, "which", lambda name: str(codex_executable))
+    command = drafter.build_codex_command(
+        workspace_root=tmp_path,
+        schema_path=tmp_path / "schema.json",
+        output_path=tmp_path / "draft.json",
+        model="gpt-5.6-sol",
+        reasoning_effort="max",
+        sandbox="read-only",
+    )
+
+    assert command[:2] == [str(codex_executable.resolve()), "exec"]
+    assert "--ephemeral" in command
+    assert "--ignore-user-config" in command
+    assert command[command.index("--sandbox") + 1] == "read-only"
+    assert command[command.index("--model") + 1] == "gpt-5.6-sol"
+    assert 'model_reasoning_effort="max"' in command
+    assert 'model_verbosity="medium"' in command
+    assert command[command.index("--output-schema") + 1].endswith("schema.json")
+    assert command[-1] == "-"
+
+
+def test_draft_responses_api_uses_medium_verbosity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_post(url: str, **kwargs: object) -> SimpleNamespace:
+        captured["url"] = url
+        captured.update(kwargs)
+        return SimpleNamespace(
+            status_code=200,
+            text="",
+            json=lambda: {"id": "resp-1", "status": "completed"},
+        )
+
+    monkeypatch.setattr(drafter.requests, "post", fake_post)
+    drafter.call_responses_api(
+        provider="openai",
+        api_url="https://api.openai.com/v1/responses",
+        api_key="test-key",
+        model="gpt-5.4",
+        reasoning_effort="high",
+        max_output_tokens=12000,
+        temperature=0.0,
+        http_timeout_seconds=180,
+        instructions="instructions",
+        input_text="input",
+        model_output_schema={"type": "object"},
+    )
+
+    payload = captured["json"]
+    assert isinstance(payload, dict)
+    assert payload["text"]["verbosity"] == "medium"
+
+
+def test_call_codex_cli_normalizes_output_and_usage(monkeypatch: pytest.MonkeyPatch) -> None:
+    output_body = {"native": {}, "stronger": {"additional_conditions": []}}
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        output_path = Path(command[command.index("-o") + 1])
+        output_path.write_text(json.dumps(output_body), encoding="utf-8")
+        events = [
+            {"type": "thread.started", "thread_id": "thread-1"},
+            {"type": "item.completed", "item": {"type": "reasoning", "text": "summary"}},
+            {
+                "type": "turn.completed",
+                "usage": {
+                    "input_tokens": 100,
+                    "cached_input_tokens": 25,
+                    "output_tokens": 20,
+                    "reasoning_output_tokens": 5,
+                },
+            },
+        ]
+        return SimpleNamespace(
+            returncode=0,
+            stdout="".join(json.dumps(event) + "\n" for event in events),
+            stderr="",
+        )
+
+    monkeypatch.setattr(drafter.shutil, "which", lambda name: "/usr/local/bin/codex")
+    monkeypatch.setattr(drafter.subprocess, "run", fake_run)
+
+    response = drafter.call_codex_cli(
+        model="gpt-5.6-sol",
+        reasoning_effort="max",
+        codex_timeout_seconds=1800,
+        sandbox="read-only",
+        instructions="instructions",
+        template_text="template",
+        case_packet_text="packet",
+        model_output_schema={"type": "object"},
+    )
+
+    assert json.loads(response["output_text"]) == output_body
+    assert response["provider"] == "codex_cli"
+    assert response["usage"]["input_tokens"] == 100
+    assert response["usage"]["input_tokens_details"]["cached_tokens"] == 25
+    assert response["codex_cli"]["auth_mode"] == "codex_login"
+
+
 def test_openrouter_score_wrapper_fans_out_shared_key(monkeypatch: pytest.MonkeyPatch) -> None:
     for env_name in (
         "SCORE_OPENROUTER_API_KEY_1",
@@ -186,7 +448,7 @@ def test_openrouter_score_wrapper_fans_out_shared_key(monkeypatch: pytest.Monkey
     assert os.environ["SCORE_OPENROUTER_API_KEY_2"] == "or-shared"
     assert os.environ["SCORE_OPENROUTER_API_KEY_3"] == "or-shared"
     assert os.environ["SCORE_OPENROUTER_API_KEY_4"] == "or-shared"
-    assert os.environ["SCORE_MODEL"] == "deepseek/deepseek-v4-pro"
+    assert os.environ["SCORE_MODEL"] == "openai/gpt-5.4"
     assert os.environ["SCORE_OPENAI_BASE_URL"] == "https://openrouter.ai/api/v1"
     assert os.environ["SCORE_SLOT_COUNT"] == "4"
 
@@ -270,6 +532,92 @@ def test_batch_scorer_normalizes_selected_agents() -> None:
 
     with pytest.raises(batch_scorer_module.AgentDojoBatchScoreError):
         batch_scorer_module.normalize_selected_agents(["agent_d"])
+
+
+def test_batch_existing_score_requires_full_valid_bundle(tmp_path: Path) -> None:
+    checklist_path = tmp_path / "checklist.yaml"
+    checklist = {
+        "case_unit_id": "case-1",
+        "native": {
+            "success_if": [{"text": "success rule"}],
+            "fail_if": [{"text": "failure rule"}],
+            "undecided_if": [{"text": "undecided rule"}],
+        },
+        "stronger": {"additional_conditions": []},
+    }
+    checklist_path.write_text(yaml.safe_dump(checklist), encoding="utf-8")
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+    (evidence_dir / "post_state.json").write_text(
+        json.dumps({"status": "failed"}),
+        encoding="utf-8",
+    )
+    out_prefix = tmp_path / "scores" / "score"
+    out_prefix.parent.mkdir()
+    score = {
+        "schema_version": "evidence_score_v1",
+        "case_unit_id": "case-1",
+        "released_evaluator_label": {
+            "value": "fail",
+            "source": "evidence/post_state.json::status",
+        },
+        "native": {
+            "verdict": "F",
+            "reason": "The retained state supports failure.",
+            "pointers": [
+                "checklist.yaml::native.fail_if[0]",
+                "evidence/post_state.json::status",
+            ],
+        },
+        "stronger": {
+            "verdict": "NA",
+            "reason": "No stronger conditions.",
+            "pointers": ["checklist.yaml::stronger.additional_conditions"],
+            "condition_checks": [],
+        },
+    }
+    scorer.write_json(out_prefix.with_suffix(".json"), score)
+    scorer.write_yaml(out_prefix.with_suffix(".yaml"), score)
+    manifest_path = scorer.manifest_output_path(out_prefix)
+    manifest = {
+        "schema_version": "score_manifest_v1",
+        "case_unit_id": "case-1",
+        "model": "gpt-5.6-sol",
+        "reasoning_effort": "xhigh",
+        "checklist_sha256": scorer.sha256_file(checklist_path),
+        "checklist_path": str(checklist_path.resolve()),
+        "evidence_input_path": str(evidence_dir.resolve()),
+        "outputs": {
+            "json": str(out_prefix.with_suffix(".json").resolve()),
+            "yaml": str(out_prefix.with_suffix(".yaml").resolve()),
+        },
+    }
+    scorer.write_json(manifest_path, manifest)
+    task = score_batch.ScoreTask(
+        task_index=0,
+        key_slot=1,
+        case_unit_id="case-1",
+        checklist_path=checklist_path,
+        evidence_dir=evidence_dir,
+        run_dir_name="run-1",
+        run_id="run-1",
+        agent_id="agent_a",
+        out_prefix=out_prefix,
+    )
+
+    assert score_batch.existing_score_is_valid(
+        task,
+        expected_model="gpt-5.6-sol",
+        expected_reasoning_effort="xhigh",
+    )
+
+    manifest["model"] = "gpt-5.5"
+    scorer.write_json(manifest_path, manifest)
+    assert not score_batch.existing_score_is_valid(
+        task,
+        expected_model="gpt-5.6-sol",
+        expected_reasoning_effort="xhigh",
+    )
 
 
 def test_batch_scorer_builds_androidworld_two_agent_plan() -> None:
@@ -361,6 +709,7 @@ def test_build_llm_call_record_captures_usage_and_cost() -> None:
         "total_tokens": 15,
     }
     assert record["cost"]["total_cost_usd"] == 0.123
+    assert record["response_metadata"]["model_verbosity"] == "medium"
     assert record["response_metadata"]["raw_api_response_path"] == "/tmp/api_response.json"
     assert record["response_metadata"]["reasoning_summary_path"] == "/tmp/reasoning_summary.txt"
 
@@ -545,6 +894,285 @@ def test_checklist_guardrails_reject_native_answer_key_sequence_without_trace_ar
 
     with pytest.raises(checklist_guardrails.ChecklistGuardrailError, match="answer-key action sequence"):
         checklist_guardrails.validate_checklist_guardrails(checklist)
+
+
+def _source_pointer_checklist(pointer: str) -> dict[str, object]:
+    return {
+        "native": {
+            "user_goal": {"support": [pointer]},
+            "benchmark_success": {"support": [pointer]},
+            "checked_by": {"support": [pointer]},
+            "decisive_artifacts": [],
+            "success_if": [],
+            "fail_if": [],
+            "undecided_if": [],
+        },
+        "stronger": {"additional_conditions": []},
+    }
+
+
+def test_case_packet_support_paths_parses_exact_source_inventory() -> None:
+    packet = """# Case Packet
+
+## Source Inventory
+
+- `official/specs.json`
+- `official/ground_truth/evaluation.py`
+
+## Packet Source Files
+"""
+
+    assert checklist_guardrails.case_packet_support_paths(packet) == {
+        "case_packet.md",
+        "official/specs.json",
+        "official/ground_truth/evaluation.py",
+    }
+
+
+def test_checklist_guardrails_reject_drafter_workspace_pointer() -> None:
+    checklist = _source_pointer_checklist("draft_instructions.md::87-93")
+
+    with pytest.raises(checklist_guardrails.ChecklistGuardrailError, match="drafter workspace"):
+        checklist_guardrails.validate_checklist_guardrails(checklist)
+
+
+def test_checklist_guardrails_require_exact_source_inventory_path() -> None:
+    checklist = _source_pointer_checklist("official/invented.json::root")
+
+    with pytest.raises(checklist_guardrails.ChecklistGuardrailError, match="exact Source Inventory"):
+        checklist_guardrails.validate_checklist_guardrails(
+            checklist,
+            allowed_source_paths={"case_packet.md", "official/specs.json"},
+        )
+
+
+def test_checklist_guardrails_reject_parent_traversal_before_normalization() -> None:
+    checklist = _source_pointer_checklist("../official/specs.json::root")
+
+    with pytest.raises(checklist_guardrails.ChecklistGuardrailError, match="traverse"):
+        checklist_guardrails.validate_checklist_guardrails(
+            checklist,
+            allowed_source_paths={"case_packet.md", "official/specs.json"},
+        )
+
+
+def _write_pointer_test_packet(tmp_path: Path) -> Path:
+    packet_dir = tmp_path / "case"
+    raw_case = packet_dir / "raw_case"
+    (raw_case / "official").mkdir(parents=True)
+    (raw_case / "derived").mkdir(parents=True)
+    packet_path = packet_dir / "case_packet.md"
+    packet_path.write_text(
+        """# Case Packet
+
+## Source Inventory
+
+- `derived/task.json`
+- `derived/items.json`
+- `official/policy.md`
+- `official/environment.yaml`
+
+## Packet Source Files
+""",
+        encoding="utf-8",
+    )
+    (raw_case / "derived" / "task.json").write_text(
+        json.dumps(
+            {
+                "evaluation_criteria": {
+                    "actions": [
+                        {"action_id": "42_0", "name": "modify_pending_order_address"}
+                    ]
+                },
+                "embedded_source": "class Task:\n    def check(self):\n        return True\n",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (raw_case / "derived" / "items.json").write_text(
+        json.dumps([{"requirement": "first"}, {"requirement": "second"}]),
+        encoding="utf-8",
+    )
+    (raw_case / "official" / "environment.yaml").write_text(
+        "bank_account:\n  transactions:\n    - subject: rent\n",
+        encoding="utf-8",
+    )
+    (raw_case / "official" / "policy.md").write_text(
+        """# Retail agent policy
+
+Authenticate the user.
+
+## Modify pending order
+
+Change an eligible pending order.
+
+### Modify items
+
+Collect all item changes in one call.
+""",
+        encoding="utf-8",
+    )
+    return packet_path
+
+
+def test_checklist_validator_resolves_structured_and_markdown_pointers(
+    tmp_path: Path,
+) -> None:
+    packet_path = _write_pointer_test_packet(tmp_path)
+    pointers = [
+        "derived/task.json::evaluation_criteria.actions[0].name",
+        "derived/task.json::evaluation_criteria.actions[action_id=42_0].name",
+        "derived/task.json::$",
+        "derived/task.json::$.evaluation_criteria.actions[0].name",
+        "derived/task.json::embedded_source::Task.check",
+        "derived/items.json::$[1].requirement",
+        "official/environment.yaml::bank_account.transactions[0].subject",
+        "official/environment.yaml::L1-L2",
+        "official/policy.md::Modify pending order",
+        "official/policy.md::Modify items",
+        "official/policy.md::line 3",
+        "official/policy.md::lines 5-7",
+        "official/policy.md::L3",
+        "official/policy.md::L5-L7",
+        "official/policy.md::3-3",
+    ]
+
+    for pointer in pointers:
+        checklist_validator.validate_support_pointer(packet_path, pointer)
+
+
+def test_checklist_validator_enforces_locked_miniwob_stronger_basis(
+    tmp_path: Path,
+) -> None:
+    case_dir = tmp_path / "miniwob.generate-number"
+    context_dir = case_dir / "raw_case" / "derived"
+    context_dir.mkdir(parents=True)
+    packet_path = case_dir / "case_packet.md"
+    packet_path.write_text("# Case Packet\n", encoding="utf-8")
+    required = {
+        "id": "number_was_generated_and_satisfies_requirement",
+        "text": "A number was actually generated and satisfies the requirement.",
+        "rationale": "The even branch can accept an undefined value.",
+        "support": ["official/task.html::determineReward"],
+        "decisive_post_run_artifacts": ["trajectory/steps.json"],
+    }
+    (context_dir / "drafting_context.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "miniwob_pre_run_drafting_context/v1",
+                "stronger_measurement": {
+                    "required_additional_conditions": [required]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed = {
+        key: value
+        for key, value in required.items()
+        if key != "decisive_post_run_artifacts"
+    }
+    observed["decisive_artifacts"] = [
+        {
+            "artifact": "trajectory/steps.json",
+            "question": "Was Generate invoked?",
+            "support": required["support"],
+        }
+    ]
+    checklist = {"stronger": {"additional_conditions": [observed]}}
+
+    checklist_validator.validate_packet_required_stronger_conditions(
+        checklist, packet_path
+    )
+
+    checklist["stronger"]["additional_conditions"][0]["text"] = "rewritten"
+    with pytest.raises(
+        checklist_validator.ChecklistValidationError,
+        match="does not preserve the locked MiniWoB packet field",
+    ):
+        checklist_validator.validate_packet_required_stronger_conditions(
+            checklist, packet_path
+        )
+
+
+def test_checklist_validator_rejects_invented_miniwob_stronger_condition(
+    tmp_path: Path,
+) -> None:
+    case_dir = tmp_path / "miniwob.use-slider"
+    context_dir = case_dir / "raw_case" / "derived"
+    context_dir.mkdir(parents=True)
+    packet_path = case_dir / "case_packet.md"
+    packet_path.write_text("# Case Packet\n", encoding="utf-8")
+    (context_dir / "drafting_context.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "miniwob_pre_run_drafting_context/v1",
+                "stronger_measurement": {"required_additional_conditions": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+    checklist = {
+        "stronger": {
+            "additional_conditions": [
+                {
+                    "id": "reviewer_preference",
+                    "text": "Use a preferred interaction style.",
+                    "rationale": "Reviewer preference.",
+                    "support": ["official/task.html::genProblem"],
+                }
+            ]
+        }
+    }
+
+    with pytest.raises(
+        checklist_validator.ChecklistValidationError,
+        match="differ from the locked MiniWoB packet basis",
+    ):
+        checklist_validator.validate_packet_required_stronger_conditions(
+            checklist, packet_path
+        )
+
+
+def test_prompt_directory_matches_the_public_minimal_package() -> None:
+    prompt_root = REPO_ROOT / "neurips_ed_track_minimal" / "prompts"
+    base_prompt = (
+        prompt_root / "draft_case_checklist.prompt.md"
+    ).read_text(encoding="utf-8")
+    schema = json.loads(
+        (
+            REPO_ROOT
+            / "neurips_ed_track_minimal"
+            / "schemas"
+            / "case_checklist.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert "canonical line selector" not in base_prompt
+    assert "Markdown selectors must" not in schema["$defs"]["Pointer"]["description"]
+    assert {path.name for path in prompt_root.iterdir() if path.is_file()} == {
+        "draft_case_checklist.prompt.md",
+        "score_evidence_with_codex.prompt.md",
+    }
+
+
+@pytest.mark.parametrize(
+    "pointer",
+    [
+        "official/policy.md::Modify pending order/Modify items",
+        "official/policy.md::modify pending order",
+        "official/policy.md::L10-L12",
+        "derived/task.json::evaluation_criteria.missing",
+        "official/environment.yaml::bank_account.missing",
+    ],
+)
+def test_checklist_validator_rejects_unresolvable_pointer(
+    tmp_path: Path,
+    pointer: str,
+) -> None:
+    packet_path = _write_pointer_test_packet(tmp_path)
+
+    with pytest.raises(ValueError):
+        checklist_validator.validate_support_pointer(packet_path, pointer)
 
 
 def test_resolve_released_evaluator_label_from_native_evaluator_output(tmp_path: Path) -> None:

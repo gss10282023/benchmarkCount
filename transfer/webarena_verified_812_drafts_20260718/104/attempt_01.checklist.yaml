@@ -1,0 +1,92 @@
+schema_version: case_checklist_v1
+case_unit_id: '104'
+domain: webarena_verified
+task_id: '104'
+native:
+  user_goal:
+    text: Navigate to the GitLab page showing all issues in keycloak/keycloak filtered by labels related to flaky-test.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score 1.0: all three configured checks must score 1.0—the agent-response check, the last-navigation network check, and the filtered-issues GraphQL network check.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by the two configured NetworkEventEvaluator instances; TaskEvalResult.create assigns 1.0 only when every evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the parsed and normalized response pass the configured NAVIGATE/SUCCESS structural comparison without evaluator error? For this non-retrieve task, the retrieved_data value is not compared.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the evaluator-visible trace show both a passing last navigation event for the issues URL pattern and a passing last selected GraphQL POST with the required filtered-issues Referer?
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'The agent-response evaluator scores 1.0: the response has an accepted mapping structure and its compared task_type and status normalize to NAVIGATE and SUCCESS without error.'
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: 'The first network evaluator scores 1.0: the last navigation event is a 200 GET whose URL matches ^__GITLAB__/keycloak/keycloak/-/issues.*$, with all query parameters ignored.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: 'The second network evaluator scores 1.0: its last selected candidate is a 200 POST to __GITLAB__/api/graphql with Referer __GITLAB__/keycloak/keycloak/-/issues/?state=all&label_name%5B%5D=flaky-test, after ignoring query-parameter names matching page or sort.'
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  fail_if:
+  - text: The agent-response check fails or errors, including when the complete retained response is absent, unparseable, structurally unacceptable, or does not normalize to NAVIGATE and SUCCESS.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The last-navigation check fails or errors, including when a complete HAR contains no navigation event or its last navigation event mismatches the required URL pattern, GET method, or 200 status.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: The GraphQL check fails or errors, including when a complete HAR has no candidate event or the event selected by last_event_only mismatches the required URL, POST method, 200 status, or filtered-issues Referer.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Evidence review is undecided only when agent_response.json or network.har is missing, corrupt, or truncated so it is unknown what the run supplied or which relevant event was last; a complete artifact that affirmatively lacks a required response or event is failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+stronger:
+  additional_conditions:
+  - id: visible_filtered_issue_list
+    text: Beyond native success, retained final browser-state evidence must show the keycloak/keycloak all-issues page with the flaky-test label filter applied and the issue-list results area displayed.
+    rationale: 'The official intent requires showing the filtered issue list, while the native checks inspect response fields and network metadata only: the navigation URL check ignores all query parameters, and the GraphQL check validates neither request payload nor response content nor rendered page state.'
+    decisive_artifacts:
+    - artifact: Final-page screenshot or DOM snapshot with captured URL
+      question: Does the final capture visibly identify keycloak/keycloak, the Issues page in the All state, the flaky-test label filter, and the issue-list results area?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::instantiation_dict
+      - derived/task.json::eval[1]
+      - derived/task.json::eval[2]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

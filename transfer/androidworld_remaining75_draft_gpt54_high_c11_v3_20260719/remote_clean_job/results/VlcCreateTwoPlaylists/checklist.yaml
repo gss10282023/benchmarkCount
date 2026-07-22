@@ -1,0 +1,93 @@
+schema_version: case_checklist_v1
+case_unit_id: VlcCreateTwoPlaylists
+domain: androidworld
+task_id: VlcCreateTwoPlaylists
+native:
+  user_goal:
+    text: Create playlist `playlist_name1` with `files1` in order, then create playlist `playlist_name2` with `files2` in order in VLC.
+    support:
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.goal
+  benchmark_success:
+    text: Native success requires runner completion (`done=true`) and raw score greater than 0.5 in `_run_task`; for this task the raw score is `(task1 + task2) / 2`, where `task1` checks `playlist_name1/files1` and `task2` checks `playlist_name2/files2` with `verify_playlist`, so both playlist checks must pass.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.__init__
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.is_successful
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+  checked_by:
+    text: The runner completion gate plus VLC playlist rows from `vlc_media.db`, joined across `Playlist`, `Media`, and `PlaylistMediaRelation` and checked by `verify_playlist` for both target playlists.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/vlc.py::_DB_PATH
+    - official/install/android_world/task_evals/single/vlc.py::_get_playlist_info_query
+    - official/install/android_world/task_evals/single/vlc.py::_get_playlist_file_info
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+  decisive_artifacts:
+  - artifact: Retained episode trace or runner completion record
+    question: Does the retained execution evidence show the episode finished with `done=true` or `done=false`?
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - artifact: Retained snapshot of `org.videolan.vlc` `vlc_media.db` or an equivalent extracted table of playlist/media/order rows
+    question: Do the joined playlist rows make `verify_playlist(actual, playlist_name1, files1)` and `verify_playlist(actual, playlist_name2, files2)` true?
+    support:
+    - official/install/android_world/task_evals/single/vlc.py::_DB_PATH
+    - official/install/android_world/task_evals/single/vlc.py::_get_playlist_info_query
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.__init__
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+  success_if:
+  - text: Retained execution evidence shows `done=true`, and the retained VLC playlist rows satisfy `verify_playlist` for both `playlist_name1/files1` and `playlist_name2/files2`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.__init__
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.is_successful
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+  fail_if:
+  - text: Retained execution evidence shows `done=false`; the runner gates the episode to native failure regardless of playlist DB state.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: With runner completion established, the retained VLC playlist rows fail `verify_playlist` for `playlist_name1/files1`.
+    support:
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.__init__
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.is_successful
+  - text: With runner completion established, the retained VLC playlist rows fail `verify_playlist` for `playlist_name2/files2`.
+    support:
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.__init__
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.is_successful
+  undecided_if:
+  - text: The retained artifacts do not preserve enough underlying evidence to determine the completion gate and to recompute the two playlist checks from `vlc_media.db`, and the available evidence does not otherwise already establish success or failure.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/suite_utils.py::_create_failed_result
+    - official/install/android_world/task_evals/single/vlc.py::_get_playlist_file_info
+stronger:
+  additional_conditions:
+  - id: exact_playlist_titles
+    text: Require the two created playlists to have titles exactly equal to `playlist_name1` and `playlist_name2`, not merely titles that pass the evaluator's approximate case-insensitive name match.
+    rationale: The dispatched goal says each playlist is titled with the provided string, but native `verify_playlist` accepts fuzzy, case-insensitive playlist-name matches.
+    decisive_artifacts:
+    - artifact: Retained VLC media database snapshot or extracted `Playlist` rows
+      question: Do the relevant playlist rows use exact title strings equal to `playlist_name1` and `playlist_name2` for the two target playlists?
+      support:
+      - official/install/android_world/task_evals/single/vlc.py::_DB_PATH
+      - official/install/android_world/task_evals/single/vlc.py::_get_playlist_info_query
+      - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.goal
+      - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+    support:
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.goal
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  - id: ordered_creation_sequence
+    text: Require retained trace evidence that playlist `playlist_name1` was created before playlist `playlist_name2`, matching the dispatched `And then` sequence, not just that both playlists exist at the end.
+    rationale: The runtime goal specifies an ordered two-step task, but native scoring only averages two end-state playlist checks and does not inspect creation order.
+    decisive_artifacts:
+    - artifact: Retained step trace or timestamped UI-state history
+      question: Does the retained trace show creation of `playlist_name1` before creation of `playlist_name2`?
+      support:
+      - official/install/android_world/suite_utils.py::_run_task
+      - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.goal
+    support:
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.goal
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreateTwoPlaylists.is_successful
+    - official/install/android_world/suite_utils.py::_run_task

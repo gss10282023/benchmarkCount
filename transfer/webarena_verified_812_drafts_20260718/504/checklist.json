@@ -1,0 +1,101 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "504",
+  "domain": "webarena_verified",
+  "task_id": "504",
+  "native": {
+    "user_goal": {
+      "text": "In shopping_admin, mark every Selene yoga hoodie as out of stock.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the MUTATE/SUCCESS response with no retrieved data, and NetworkEventEvaluator accepts the specified stock-update event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator, then TaskEvalResult.create composes their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response pass AgentResponseEvaluator's normalized structural comparison for task_type=MUTATE, status=SUCCESS, and retrieved_data=null?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching POST and the configured normalized product-save URL have parsed form value product[quantity_and_stock_status][is_in_stock]=\"0\" and response status 302?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff both evaluator scores are 1.0: the response passes the MUTATE/SUCCESS/no-retrieved-data comparison, and the selected last matching POST passes the configured product-id-1108 URL, stock-flag \"0\", and response-302 checks.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Failure if either evaluator score is not 1.0: the response comparison fails or errors, or no qualifying POST exists or the selected last matching POST fails any configured stock-flag or response-status comparison.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when agent_response.json or network.har is missing, unreadable, or incomplete enough that one of the two evaluator outcomes cannot be reconstructed; a parseable mismatch is failure.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "post_run_catalog_state",
+        "text": "Beyond native scoring, retained post-run catalog state shows every Selene yoga hoodie covered by the instruction as out of stock.",
+        "rationale": "The instruction requires an all-items state change, while the native oracle checks a claimed-success response and one selected save request for product id 1108; a 302 response does not itself verify persistent resulting state or complete scope.",
+        "decisive_artifacts": [
+          {
+            "artifact": "post-run shopping_admin catalog-state snapshot or export",
+            "question": "Does it show every catalog item covered by the Selene yoga hoodie instruction as out of stock?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

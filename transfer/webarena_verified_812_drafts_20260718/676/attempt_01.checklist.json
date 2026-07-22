@@ -1,0 +1,126 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "676",
+  "domain": "webarena_verified",
+  "task_id": "676",
+  "native": {
+    "user_goal": {
+      "text": "Navigate in the shopping-admin site to the list of orders suspected of being fraudulent.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the retained network trace.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The official WebArenaVerifiedEvaluator runs AgentResponseEvaluator on the agent response and NetworkEventEvaluator on the HAR, then applies the all-evaluators-must-score-1.0 composition.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the response normalize to exactly task_type NAVIGATE, status SUCCESS, and retrieved_data null under AgentResponseEvaluator?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluator-visible event classified as a navigation event match the configured GET-200 URL, referer, and fraud-filter query parameters after ignored parameters are removed?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "AgentResponseEvaluator scores 1.0 because the retained response normalizes to exactly {task_type: NAVIGATE, status: SUCCESS, retrieved_data: null}.",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "NetworkEventEvaluator scores 1.0 because the last evaluator-visible event classified as navigation is a GET returning 200 whose normalized URL matches ^__SHOPPING_ADMIN__/mui/index/render/.*$, whose referer matches __SHOPPING_ADMIN__/sales/order/, and whose nonignored query parameters exactly contain filters[placeholder]=true, filters[status]=fraud, keywordUpdated=false, namespace=sales_order_grid, and search=\"\"; paging*, sorting*, and isAjax parameters are ignored.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "Both evaluator scores are 1.0; either check passing alone is insufficient.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "AgentResponseEvaluator scores 0 because the response does not normalize to the expected NAVIGATE/SUCCESS object with null retrieved_data, or response evaluation errors.",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "NetworkEventEvaluator scores 0 because no evaluator-visible navigation event exists, the selected last navigation event mismatches any required request field, or network evaluation errors.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Either evaluator score is not 1.0, making the task score 0.0, including evaluator or orchestration errors.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "No official TaskEvalResult is retained and post-run retention omits or truncates either required artifact, so the corresponding evaluator-visible input cannot be established; an artifact known to have been missing or malformed at evaluation time is failure, not undecided.",
+        "rationale": "Incomplete post-run retention cannot distinguish a benchmark failure from loss of otherwise decisive evidence."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "final_rendered_fraud_list",
+        "text": "In addition to native success, retained final-browser-state evidence shows the shopping-admin orders list with the suspected-fraud filter active.",
+        "rationale": "The stated goal concerns the final rendered navigation state, while the released checks compare a response declaration and one HAR event without inspecting the final displayed page.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Final browser-state capture (screenshot plus DOM or accessibility snapshot)",
+            "question": "Does the final rendered state show the shopping-admin orders list filtered to orders suspected of fraud?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

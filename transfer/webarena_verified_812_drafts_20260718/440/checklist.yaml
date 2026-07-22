@@ -1,0 +1,64 @@
+schema_version: case_checklist_v1
+case_unit_id: '440'
+domain: webarena_verified
+task_id: '440'
+native:
+  user_goal:
+    text: Reorder the makeup removal kit that the user ordered during summer 2022 and later cancelled.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Both configured checks must score 1.0: AgentResponseEvaluator must accept the final response as MUTATE/SUCCESS, and NetworkEventEvaluator must accept the last matching cart-add POST for product 51958 with item `51958`, quantity `1`, and response status 200. Only then is TaskEvalResult.score 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator and NetworkEventEvaluator, with their scores composed by TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize to the configured MUTATE/SUCCESS response without AgentResponseEvaluator assertions or errors?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event whose method is POST and normalized URL matches `^__SHOPPING__/checkout/cart/add/uenc/.*/product/51958$` a status-200 request with parsed post data item `51958` and qty `1`?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff the retained response passes AgentResponseEvaluator and the retained HAR passes NetworkEventEvaluator under the configured last-matching-event rule; both evaluator scores must be 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'With complete artifacts, failure occurs if either check is not 1.0: the response mismatches or errors, no matching cart-add POST exists, the last URL/method-matching POST fails the item, quantity, or status comparison, or either evaluator errors.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The evidence review is undecided only when agent_response.json or network.har is missing, unreadable, or truncated so an official comparison cannot be reconstructed; an intact response or HAR that lacks a required match is failure.
+    rationale: Missing retained evidence does not establish the evaluator-visible contents of the run.
+stronger:
+  additional_conditions:
+  - id: completed_reorder_not_only_cart_add
+    text: Beyond native success, retained post-run evidence must show completed checkout or creation of a new order containing product 51958, rather than only addition of that product to the cart.
+    rationale: The official instruction asks to reorder the product, while the released network check requires only a successful cart-add POST and does not require order placement.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the trace contain a successful checkout or order-creation response confirming a new order containing product 51958, rather than only the configured cart-add request?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.url
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

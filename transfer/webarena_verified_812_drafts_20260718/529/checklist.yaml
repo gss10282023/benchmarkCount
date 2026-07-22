@@ -1,0 +1,81 @@
+schema_version: case_checklist_v1
+case_unit_id: '529'
+domain: webarena_verified
+task_id: '529'
+native:
+  user_goal:
+    text: Find the Stereo Sound System order from Feb 2023, fill the contact-us form with the requested refund message using that order's ID and amount, and leave the populated form ready for review without submitting it.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::instantiation_dict
+  benchmark_success:
+    text: 'Task score is 1.0 only if all three official checks score 1.0: the final response matches MUTATE/SUCCESS with null retrieved_data; the last matching dummy_bin POST has the prescribed refund-form payload and status -1; and no POST exists to the shopping contact submission endpoint.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs one AgentResponseEvaluator and two NetworkEventEvaluators, then requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response normalize to task_type MUTATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: In the complete trace, does the last matching POST to dummy_bin have status -1 and the expected name, email, form ID, and refund comment, while no POST targets the shopping contact submission endpoint?
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+  success_if:
+  - text: The agent response passes official parsing and normalization as MUTATE, SUCCESS, with null retrieved_data.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: The last POST matching the dummy_bin URL has response status -1 and post data matching form_id contact-form, name Emma Lopez, email emma.lopez@gmail.com, and the official refund-message regex resolving the order to 157 and amount to 122.05.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: The complete HAR contains no POST whose URL matches the rendered shopping /contact/index/post endpoint.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  fail_if:
+  - text: The agent-response check scores below 1.0 or errors because the response is malformed or does not normalize to MUTATE, SUCCESS, and null retrieved_data.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The positive network check scores below 1.0 or errors because no dummy_bin POST matches, or because the last matching POST has the wrong status or any required payload value fails its official comparison.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: The non-submission check scores below 1.0 if any POST to the shopping /contact/index/post endpoint appears in the complete HAR.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  undecided_if:
+  - text: agent_response.json or network.har is absent or unreadable, or HAR completeness is not established, so one or more official comparisons—including the absence check—cannot be determined from retained evidence.
+    rationale: The native decision requires both the final response and a complete network trace; missing evidence cannot establish either success or an artifact-backed failure.
+stronger:
+  additional_conditions:
+  - id: final_form_remains_review_ready
+    text: Beyond native scoring, retained end-of-run page state must show the contact form still populated for review with Emma Lopez, emma.lopez@gmail.com, and the refund comment for order 157 and amount 122.05, with no submitted or confirmation state.
+    rationale: The task requires leaving the filled form ready for review, but the released evaluators inspect only the final response and network events. They can pass after a matching dummy_bin request even if the fields are later cleared or changed, because final DOM/form state is never checked.
+    decisive_artifacts:
+    - artifact: final browser DOM/form-state snapshot
+      question: At the end of the run, do the contact-form controls retain the expected name, email, and refund comment while remaining in the pre-submission state?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

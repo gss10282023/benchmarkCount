@@ -1,0 +1,105 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "402",
+  "domain": "webarena_verified",
+  "task_id": "402",
+  "native": {
+    "user_goal": {
+      "text": "Change the current user's discussion-forum biography to \"Freelance Web Developer\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 exactly when both configured evaluators score 1.0: AgentResponseEvaluator accepts the MUTATE/SUCCESS response and NetworkEventEvaluator accepts a qualifying biography-update event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then conjunctively composes their scores in TaskEvalResult.create.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the response parse and normalize to an evaluator-accepted object with task_type MUTATE and status SUCCESS, with retrieved_data not value-checked for this mutate task?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does at least one evaluation event contain a POST to the normalized /user/MarvelsGrantMan136/edit_biography endpoint, form field user_biography[biography] equal to \"Freelance Web Developer\", and response status 302?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff AgentResponseEvaluator scores 1.0 on the retained response and NetworkEventEvaluator scores 1.0 because at least one qualifying HAR event matches all configured fields; both evaluator scores must be 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail with score 0 if either evaluator does not score 1.0—including an agent-response mismatch or error, absence of a fully matching network event, a network-evaluator error, or a task-evaluation error.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided from stored evidence if agent_response.json or network.har is absent or unreadable and no retained official TaskEvalResult establishes both evaluator outcomes.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_final_biography",
+        "text": "Beyond native scoring, a retained end-of-run profile-state artifact must show MarvelsGrantMan136's biography is exactly \"Freelance Web Developer\".",
+        "rationale": "The task asks to change the biography, but the native network check accepts any matching event because last_event_only is false and does not inspect final persisted profile state; an accepted update followed by a later overwrite can therefore pass natively.",
+        "decisive_artifacts": [
+          {
+            "artifact": "End-of-run forum profile page/DOM capture or profile-state export",
+            "question": "Does the retained final profile state show MarvelsGrantMan136's biography as exactly \"Freelance Web Developer\"?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.url",
+              "derived/task.json::eval[1].expected.post_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].last_event_only",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

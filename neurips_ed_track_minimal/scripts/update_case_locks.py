@@ -16,6 +16,7 @@ import yaml
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT_DIR = SCRIPT_DIR.parent
+PACKAGE_ROOT = ROOT_DIR.parent
 DEFAULT_LOCK_FILE = ROOT_DIR / "locks" / "cases.jsonl"
 DEFAULT_DRAFT_PROMPT = ROOT_DIR / "prompts" / "draft_case_checklist.prompt.md"
 DEFAULT_SCORE_PROMPT = ROOT_DIR / "prompts" / "score_evidence_with_codex.prompt.md"
@@ -114,7 +115,10 @@ def display_path(path: Path) -> str:
     try:
         return resolved.relative_to(ROOT_DIR.resolve()).as_posix()
     except ValueError:
-        return resolved.as_posix()
+        try:
+            return resolved.relative_to(PACKAGE_ROOT.resolve()).as_posix()
+        except ValueError:
+            return resolved.as_posix()
 
 
 def build_lock_entry(

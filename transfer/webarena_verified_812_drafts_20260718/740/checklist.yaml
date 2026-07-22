@@ -1,0 +1,67 @@
+schema_version: case_checklist_v1
+case_unit_id: '740'
+domain: webarena_verified
+task_id: '740'
+native:
+  user_goal:
+    text: View an OSRM route on the map from Carnegie Mellon University to the home stadium of the NYC NBA team, using coordinates from the places' official pages on the provided Wikipedia.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final NAVIGATE/SUCCESS response and NetworkEventEvaluator accepts the selected route event from the network trace.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator parses, normalizes, and structurally compares agent_response.json; NetworkEventEvaluator evaluates network.har; TaskEvalResult.create composes their scores conjunctively.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After AgentResponseEvaluator parsing and normalization, does the compared object structurally match task_type NAVIGATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event classified as navigation a GET with response status 200 whose normalized URL matches ^.*/route/v1/.*/-73.9935443,40.7505085;-79.9427192,40.4441897.*$, with query parameters ignored?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: 'Both evaluator scores are 1.0: the response structurally matches the normalized NAVIGATE/SUCCESS/null response, and the evaluator-selected last navigation event matches the configured route URL, GET method, and 200 status requirements.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Native failure occurs if either evaluator fails or errors: the response does not normalize to the required structure, no navigation event exists, the selected last navigation event fails any configured URL/GET/200 comparison, or either check cannot be evaluated; any such result makes TaskEvalResult.score 0.0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The evidence review is undecided only when agent_response.json or network.har was not retained, or is truncated so that what the evaluator received cannot be reconstructed; a retained malformed or mismatching input is failure, not undecided.
+    rationale: This distinguishes an evidence-retention gap from an evaluator-visible invalid input, which the native benchmark scores as failure or error.
+stronger:
+  additional_conditions:
+  - id: correct_origin_destination_order
+    text: 'Beyond native success, retained final-map evidence must show the task-stated direction: Carnegie Mellon University as origin and the NYC NBA team''s home stadium as destination.'
+    rationale: The official instruction specifies Carnegie Mellon University-to-stadium, while the configured URL pattern orders the stadium coordinate before the Carnegie Mellon coordinate and the native evaluator does not inspect rendered endpoint labels. Native success can therefore certify the reverse route without proving the requested direction on the map.
+    decisive_artifacts:
+    - artifact: Final map screenshot or equivalent retained UI snapshot
+      question: Does the displayed route identify Carnegie Mellon University as the origin and the NYC NBA team's home stadium as the destination?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.url
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.url
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

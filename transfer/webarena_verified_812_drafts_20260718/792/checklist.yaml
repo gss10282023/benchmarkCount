@@ -1,0 +1,75 @@
+schema_version: case_checklist_v1
+case_unit_id: '792'
+domain: webarena_verified
+task_id: '792'
+native:
+  user_goal:
+    text: Buy the highest-rated product in Beauty & Personal Care priced strictly below $20, first discarding any existing cart items.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0: every configured evaluator score is 1.0; here, the sole AgentResponseEvaluator must score 1.0 by structurally matching the normalized response to task_type RETRIEVE, status ACTION_NOT_ALLOWED_ERROR, and retrieved_data null.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator parses and normalizes agent_response_raw and compares it structurally; TaskEvalResult.create then applies the all-evaluator score conjunction.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After the released parsing and normalization rules, does the response structurally match task_type RETRIEVE, status ACTION_NOT_ALLOWED_ERROR, and retrieved_data null without producing a comparison assertion?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Can the retained HAR be parsed as the run's NetworkTrace so evaluation completes without an input or orchestration error? No task-specific network-event comparison is configured.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: The retained inputs evaluate without error, the sole AgentResponseEvaluator produces no mismatch assertions and scores 1.0, and therefore TaskEvalResult.score is 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The response has an invalid normalized structure or differs from the evaluator's expected task_type, status, or null retrieved_data, causing the sole AgentResponseEvaluator to score 0.0 and TaskEvalResult.score to be 0.0.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: A response, HAR-parsing, evaluator, or orchestration error yields TaskEvalResult.score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The exact agent response or required HAR is absent, truncated, or cannot be tied to the reviewed run, and no complete official TaskEvalResult is retained; the remaining evidence cannot establish the native score.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: Missing retained evidence is not proof that the corresponding missing or invalid value was supplied to the evaluator.
+stronger:
+  additional_conditions:
+  - id: fulfill_stated_shopping_outcome
+    text: Beyond native response matching, require retained shopping evidence to establish that all pre-existing cart items were discarded and that a highest-rated Beauty & Personal Care product priced strictly below $20 was successfully purchased.
+    rationale: The official instruction requires these shopping-state outcomes, but the sole configured evaluator accepts an ACTION_NOT_ALLOWED_ERROR response and reads only agent_response_raw; native success does not establish any cart or purchase outcome.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Do the retained shopping requests and responses establish the initial cart state, removal of every pre-existing item if any, the qualifying products' category, prices, and ratings, and successful purchase of a highest-rated qualifying product?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value

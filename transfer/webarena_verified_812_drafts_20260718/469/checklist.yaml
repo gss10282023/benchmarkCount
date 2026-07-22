@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '469'
+domain: webarena_verified
+task_id: '469'
+native:
+  user_goal:
+    text: Add “Light Blue Simple Summer New Low Heels Slippers for Women Fashion Chunky Heels Pointed Toe Wine Glasses Sandals Comfortable Walking Shoes Ladies All-Match Sexy Party Shoes” to the user's shopping wish list.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured evaluators score 1.0: the final response matches MUTATE/SUCCESS under AgentResponseEvaluator normalization, and NetworkEventEvaluator accepts the last matching wish-list-add POST event for product 60047 with null or missing qty and response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks the retained final response, NetworkEventEvaluator checks the retained network trace, and TaskEvalResult.create combines their scores with logical AND.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize to task_type MUTATE, status SUCCESS, and retrieved_data null under the released AgentResponseEvaluator comparison?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among evaluation events, does the last POST matching __SHOPPING__/wishlist/index/add/ have post_data.product equal to 60047, post_data.qty null or absent, and response status 302 after official normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events
+  success_if:
+  - text: Both artifacts pass their configured checks in the same run—AgentResponseEvaluator scores 1.0 and NetworkEventEvaluator scores 1.0—so TaskEvalResult.score is 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Fail if either evaluator scores 0.0 or errors: the response fails its normalized MUTATE/SUCCESS comparison, or the trace has no selected matching event or that event mismatches the required endpoint, method, product, null-or-missing qty, or 302 status. Any such result makes TaskEvalResult.score 0.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: If no official task result is retained and either agent_response.json or network.har was lost, corrupted, or truncated after the run, the stored evidence cannot determine both evaluator outcomes.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    rationale: This covers post-run evidence loss only; an input that was missing or invalid when evaluated is a native error or failure, not undecided.
+stronger:
+  additional_conditions:
+  - id: verify_final_wishlist_state
+    text: The retained post-run shopping state shows product 60047, corresponding to the specified shoes, present in the user's wish list.
+    rationale: The user asks for the product to be added, while the native NetworkEventEvaluator verifies only a matching POST and 302 response and does not inspect the resulting wish-list state.
+    decisive_artifacts:
+    - artifact: Post-run wish-list page capture or shopping account-state export
+      question: Does the user's post-run wish list contain product 60047, corresponding to the product named in the task?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

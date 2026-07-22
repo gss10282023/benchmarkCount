@@ -1,0 +1,86 @@
+schema_version: case_checklist_v1
+case_unit_id: '356'
+domain: webarena_verified
+task_id: '356'
+native:
+  user_goal:
+    text: Show on the map a route from Gates and Hillman Centers at CMU in Pittsburgh to the location where the Declaration of Independence and Constitution were signed, using the OSRM direction service.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 iff both configured checks score 1.0: AgentResponseEvaluator accepts the normalized final response as NAVIGATE/SUCCESS, and NetworkEventEvaluator accepts the selected last navigation event as a GET to the resolved __MAP__ URL with response status 200.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: Replay the released AgentResponseEvaluator on the retained final response and NetworkEventEvaluator on the retained HAR; TaskEvalResult applies the all-evaluators-must-score-1.0 rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the released response evaluator parse and normalize it to the expected NAVIGATE/SUCCESS comparison object and assign score 1.0?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the released network evaluator select a last evaluator-visible navigation event that normalizes to __MAP__, GET, and response status 200, yielding score 1.0?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: 'Both artifacts replay successfully: AgentResponseEvaluator scores 1.0 for the normalized NAVIGATE/SUCCESS response and NetworkEventEvaluator scores 1.0 for the selected __MAP__ GET navigation with status 200; consequently every configured evaluator score equals 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Either configured evaluator scores 0.0, or an evaluator/orchestration error occurs: this includes an unaccepted final response, no accepted selected navigation event, or a selected event that mismatches the normalized map URL, GET method, or 200 status. In each case TaskEvalResult.score is 0.0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Either required run artifact was not retained or was truncated after the run, preventing replay of one or both official checks.
+    rationale: This is only an evidence-retention gap; a retained artifact that the released evaluator rejects or cannot parse is a native failure/error, not an undecided result.
+stronger:
+  additional_conditions:
+  - id: requested_route_is_displayed
+    text: Retained final browser-state evidence shows a map route from Gates and Hillman Centers at CMU to the requested document-signing location.
+    rationale: The task requires this specific displayed route, while the released checks only validate a NAVIGATE/SUCCESS response and a qualifying navigation to the map URL; they do not inspect route endpoints or rendered route state.
+    decisive_artifacts:
+    - artifact: final browser screenshot
+      question: Are both requested endpoints identifiable and is a route visibly displayed between them?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+  - id: osrm_direction_service_used
+    text: The retained network trace contains a successful OSRM directions-service request corresponding to the requested route.
+    rationale: OSRM use is explicit in the task, but the configured network check expects only the map navigation URL, GET method, and 200 response and does not require an OSRM request.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does it contain a successful OSRM directions request whose endpoint parameters correspond to the requested origin and destination?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

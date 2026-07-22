@@ -1,0 +1,62 @@
+schema_version: case_checklist_v1
+case_unit_id: '119'
+domain: webarena_verified
+task_id: '119'
+native:
+  user_goal:
+    text: Return every review of Antonia Racer Tank rated 4 stars or above as a list of objects containing "title" and "rating".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task succeeds when its sole AgentResponseEvaluator scores 1.0: after evaluator parsing, coercion, and schema normalization, task_type equals RETRIEVE, status equals SUCCESS, and retrieved_data is an order-insensitive exact match to [{"title":"A regular or me","rating":4}].'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator parses and normalizes the submitted response, recursively compares the response fields and unordered retrieved data, and TaskEvalResult requires every configured evaluator score—here, the sole score—to equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the exact submitted response, after the released parser, retrieved-data coercion, and schema normalization, have task_type RETRIEVE, status SUCCESS, and an unordered exact retrieved_data match to [{"title":"A regular or me","rating":4}]?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+  success_if:
+  - text: 'The retained response yields no AgentResponseEvaluator assertion or evaluator error: its normalized task_type and status match RETRIEVE and SUCCESS, and its coerced, normalized retrieved data exactly matches the single specified title/rating object regardless of array order; the resulting task score is 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The retained submitted response produces any evaluator assertion or error—for example, it is not parseable as a structured response, its normalized task_type or status differs, retrieved_data is absent or null, or the normalized unordered data has a missing, extra, malformed, or value-mismatched item—so the sole evaluator and task score are 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained evidence lacks an exact, unaltered copy of the evaluator-visible submitted response, so its parsed and normalized values cannot be reconstructed.
+    rationale: A network trace alone does not reveal the response value compared by AgentResponseEvaluator; evidence loss after the run is therefore non-decisive rather than proof of a benchmark-counted mismatch.
+stronger:
+  additional_conditions:
+  - id: require_raw_retrieved_data_list
+    text: Beyond native scoring, require the parsed response's raw retrieved_data value itself to be a JSON list of objects; a lone object accepted only because the evaluator wraps it as a singleton does not satisfy this condition.
+    rationale: The task explicitly requests a list, but the released evaluator converts every non-list/tuple retrieved_data value into a one-element tuple before applying the array schema, allowing the singleton expected result to pass when submitted as a lone object.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Before the evaluator's singleton coercion, is the parsed raw retrieved_data value a JSON list rather than a lone object?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].results_schema
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data

@@ -1,0 +1,93 @@
+schema_version: case_checklist_v1
+case_unit_id: '750'
+domain: webarena_verified
+task_id: '750'
+native:
+  user_goal:
+    text: Create a private GitLab project named "agi_index" from the HTML GitLab Pages template and add Vinta Chen as a member.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when all three configured checks score 1.0: the agent-response check, the project-creation network-event check, and the member-invitation network-event check.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks the retained agent response; two NetworkEventEvaluator instances check the retained network trace; TaskEvalResult.create AND-composes their scores.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response pass AgentResponseEvaluator by normalizing to task_type MUTATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last URL/method-matching project-creation POST pass the configured comparison, including the agi_index name/path, namespace 2505, plainhtml template, private visibility value 0, and response status 302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last URL/method-matching invitation POST to a numeric GitLab project ID pass the configured comparison for user_id 278 and response status 201, with serializer ignored?
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'All three evaluator results are 1.0: the response normalizes to MUTATE/SUCCESS/null; the last matching POST to __GITLAB__/projects has the compared fields project[name]=agi_index, project[path]=agi_index, project[namespace_id]=2505, project[template_name]=plainhtml, project[visibility_level]=0 and status 302; and the last matching POST to ^__GITLAB__/api/v4/projects/\d+/invitations$ has compared user_id=278 and status 201, ignoring serializer.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The retained response fails normalization or comparison against MUTATE/SUCCESS/null, or AgentResponseEvaluator errors; its non-1.0 score makes the task fail.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: No project-creation URL/method event exists, the last such event mismatches any configured compared field or status, or its NetworkEventEvaluator errors; its non-1.0 score makes the task fail.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: No invitation URL/method event exists, the last such event mismatches user_id 278 or status 201, or its NetworkEventEvaluator errors; its non-1.0 score makes the task fail.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The review evidence omits or truncates agent_response.json or network.har so that one or more configured evaluator outcomes cannot be reconstructed.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: Absence from the retained review bundle alone does not establish that the corresponding evaluator input was absent or invalid at run time.
+stronger:
+  additional_conditions:
+  - id: same_project_final_state
+    text: Retained post-run GitLab state must show a private agi_index project with HTML GitLab Pages template content and Vinta Chen in that exact project's member list; the invitation URL's numeric project ID must equal that project's ID.
+    rationale: The native evaluator checks creation and invitation traffic but accepts an invitation URL for any numeric project ID and does not join it to agi_index or inspect final GitLab state.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Which numeric project ID did the invitation POST target?
+      support:
+      - derived/task.json::eval[2].expected.url
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - artifact: Post-run GitLab project-state export or snapshot
+      question: What are agi_index's project ID, visibility, repository template content, and members, and does its member list include Vinta Chen?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - derived/task.json::eval[2].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - derived/task.json::eval[2].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

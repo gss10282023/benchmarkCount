@@ -1,0 +1,65 @@
+schema_version: case_checklist_v1
+case_unit_id: '516'
+domain: webarena_verified
+task_id: '516'
+native:
+  user_goal:
+    text: Add the product displayed on the current shopping page to the wishlist.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::start_urls[0]
+  benchmark_success:
+    text: 'The case scores 1.0 only if both configured evaluators score 1.0: AgentResponseEvaluator normalizes the response to task_type MUTATE, status SUCCESS, and retrieved_data null; and NetworkEventEvaluator accepts the last matching POST to __SHOPPING__/wishlist/index/add/ with product 104497, qty absent/null, and response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArena-Verified evaluator runs AgentResponseEvaluator over the agent response and NetworkEventEvaluator over the network trace, then requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the released response parser and normalizer produce exactly the accepted MUTATE/SUCCESS response structure, including retrieved_data normalized to null?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Is the last evaluator-matching POST event for __SHOPPING__/wishlist/index/add/ normalized with product 104497, qty absent/null, and response status 302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+  success_if:
+  - text: Both retained artifacts pass their respective official checks—accepted MUTATE/SUCCESS response and accepted last matching wishlist-add POST event—so both evaluator scores and TaskEvalResult.score equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'The native result fails if either check fails or errors: the response does not normalize to the accepted MUTATE/SUCCESS structure, or the required last matching wishlist-add POST event is absent or differs in normalized URL, method, product, qty, or response status; any such evaluator score makes the task score 0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored-evidence review is undecided only when agent_response.json or network.har is missing, truncated, or unreadable such that one of the two official checks cannot be reconstructed; a complete artifact that parses and mismatches is failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    rationale: This separates insufficient retained review evidence from an evaluator-visible mismatch.
+stronger:
+  additional_conditions:
+  - id: persisted_wishlist_state
+    text: Beyond native success, retained post-run wishlist evidence shows that the product from the start page, product 104497, is present in the wishlist.
+    rationale: The task claims a resulting wishlist change, but the released evaluator checks only a self-reported success response and a matching POST/302 event; it does not inspect the resulting persisted wishlist state.
+    decisive_artifacts:
+    - artifact: post-run wishlist page or application-state snapshot
+      question: Does the retained post-run wishlist state show product 104497, the product from the case's start page, present in the wishlist?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::start_urls[0]
+      - derived/task.json::eval[1].expected.post_data.product
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

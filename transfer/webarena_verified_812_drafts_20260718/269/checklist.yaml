@@ -1,0 +1,64 @@
+schema_version: case_checklist_v1
+case_unit_id: '269'
+domain: webarena_verified
+task_id: '269'
+native:
+  user_goal:
+    text: Open the women’s shoes category page with the price filter set to under $25.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if both configured evaluators score 1.0: the final response passes the normalized NAVIGATE/SUCCESS comparison, and the HAR’s last navigation event passes as a 200 GET to the women’s shoes path with price=0-25 after non-price query parameters are ignored.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order; TaskEvalResult.create applies the all-evaluator-scores-equal-1.0 composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted response parse and normalize so that AgentResponseEvaluator finds no mismatch or error against task_type NAVIGATE, status SUCCESS, and normalized retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last event classified as a navigation a 200 GET to /clothing-shoes-jewelry/women/shoes.html with price exactly 0-25 after all non-price query parameters are ignored?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalized_url
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: The agent-response check and the network-event check both produce score 1.0; therefore every configured evaluator score is 1.0 and the task score is 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if the submitted response is malformed, evaluates with an error, or does not pass the normalized NAVIGATE/SUCCESS response comparison; that evaluator’s score is then not 1.0.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Fail if the HAR is malformed or the last navigation event is absent, has the wrong normalized path or price value, is not a GET, does not return 200, or otherwise makes NetworkEventEvaluator score less than 1.0; either evaluator failure makes the task score 0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained evidence omits or truncates agent_response.json or network.har so that one of the two evaluator outcomes cannot be determined.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: Because native success is conjunctive, incomplete retained evidence for either evaluator cannot establish success or failure through evidence review.
+stronger:
+  additional_conditions: []

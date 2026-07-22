@@ -1,0 +1,98 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "696",
+  "domain": "webarena_verified",
+  "task_id": "696",
+  "native": {
+    "user_goal": {
+      "text": "Add a simple product named \"FancyBoy Man Causal Jeans\" using an appropriate attribute set, with 42 in stock, size 34, color Blue, and price $169.99.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured evaluators score 1.0: AgentResponseEvaluator accepts the final MUTATE/SUCCESS response and NetworkEventEvaluator accepts the configured last product-save POST event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order, then TaskEvalResult.create aggregates their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and normalize without evaluator error so the compared response matches task_type MUTATE and status SUCCESS under the evaluator's non-retrieve-task rule?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last POST matching /catalog/product/save/type/simple/store/0/set/<digits>/back/edit return 302 and contain the compared fields product[name]=FancyBoy Man Causal Jeans, product[price]=169.99, product[quantity_and_stock_status][qty]=42, product[quantity_and_stock_status][is_in_stock]=1, product[size]=177, product[color]=50, and product[status]=1, under the configured normalization and ignored-isAjax rule?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff agent_response.json yields AgentResponseEvaluator score 1.0 for MUTATE/SUCCESS and network.har yields NetworkEventEvaluator score 1.0 for the configured last matching POST with response 302 and all seven compared product fields; both checks must pass.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either evaluator does not score 1.0, including a response parse/normalization mismatch, no qualifying save POST in a complete HAR, a mismatch in the selected last event's URL/status/form fields, or an evaluator/task error; any such result makes the task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when agent_response.json or network.har is missing, unreadable, truncated, or otherwise insufficient to reconstruct the inputs supplied for this run; a mismatch in a retained response or no matching event in a complete retained HAR is failure, not undecided.",
+        "rationale": "The two retained inputs are jointly necessary to reproduce both native checks, while non-retention alone does not establish what the run supplied."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_product_and_attribute_set",
+        "text": "Beyond native scoring, retained post-run catalog state must confirm that the product actually persists as a simple, enabled product named \"FancyBoy Man Causal Jeans\", priced at $169.99, with quantity 42 and in-stock status, size 34, color Blue, and an attribute set containing the size and color attributes.",
+        "rationale": "The task asks to add the product using an appropriate attribute set, but the native network check observes only a matching POST and 302 response, permits any numeric attribute-set ID, and does not inspect post-run catalog state; native acceptance therefore does not itself establish persistence or an appropriate attribute set.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run shopping-admin product record or catalog export",
+            "question": "Does the retained catalog state show the created product with the requested simple type, enabled status, name, price, stock, size, color, and an attribute set that provides size and color?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected.url",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "639",
+  "domain": "webarena_verified",
+  "task_id": "639",
+  "native": {
+    "user_goal": {
+      "text": "Create a Reddit post in the most appropriate forum, titled \"used iphone recommendations\", with body \"I need recommendations for used iphone within a budget of $1000 please\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only if both configured checks score 1.0: AgentResponseEvaluator accepts the final MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the required Reddit submission event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator checks the retained agent response, NetworkEventEvaluator checks the retained network trace, and TaskEvalResult conjunctively composes their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the response normalize to task_type MUTATE, status SUCCESS, and retrieved_data null under AgentResponseEvaluator?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last URL/method-matching event satisfy a POST to /submit or /submit/iphone, response status 302, and post fields submission[forum]=10052, submission[title]=\"used iphone recommendations\", and submission[body]=\"I need recommendations for used iphone within a budget of $1000 please\"?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both official checks score 1.0: the agent response matches the configured MUTATE/SUCCESS response under evaluator normalization, and the last matching Reddit submission event matches every configured URL, method, status, and post-data criterion.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure occurs if either official check fails or errors—for example, the retained response does not normalize to the configured MUTATE/SUCCESS response, or no selected network event matches all configured submission criteria.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecidable if agent_response.json or network.har is absent from the retained run evidence, because the conjunctive result cannot be reconstructed from the other artifact alone.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ],
+        "rationale": "Each artifact supplies the input to a separately required evaluator."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_reddit_post",
+        "text": "Beyond native request-trace success, retained post-run Reddit state must show the post persisted in forum 10052 (/iphone) with the requested title and body.",
+        "rationale": "The stated goal is to create a post, while the released NetworkEventEvaluator only verifies a matching submission request and 302 response; it does not inspect persisted Reddit state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Reddit post record or page snapshot",
+            "question": "Does the resulting forum state contain the requested post in forum 10052 (/iphone) with the exact title and body?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

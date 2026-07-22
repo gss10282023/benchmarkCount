@@ -1,0 +1,136 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "341",
+  "domain": "webarena_verified",
+  "task_id": "341",
+  "native": {
+    "user_goal": {
+      "text": "Navigate in the current GitLab project, root/metaseq, to the list of all open issues requesting new features.",
+      "support": [
+        "derived/task.json::intent",
+        "derived/task.json::start_urls[0]"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when all three configured checks score 1.0: the AgentResponseEvaluator, the issues-page NetworkEventEvaluator, and the filtered-list GraphQL NetworkEventEvaluator.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released AgentResponseEvaluator compares the normalized final response; two released NetworkEventEvaluator instances compare evaluator-selected events from the retained network trace; TaskEvalResult composes their scores with an all-must-pass rule.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the final response parse and normalize to the evaluator-expected NAVIGATE task type, SUCCESS status, and evaluator-treated null retrieved_data?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the trace satisfy both network checks: the evaluator-selected last navigation is a GET 200 whose normalized URL matches ^__GITLAB__/root/metaseq/-/issues/.*$ with all query parameters ignored, and the selected last qualifying POST to __GITLAB__/api/graphql returns 200 with a normalized referer matching __GITLAB__/root/metaseq/-/issues/?state=opened&label_name%5B%5D=enhancement after ignoring page, sort, and scope parameters?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The retained final response gives AgentResponseEvaluator score 1.0 by matching the expected normalized NAVIGATE/SUCCESS response.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "The complete trace gives the first NetworkEventEvaluator score 1.0 because the evaluator-selected last navigation event is GET 200 and its normalized URL matches ^__GITLAB__/root/metaseq/-/issues/.*$ while all query parameters are ignored.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "The complete trace gives the second NetworkEventEvaluator score 1.0 because the evaluator-selected last qualifying event is a POST 200 to __GITLAB__/api/graphql with the expected opened-and-enhancement issues-page referer, modulo ignored page, sort, and scope parameters.",
+        "support": [
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native success fails if the final response check scores 0 or errors because the response is invalid or does not match the evaluator-expected normalized NAVIGATE/SUCCESS response.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Native success fails if, in a complete trace, the first network check scores 0 or errors because its selected last navigation event is absent or mismatches the required issues URL, GET method, or 200 response status.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "Native success fails if, in a complete trace, the second network check scores 0 or errors because no selected GraphQL event matches the required POST URL, 200 status, and opened-and-enhancement issues-page referer under its ignored-parameter rule.",
+        "support": [
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Evidence review is undecided if agent_response.json or network.har is not retained, is unreadable, or is not known complete enough to reconstruct the applicable comparison and selected last events.",
+        "rationale": "A retention gap does not establish what the evaluator received; absence or mismatch within a known-complete submitted artifact remains a native failure, not an undecided result."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "rendered_filtered_issue_list",
+        "text": "Beyond native scoring, a retained final browser screenshot must directly show the root/metaseq Issues page with the Open state and enhancement label filters active and the resulting issue list rendered.",
+        "rationale": "The native network checks validate request URL, method, referer, and response status but specify neither GraphQL request/response content nor rendered-page content, so they can pass without direct evidence that the requested filtered list was visibly displayed.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Final browser screenshot",
+            "question": "Does the final rendered GitLab state visibly show root/metaseq's issue list filtered to Open and enhancement?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[2].expected",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "derived/task.json::eval[2].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

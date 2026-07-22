@@ -165,7 +165,11 @@ def execute_smoke_job(
     if completed_status:
         success = bool(summary.get("success"))
         native_label = "success" if success else "fail"
-        native_score = 1.0 if success else 0.0
+        score_value = summary.get("native_score")
+        if isinstance(score_value, (int, float)) and not isinstance(score_value, bool):
+            native_score = float(score_value)
+        else:
+            native_score = 1.0 if success else 0.0
 
     descriptors = _androidworld_artifacts(paths.native_run_dir) + default_adapter_artifacts(paths)
     manifest, manifest_path, manifest_sha = build_artifact_manifest(

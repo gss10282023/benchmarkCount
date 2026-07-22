@@ -4,88 +4,119 @@ domain: androidworld
 task_id: SimpleSmsSendClipboardContent
 native:
   user_goal:
-    text: In Simple SMS Messenger, send the clipboard contents to the specified phone number.
+    text: Send an SMS in Simple SMS Messenger to the task's target number, using the clipboard content as the message body.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.template
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.initialize_task
   benchmark_success:
-    text: 'Native success is `is_successful()==1.0`: the sent-SMS store contains a message to the run''s `number` whose body matches the run''s `message` under the evaluator''s parse/normalize/fuzzy-match rule and is no more than 5 minutes old at evaluation time, the current package is `com.simplemobiletools.smsmessenger`, and the UI is not stuck on text starting with `Sending`.'
+    text: 'Native success requires `done=true` and an evaluator pass: a sent-SMS row within 5 minutes matches the task number and expected clipboard text under the evaluator''s fuzzy-match rule, the foreground package is `com.simplemobiletools.smsmessenger`, and final UI evidence does not show a `Sending` stall.'
     support:
-    - official/install/android_world/task_evals/task_eval.py::TaskEval.is_successful
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::was_sent
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
   checked_by:
-    text: Released evaluator `sms.SimpleSmsSendClipboardContent`, via inherited `sms_validators.SimpleSMSSendSms.is_successful`.
+    text: AndroidWorld runner `_run_task` done gate plus `SimpleSMSSendSms.is_successful`.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
   decisive_artifacts:
-  - artifact: task instance record
-    question: What are the run's `number` and `message` values?
+  - artifact: Retained task-instance inputs / clipboard-initialization record
+    question: 'What were the evaluator inputs: target `number` and expected clipboard text `message` that initialization placed on the clipboard?'
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.schema
-  - artifact: post-run sent-SMS query output with evaluation/capture time
-    question: Does the sent store contain a message whose `address` matches the run's `number`, whose `body` matches the run's `message` under the evaluator rule, and whose `date` is within 5 minutes of the recorded Android time?
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.schema
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.initialize_task
+  - artifact: Retained episode end status or trace
+    question: Did the episode end with `done=true`?
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.get_sent_messages
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::was_sent
-  - artifact: post-run end-state activity/UI snapshot
-    question: At evaluation end, was the current package `com.simplemobiletools.smsmessenger`, and did no UI element text start with `Sending`?
+    - official/install/android_world/suite_utils.py::_run_task
+  - artifact: Retained sent-SMS query output or equivalent telephony snapshot at evaluation time
+    question: Is there a `content://sms/sent` row whose normalized address matches the task number, whose body fuzzy-matches the expected clipboard text, and whose timestamp is within 5 minutes of evaluator time?
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.get_sent_messages
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  - artifact: Retained final evaluator observation
+    question: At evaluation time, was the foreground package `com.simplemobiletools.smsmessenger`, and did final UI evidence avoid any text starting with `Sending`?
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
   success_if:
-  - text: 'Using the run''s `number` and `message`, the retained sent-SMS output shows a qualifying sent message under `was_sent`: stored `address` matches the run number after the evaluator''s normalization of the stored value, `body` fuzzy-matches the run message, and `date` is within 5 minutes of recorded Android time.'
+  - text: Episode-end evidence shows `done=true`; task-input evidence gives the target number and expected clipboard text; sent-SMS evidence shows a qualifying recent row matching both under the evaluator's normalization/fuzzy rule; final foreground evidence shows `com.simplemobiletools.smsmessenger`; and final UI evidence shows no text starting with `Sending`.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.schema
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::was_sent
-  - text: The retained end-state activity record shows package `com.simplemobiletools.smsmessenger`.
-    support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
-  - text: The retained end-state UI/state shows no element text starting with `Sending`.
-    support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.initialize_task
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
   fail_if:
-  - text: A complete end-of-run sent-SMS snapshot shows no message satisfying the evaluator's recent-match rule for the run's `number` and `message`, or only matching messages older than 5 minutes.
+  - text: Episode-end evidence shows `done=false`.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.schema
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::was_sent
-  - text: The retained end-state activity record shows a package other than `com.simplemobiletools.smsmessenger`.
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: Episode-end evidence shows `done=true`, task-input evidence gives the target number and expected clipboard text, and sent-SMS evidence rules out any qualifying recent row matching both under the evaluator's normalization/fuzzy rule.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
-  - text: The retained end-state UI/state shows an element whose text starts with `Sending`.
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  - text: Episode-end evidence shows `done=true`, and final foreground evidence shows the evaluator-time package was not `com.simplemobiletools.smsmessenger`.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
   undecided_if:
-  - text: The run lacks the task-instance `number`/`message`, or lacks a contemporaneous sent-SMS snapshot with message dates and evaluation/capture time, so the recent-message check cannot be applied.
+  - text: 'The retained record does not let a reviewer reconstruct one or more native checks: task inputs (`number` and expected clipboard text `message`), episode `done`, sent-SMS rows/timestamps, or the final foreground/UI observation.'
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.schema
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::was_sent
-    rationale: The main native check depends on the run parameters plus timestamp recency.
-  - text: The run lacks end-state activity/package evidence or UI/state evidence, so the current-app or stuck-at-sending checks cannot be determined.
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.schema
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.initialize_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: Final UI evidence shows text starting with `Sending`, or other retained exception evidence indicates the evaluator would raise, and the remaining artifacts do not independently establish success or failure.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
-    rationale: Success requires both the correct foreground package and absence of a `Sending` state.
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    rationale: The released runner records evaluator exceptions separately rather than as a native counted success or failure.
 stronger:
   additional_conditions:
-  - id: clipboard_consistency
-    text: In addition to native success, retained evidence shows the clipboard content available for the run matched the sent SMS body; this narrows the task/evaluator gap that the task says to send clipboard content, while the released evaluator only checks the sent message text.
-    rationale: '`SimpleSmsSendClipboardContent.initialize_task` sets clipboard contents from `params["message"]`, but `SimpleSMSSendSms.is_successful` does not inspect clipboard state and accepts any way of producing the same outgoing body.'
+  - id: exact_clipboard_body
+    text: Beyond native success, the sent SMS body exactly equals the task's clipboard text `message`, not merely a fuzzy match.
+    rationale: The user goal is to send the clipboard content itself, while the native validator accepts approximate body matches through `fuzzy_match`.
     decisive_artifacts:
-    - artifact: task-start clipboard snapshot or initialization log
-      question: What clipboard content was set or present for this run?
+    - artifact: Retained task inputs and matching sent-SMS row
+      question: Do retained task inputs provide the expected clipboard text, and does the matched sent-SMS row body equal that text exactly?
       support:
-      - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.initialize_task
-    - artifact: post-run sent-SMS query output
-      question: Does the sent SMS body match that retained clipboard content?
-      support:
-      - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.get_sent_messages
-      - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::was_sent
+      - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent
+      - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.initialize_task
+      - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+      - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.template
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.initialize_task
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  - id: clipboard_entry_provenance
+    text: Beyond native success, retained trace evidence shows the compose field was populated from clipboard paste/insertion rather than by manually re-entering the expected text.
+    rationale: The dispatched goal requires using clipboard content; the native evaluator checks only the final sent text against `message` and does not inspect how the text was entered.
+    decisive_artifacts:
+    - artifact: Retained action/observation trace around message composition
+      question: Does the retained trace show a paste or clipboard insertion into the SMS compose field before send?
+      support:
+      - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent
+      - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.initialize_task
+      - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    support:
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.initialize_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+  - id: send_via_simple_sms_ui
+    text: Beyond native success, retained trace evidence shows the message was actually composed and sent from Simple SMS Messenger, not sent elsewhere and followed by ending in that app.
+    rationale: The goal says to send the message in Simple SMS Messenger, while the native evaluator only checks that the foreground package is Simple SMS Messenger at evaluation time.
+    decisive_artifacts:
+    - artifact: Retained foreground/action trace plus sent-SMS evidence
+      question: Does the retained trace show compose-and-send actions occurring while Simple SMS Messenger was foregrounded?
+      support:
+      - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent
+      - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    support:
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful

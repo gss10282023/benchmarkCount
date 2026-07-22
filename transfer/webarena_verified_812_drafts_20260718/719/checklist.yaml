@@ -1,0 +1,72 @@
+schema_version: case_checklist_v1
+case_unit_id: '719'
+domain: webarena_verified
+task_id: '719'
+native:
+  user_goal:
+    text: Like every submission authored by ThetaGang_wsb in the wallstreetbets forum.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when all three configured checks score 1.0: the AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and the two NetworkEventEvaluator instances accept the last matching POSTs to __REDDIT__/sv/29478.json and __REDDIT__/sv/29458.json with choice="1" and response status 200.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator followed by two NetworkEventEvaluator instances; TaskEvalResult.create conjunctively scores their results.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: When supplied unchanged to the released response parser and evaluator, does it produce a 1.0 AgentResponseEvaluator score for eval[0], including accepted MUTATE and SUCCESS values?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: When parsed as the run's NetworkTrace, do eval[1] and eval[2] each score 1.0 because the last URL-and-method-matching POST for each configured endpoint has choice="1" and response status 200?
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.from_content
+  success_if:
+  - text: 'All three configured evaluator results equal 1.0: eval[0] accepts the parsed MUTATE/SUCCESS response, eval[1] accepts the last matching POST to __REDDIT__/sv/29478.json with choice="1" and status 200, and eval[2] accepts the corresponding POST to __REDDIT__/sv/29458.json; consequently TaskEvalResult.score is 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Native failure occurs if any configured evaluator does not score 1.0 or errors: the response is rejected, either endpoint lacks an acceptable selected event, or that event''s compared method, URL, choice, or response status mismatches; TaskEvalResult.score is then 0.0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored evidence is undecidable only if the original agent response or complete network HAR was not retained well enough to reconstruct one or more official checks; a retained artifact that the released evaluator rejects is failure, not undecided.
+    rationale: Evidence review cannot determine the conjunctive score when a required run artifact is unavailable, while evaluator-visible mismatches and errors have defined zero-score semantics.
+stronger:
+  additional_conditions:
+  - id: final_state_all_matching_submissions
+    text: A retained end-of-run Reddit state snapshot must enumerate all submissions authored by ThetaGang_wsb in wallstreetbets and show every one in the acting user's liked/upvoted state.
+    rationale: The instruction quantifies over all matching submissions and requests a resulting state, whereas the released evaluator checks only two fixed vote-request endpoints plus the final response; it neither discovers the complete matching set nor reads final Reddit state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit state snapshot covering wallstreetbets submission authorship and acting-user vote state
+      question: Does the snapshot show the complete set of ThetaGang_wsb submissions in wallstreetbets, with every item liked/upvoted at the end of the run?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - derived/task.json::eval[2]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

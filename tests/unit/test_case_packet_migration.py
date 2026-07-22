@@ -41,13 +41,11 @@ def test_case_packet_migration_preserves_selected_case_units() -> None:
     assert Counter({domain: len(case_units) for domain, case_units in manifest_by_domain.items()}) == {
         "agentdojo": 100,
         "appworld": 100,
-        "webarena_verified": 100,
         "tau3_retail": 100,
     }
     assert Counter({domain: len(case_units) for domain, case_units in bundle_by_domain.items()}) == {
         "agentdojo": 100,
         "appworld": 100,
-        "webarena_verified": 100,
         "tau3_retail": 100,
     }
     assert dict(manifest_by_domain) == dict(bundle_by_domain)

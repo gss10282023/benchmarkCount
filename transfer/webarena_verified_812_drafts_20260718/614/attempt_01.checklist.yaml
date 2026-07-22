@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: '614'
+domain: webarena_verified
+task_id: '614'
+native:
+  user_goal:
+    text: Create a review post in Reddit f/books titled "Gone with the wind", then add the comment "It's a book with history" to that created post.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring all three configured evaluator scores to be 1.0: the AgentResponseEvaluator accepts the MUTATE/SUCCESS response, the post-submission NetworkEventEvaluator accepts its event, and the comment NetworkEventEvaluator accepts its event.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator checks the retained agent response, two released NetworkEventEvaluator instances check non-static events from the retained HAR, and TaskEvalResult.create conjunctively composes their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does evaluator parsing and normalization accept the response as the configured MUTATE task with SUCCESS status and the accepted non-retrieve response structure?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: 'Do the retained evaluation events pass both last-event-only checks: a POST to /submit or /submit/books with response 302, forum 10037, and title "Gone with the wind"; and a POST to the resolved /f/books/{post_id}/-/comment URL with response 302 and comment "It''s a book with history" in the corresponding reply field?'
+    support:
+    - derived/task.json::eval[1].expected
+    - derived/task.json::eval[2].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff the retained response passes the configured MUTATE/SUCCESS check and the HAR passes both configured last-event-only POST checks, so all three evaluator scores equal 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Failure iff any configured evaluator does not score 1.0: the response is rejected, the selected post-submission event is missing or mismatched, the selected comment event is missing or mismatched, or an evaluator/task error occurs.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecided if agent_response.json or network.har is unavailable, unreadable, or truncated so that one or more of the three checks cannot be applied; an evaluable mismatch is failure, not undecided.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+stronger:
+  additional_conditions:
+  - id: persisted_post_and_comment
+    text: Beyond native scoring, retained post-run Reddit state must show a persisted f/books post titled "Gone with the wind" and the comment "It's a book with history" attached to that same post.
+    rationale: The native evaluators compare an agent declaration and selected HAR request/response fields, including response status 302, but do not inspect post-run Reddit state; native success therefore does not directly establish that the requested post and comment persist.
+    decisive_artifacts:
+    - artifact: Post-run Reddit database or authoritative state export
+      question: Does the final Reddit state contain the task-specified f/books post and the task-specified comment attached to that same post?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - derived/task.json::eval[2].expected
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

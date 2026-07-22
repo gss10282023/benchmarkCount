@@ -1,0 +1,66 @@
+schema_version: case_checklist_v1
+case_unit_id: '684'
+domain: webarena_verified
+task_id: '684'
+native:
+  user_goal:
+    text: Create a LifeProTips discussion post promoting byteblaze/cloud-to-butt, using the project's description as the post title.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response against the MUTATE/SUCCESS/null expectation, and NetworkEventEvaluator accepts the last matching Reddit submission event against the configured POST, payload, and 302-response criteria.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator and NetworkEventEvaluator, with their scores composed conjunctively by TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response pass AgentResponseEvaluator against the configured MUTATE, SUCCESS, and null retrieved-data values under its parsing, normalization, and structural-comparison rules?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last POST event matching the configured Reddit /submit URL pattern have response status 302 and the normalized fields submission[forum]=10016, submission[mediaType]=url, submission[title]="Chrome extension that replaces occurrences of 'the cloud' with 'my butt'", and submission[url]=the rendered GitLab byteblaze/cloud-to-butt URL?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Both retained artifacts pass their respective configured evaluators, so both evaluator scores equal 1.0 and TaskEvalResult.score equals 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Either the final response fails or errors under AgentResponseEvaluator, or the required last matching submission event is absent or mismatches any checked network criterion; either case makes at least one evaluator score 0.0 and the task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained evidence omits or incompletely preserves agent_response.json or network.har, so one or both official evaluator outcomes cannot be determined from stored post-run evidence.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+stronger:
+  additional_conditions:
+  - id: persisted_post_exists
+    text: Beyond native success, retained post-run Reddit state shows an actual LifeProTips post with title "Chrome extension that replaces occurrences of 'the cloud' with 'my butt'" and a link to byteblaze/cloud-to-butt on the rendered GitLab site.
+    rationale: The task asks to create a post, while the released evaluator accepts a matching POST/302 network event plus the agent's success response and does not directly inspect persisted forum state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit forum-state snapshot or export
+      question: Does the persisted LifeProTips state contain the intended post with the configured title and GitLab project link?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

@@ -23,6 +23,7 @@ from evidence_system.adapters.runtime import (
     build_raw_run,
     default_adapter_artifacts,
     file_descriptor,
+    remote_job_result_dir,
     rsync_remote_tree,
     run_remote_command,
     sync_repo_support_files,
@@ -70,6 +71,14 @@ def plan_smoke_execution(
     source_entry = _bundle_source_entry(source_bundle, task_id=str(job["task_id"]))
     benchmark_python = str(target.benchmark_config.get("python_bin") or target.runner_command).strip()
     base_url = str(target.benchmark_config.get("base_url") or "").strip()
+    playwright_browsers_path = str(
+        target.benchmark_config.get("playwright_browsers_path") or ""
+    ).strip()
+    schema_dir = str(target.benchmark_config.get("schema_dir") or "").strip()
+    provider_only_by_model = dict(
+        target.benchmark_config.get("openrouter_provider_only_by_model") or {}
+    )
+    provider_only = str(provider_only_by_model.get(str(role["model"])) or "").strip()
     if not benchmark_python:
         return runner_plan(
             status="blocked",
@@ -102,16 +111,36 @@ def plan_smoke_execution(
             ),
         )
 
-    repo_src = str(Path(target.remote_workdir) / "src")
+    repo_src = str(
+        target.benchmark_config.get("pythonpath")
+        or (Path(target.remote_workdir) / "src")
+    )
     output_dir = _remote_output_dir(target, job)
     prefix = dotenv_source_prefix(dotenv_path, repo_root=target.remote_workdir)
     if is_smoke_phase(job):
         max_steps = int(target.benchmark_config.get("smoke_max_steps") or MINIWOB_DEFAULT_MAX_STEPS)
     else:
         max_steps = int(target.benchmark_config.get("full_max_steps") or MINIWOB_FULL_MAX_STEPS)
+    playwright_env = (
+        f"PLAYWRIGHT_BROWSERS_PATH={shlex.quote(playwright_browsers_path)} "
+        if playwright_browsers_path
+        else ""
+    )
+    schema_env = (
+        f"EVIDENCE_SYSTEM_SCHEMA_DIR={shlex.quote(schema_dir)} "
+        if schema_dir
+        else ""
+    )
+    provider_arg = (
+        f"--openrouter-provider-only {shlex.quote(provider_only)} "
+        if provider_only
+        else ""
+    )
     command = (
         f"cd {shlex.quote(target.remote_workdir)} && {prefix} && "
         f"MINIWOB_URL={shlex.quote(base_url)} "
+        f"{playwright_env}"
+        f"{schema_env}"
         f"PYTHONPATH={shlex.quote(repo_src)} "
         f"{shlex.quote(benchmark_python)} -m evidence_system.adapters.miniwob_worker "
         f"--job-json {json_arg(job)} "
@@ -123,6 +152,7 @@ def plan_smoke_execution(
         f"--max-tokens {shlex.quote(str(role['max_tokens']))} "
         f"--timeout-seconds {shlex.quote(str(role['timeout_seconds']))} "
         f"--retry {shlex.quote(str(role['retry']))} "
+        f"{provider_arg}"
         f"--openrouter-api-key-env {shlex.quote(str(role['api_key_env']))} "
         f"--base-url {shlex.quote(base_url)} "
         f"--max-steps {max_steps} "
@@ -136,6 +166,12 @@ def plan_smoke_execution(
         f"worker writes screenshots, page HTML, videos, trajectory, task state, validator I/O, and per-call OpenRouter JSON under {output_dir}",
         f"MiniWoB++ base_url={base_url}",
     ]
+    if playwright_browsers_path:
+        notes.append(f"Playwright browsers path={playwright_browsers_path}")
+    if provider_only:
+        notes.append(
+            f"OpenRouter endpoint constrained to provider={provider_only} for model={role['model']}"
+        )
     return runner_plan(
         status="runnable",
         command=command,
@@ -154,7 +190,12 @@ def execute_smoke_job(
 ) -> dict[str, Any]:
     paths = build_job_paths(job)
     _ensure_remote_http_server(target, paths.logs_dir)
-    sync_repo_support_files(target)
+    formal_control = dict(execution_plan.get("formal_worker_control") or {})
+    if formal_control:
+        if formal_control.get("support_files_pre_synced_and_locked") is not True:
+            raise RuntimeError("formal MiniWoB worker lacks the post-gate sync prohibition")
+    else:
+        sync_repo_support_files(target)
     _, environment_hash = write_environment_snapshot(target=target, job=job, output_path=paths.environment_path)
     shutil.rmtree(paths.native_run_dir, ignore_errors=True)
     paths.native_run_dir.mkdir(parents=True, exist_ok=True)
@@ -167,14 +208,31 @@ def execute_smoke_job(
         stderr_path=paths.logs_dir / "prepare.stderr.log",
     )
     started_at = utc_now_iso()
-    completed = run_remote_command(
-        target,
-        str(execution_plan["runner_command"]),
+    completed = _run_worker_command(
+        target=target,
+        execution_plan=execution_plan,
         stdout_path=paths.stdout_log,
         stderr_path=paths.stderr_log,
+        termination_stdout_path=paths.logs_dir / "formal_worker_termination.stdout.log",
+        termination_stderr_path=paths.logs_dir / "formal_worker_termination.stderr.log",
     )
     ended_at = utc_now_iso()
-    rsync_remote_tree(target, remote_output_dir, paths.native_run_dir)
+    artifact_fetch_timeout = (
+        int(formal_control.get("artifact_fetch_timeout_seconds") or 0)
+        if formal_control
+        else None
+    )
+    if formal_control and artifact_fetch_timeout <= 0:
+        raise RuntimeError("formal MiniWoB worker lacks a bounded artifact fetch timeout")
+    if formal_control:
+        rsync_remote_tree(
+            target,
+            remote_output_dir,
+            paths.native_run_dir,
+            timeout_seconds=artifact_fetch_timeout,
+        )
+    else:
+        rsync_remote_tree(target, remote_output_dir, paths.native_run_dir)
 
     summary_path = paths.native_run_dir / "run_summary.json"
     if not summary_path.exists():
@@ -235,8 +293,98 @@ def execute_smoke_job(
     }
 
 
+def _run_worker_command(
+    *,
+    target: "InfraBenchmarkTarget",
+    execution_plan: Mapping[str, Any],
+    stdout_path: str | Path,
+    stderr_path: str | Path,
+    termination_stdout_path: str | Path,
+    termination_stderr_path: str | Path,
+):
+    """Run one worker, with strict no-replay controls when formally requested.
+
+    Ordinary smoke jobs retain the historical runtime behavior.  A bridge plan
+    opts into the formal controls by supplying ``formal_worker_control``.  That
+    path has a controller timeout, exactly one SSH attempt, and a separate
+    best-effort process-group termination command on every non-zero/unknown
+    outcome.  The remote watchdog wrapper remains the ultimate fail-closed
+    cutoff if the controller cannot reconnect after an SSH loss.
+    """
+
+    formal = dict(execution_plan.get("formal_worker_control") or {})
+    kwargs: dict[str, Any] = {}
+    if formal:
+        timeout_seconds = int(formal.get("timeout_seconds") or 0)
+        remote_watchdog_seconds = int(formal.get("remote_watchdog_seconds") or 0)
+        retry_attempts = int(formal.get("transient_retry_attempts") or 0)
+        pid_file = str(formal.get("remote_pid_file") or "")
+        if (
+            remote_watchdog_seconds <= 0
+            or timeout_seconds < remote_watchdog_seconds + 30
+            or retry_attempts != 1
+            or formal.get("retry_on_timeout_or_ssh_loss") is not False
+            or formal.get("support_files_pre_synced_and_locked") is not True
+            or not pid_file.startswith("/tmp/")
+        ):
+            raise RuntimeError("invalid formal MiniWoB worker control metadata")
+        kwargs = {
+            "timeout_seconds": timeout_seconds,
+            "transient_retry_attempts": 1,
+        }
+    completed = run_remote_command(
+        target,
+        str(execution_plan["runner_command"]),
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        **kwargs,
+    )
+    if formal and completed.returncode != 0:
+        cleanup = _terminate_formal_worker(
+            target=target,
+            remote_pid_file=str(formal["remote_pid_file"]),
+            stdout_path=termination_stdout_path,
+            stderr_path=termination_stderr_path,
+        )
+        raise RuntimeError(
+            "formal MiniWoB worker failed closed "
+            f"(returncode={completed.returncode}, termination_returncode={cleanup.returncode}); "
+            "the canonical slot will not be retried"
+        )
+    return completed
+
+
+def _terminate_formal_worker(
+    *,
+    target: "InfraBenchmarkTarget",
+    remote_pid_file: str,
+    stdout_path: str | Path,
+    stderr_path: str | Path,
+):
+    pid_file = shlex.quote(remote_pid_file)
+    command = (
+        f"pid_file={pid_file}; "
+        "if test -f \"$pid_file\"; then "
+        "pid=$(cat \"$pid_file\"); "
+        "case \"$pid\" in ''|*[!0-9]*) exit 65;; esac; "
+        "kill -TERM -- \"-$pid\" 2>/dev/null || kill -TERM \"$pid\" 2>/dev/null || true; "
+        "sleep 2; "
+        "kill -KILL -- \"-$pid\" 2>/dev/null || kill -KILL \"$pid\" 2>/dev/null || true; "
+        "rm -f \"$pid_file\"; "
+        "fi"
+    )
+    return run_remote_command(
+        target,
+        command,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        timeout_seconds=45,
+        transient_retry_attempts=1,
+    )
+
+
 def _remote_output_dir(target: "InfraBenchmarkTarget", job: Mapping[str, Any]) -> str:
-    return f"{target.remote_workdir}/results/{job.get('phase') or 'smoke'}/miniwob/{job['job_id']}"
+    return remote_job_result_dir(target, job)
 
 
 def _bundle_source_entry(source_bundle: Mapping[str, Any], *, task_id: str) -> dict[str, Any] | None:

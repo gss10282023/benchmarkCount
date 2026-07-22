@@ -1,0 +1,73 @@
+schema_version: case_checklist_v1
+case_unit_id: '808'
+domain: webarena_verified
+task_id: '808'
+native:
+  user_goal:
+    text: Create an issue in the cloud-to-butt GitLab repository titled "Let's keep the project alive", assign it to the current user, and set its due date to the end of Q1 2033.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success requires both configured checks to score 1.0: AgentResponseEvaluator accepts the final response as a successful MUTATE, and NetworkEventEvaluator accepts the last matching issue-creation POST with assignee ID 2330, due date 2033-03-31, the required title, and HTTP response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: Replay AgentResponseEvaluator on agent_response.json and NetworkEventEvaluator on network.har for task 808; TaskEvalResult.create then requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - case_packet.md::lines 17-20
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize to a value accepted by AgentResponseEvaluator against the expected MUTATE/SUCCESS response?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last retained POST matching the GitLab issue endpoint have normalized form fields issue[assignee_ids][]=2330, issue[due_date]=2033-03-31, and issue[title]="Let's keep the project alive", with response status 302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff AgentResponseEvaluator scores 1.0 on agent_response.json and NetworkEventEvaluator scores 1.0 on the required last matching POST in network.har.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if AgentResponseEvaluator does not score 1.0, including an evaluation error, invalid response structure, or mismatch with the expected successful MUTATE response.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Fail if NetworkEventEvaluator does not score 1.0, including an evaluation error, no matching POST in a complete HAR, or a mismatch in the selected event's endpoint, form values, method, or response status.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only if agent_response.json or network.har is absent, unreadable, or demonstrably incomplete so the corresponding official comparison cannot be reconstructed; a complete artifact that yields no match is failure.
+    rationale: 'This is an evidence-sufficiency state: without a complete required run artifact, the retained record cannot establish how its corresponding evaluator check would score.'
+stronger:
+  additional_conditions:
+  - id: persisted_issue_state
+    text: Beyond native request/response matching, require retained post-run GitLab state showing the issue in byteblaze/cloud-to-butt with the required title, due date 2033-03-31, and an assignee equal to the authenticated current user.
+    rationale: The official intent requires an issue to be created and assigned to "myself", while the released NetworkEventEvaluator checks only a matching POST and 302 response; it does not inspect persisted issue state or verify the assignee against retained current-user identity.
+    decisive_artifacts:
+    - artifact: Post-run GitLab API/state snapshot containing the issue record and authenticated-user record
+      question: Does the snapshot show the required issue in byteblaze/cloud-to-butt, with the required title and due date, and an assignee identity equal to the authenticated current user?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

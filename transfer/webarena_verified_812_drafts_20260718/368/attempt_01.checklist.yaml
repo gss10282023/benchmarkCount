@@ -1,0 +1,74 @@
+schema_version: case_checklist_v1
+case_unit_id: '368'
+domain: webarena_verified
+task_id: '368'
+native:
+  user_goal:
+    text: Return the list of discounted (sale) items available on the shopping site.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0: the sole AgentResponseEvaluator must score 1.0 after the submitted response is parsed and normalized to task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator parses, normalizes, and structurally compares the final response with the configured expectation; TaskEvalResult.create then requires every evaluator score—here, the sole score—to equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the exact submitted response parse under AgentResponseEvaluator and normalize to task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null without a comparison or evaluator error?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the required HAR parseable so evaluation-context construction does not error, without treating its sale-item contents as part of the native response comparison?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - derived/task.json::eval
+  success_if:
+  - text: The required inputs are parseable with no orchestration or evaluator error, and the response normalizes to a matching object with task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null; the sole AgentResponseEvaluator and therefore TaskEvalResult each score 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if required-input parsing or evaluation errors, or if AgentResponseEvaluator does not score 1.0 because the response is not a comparable object, task_type or status mismatches, retrieved_data normalizes non-null, or any other structural comparison fails; TaskEvalResult then scores 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Evidence review is undecided only when the retained artifacts do not establish the exact response and HAR supplied to the evaluator; a preserved malformed or mismatching input is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+stronger:
+  additional_conditions:
+  - id: substantiate_no_sale_items
+    text: Retained shopping-site responses must substantiate that no discounted (sale) items were available, making the accepted NOT_FOUND_ERROR/null response factually consistent with the user request.
+    rationale: The task asks for the site's available sale items, but the released evaluator expects NOT_FOUND_ERROR with null data and compares only the submitted response; it does not verify that the shopping site actually had no such items.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Do retained shopping response bodies and any pagination or result metadata provide sufficient coverage to establish that no available items were discounted or on sale?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::sites
+      - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values

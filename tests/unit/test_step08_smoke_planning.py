@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from evidence_system.orchestrator.jobs import plan_smoke_jobs
 
 
@@ -92,28 +94,22 @@ def test_plan_smoke_jobs_agentdojo_is_runnable_with_smoke_worker(tmp_path: Path)
     assert "--model-id openai/gpt-5.4" in item.execution_plan["runner_command"]
 
 
-def test_plan_smoke_jobs_webarena_is_runnable_with_smoke_worker(tmp_path: Path) -> None:
-    planned = plan_smoke_jobs(
-        domain="webarena_verified",
-        phase="smoke",
-        experiment_type="main",
-        case_count=1,
-        agent_ids=["Agent A"],
-        seed=7,
-        manifest_path=MANIFEST_PATH,
-        source_bundle_path=SOURCE_BUNDLE_PATH,
-        contracts_dir=CONTRACTS_DIR,
-        infra_config_path="configs/infra.yaml",
-        agents_config_path=AGENTS_CONFIG_PATH,
-        jobs_dir=tmp_path,
-    )
-    assert len(planned) == 1
-    item = planned[0]
-    assert item.execution_plan["status"] == "runnable"
-    assert "evidence_system.adapters.webarena_official_worker" in item.execution_plan["runner_command"]
-    assert "--shopping-admin-base-url http://127.0.0.1:7780/admin" in item.execution_plan["runner_command"]
-    assert "--webarena-repo-dir <WEBARENA_INSTALL_ROOT>" in item.execution_plan["runner_command"]
-    assert "--max-steps 30" in item.execution_plan["runner_command"]
+def test_plan_smoke_jobs_webarena_is_unavailable_without_active_manifest_block(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="manifest has no domain block for webarena_verified"):
+        plan_smoke_jobs(
+            domain="webarena_verified",
+            phase="smoke",
+            experiment_type="main",
+            case_count=1,
+            agent_ids=["Agent A"],
+            seed=7,
+            manifest_path=MANIFEST_PATH,
+            source_bundle_path=SOURCE_BUNDLE_PATH,
+            contracts_dir=CONTRACTS_DIR,
+            infra_config_path="configs/infra.yaml",
+            agents_config_path=AGENTS_CONFIG_PATH,
+            jobs_dir=tmp_path,
+        )
 
 
 def test_run_domain_cli_emits_json_plan(tmp_path: Path) -> None:

@@ -1,0 +1,67 @@
+schema_version: case_checklist_v1
+case_unit_id: '236'
+domain: webarena_verified
+task_id: '236'
+native:
+  user_goal:
+    text: Find the nearest pharmacy to Carnegie Mellon that is reachable on foot within 20 minutes using OSRM directions, and return its name and full address as a list of objects with the six requested keys.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: The task succeeds exactly when the sole AgentResponseEvaluator returns score 1.0, making TaskEvalResult.score 1.0; the submitted response must compare without assertions or evaluator errors after the released parsing, schema normalization, and unordered comparison.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator parses and normalizes the final response, then ValueComparator performs the structural comparison; TaskEvalResult composes the sole evaluator score.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained submitted response pass the released normalization and comparison with task_type RETRIEVE, status SUCCESS, and exactly one unordered retrieved-data object containing name "Schiller's Pharmacy", house_number "811", street "South Aiken Avenue", city "Pittsburgh", state "Pennsylvania", and postcode "15232"?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].ordered
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: 'The retained submitted response yields no AgentResponseEvaluator assertions or errors after normalization: task_type and status match RETRIEVE and SUCCESS, and retrieved_data matches the configured one-object value without missing or extra items or object keys; therefore both the sole evaluator score and task score are 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The retained submitted response produces any AgentResponseEvaluator mismatch or evaluator error—including a reliably recorded null, empty, or invalid response; wrong task type or status; or missing, extra, or nonmatching retrieved data—so the sole evaluator score and task score are 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained copy of agent_response.json is absent, corrupt, truncated, or otherwise insufficient to establish what response was submitted; this is distinct from a reliably retained null or invalid submission, which is failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+stronger:
+  additional_conditions:
+  - id: verify_osrm_walkability_and_nearestness
+    text: 'Require retained network evidence to substantiate the route-dependent task claim: OSRM walking directions used Carnegie Mellon as origin, the reported pharmacy is reachable within 1,200 seconds, and the retained pharmacy-candidate and routing results establish it as the nearest qualifying pharmacy.'
+    rationale: The official instruction requires OSRM use, 20-minute walkability, and nearestness, while the native AgentResponseEvaluator reads only the submitted response and structurally compares a configured value; it does not inspect the network trace and can therefore pass without evidence of those route-dependent requirements.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Do retained pharmacy-search and OSRM direction events establish a walking route from Carnegie Mellon to the reported pharmacy of at most 1,200 seconds and show that no closer retained qualifying candidate exists?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values

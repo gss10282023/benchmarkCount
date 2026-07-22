@@ -1,0 +1,89 @@
+schema_version: case_checklist_v1
+case_unit_id: VlcCreatePlaylist
+domain: androidworld
+task_id: VlcCreatePlaylist
+native:
+  user_goal:
+    text: Create a VLC playlist with the requested title and the requested files from Internal Memory/VLCVideos in the specified order.
+    support:
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.goal
+  benchmark_success:
+    text: 'Native success requires both runner completion and evaluator success: the run must end with `done=true`, and the post-run VLC playlist/media join rows must make `verify_playlist` return true for the requested playlist name and ordered file list.'
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.is_successful
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+  checked_by:
+    text: '`_run_task` gates success on `interaction_results.done`; `VlcCreatePlaylist.is_successful` pulls `vlc_media.db` join rows and applies `verify_playlist`.'
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.is_successful
+    - official/install/android_world/task_evals/single/vlc.py::_get_playlist_info_query
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+  decisive_artifacts:
+  - artifact: Retained dispatched goal or task-parameter record
+    question: What playlist title and ordered file list were requested for this run?
+    support:
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.goal
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.schema
+  - artifact: Retained runner completion evidence from the episode trace or underlying run record
+    question: Did the run end with `done=true` or `done=false`?
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - artifact: Post-run VLC database snapshot or exported query rows from `vlc_media.db`
+    question: Under the evaluator join and comparison rule, are there exactly the requested number of rows for the target playlist, with each requested filename present at its required zero-based position?
+    support:
+    - official/install/android_world/task_evals/single/vlc.py::_get_playlist_info_query
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.is_successful
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+  success_if:
+  - text: 'The retained goal/params establish the requested playlist title and ordered file list, retained completion evidence shows `done=true`, and the post-run VLC DB rows satisfy `verify_playlist` for that title/list: the number of rows whose playlist name matches under the evaluator''s fuzzy rule equals `len(files)`, and every requested filename appears at its exact zero-based playlist position.'
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.is_successful
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+  fail_if:
+  - text: Retained completion evidence shows `done=false`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: A usable post-run VLC DB snapshot/query shows the evaluator would return false for the requested playlist title and ordered file list, including if the matched-row count differs from `len(files)` or any requested filename is missing from its required zero-based position.
+    support:
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.is_successful
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+  undecided_if:
+  - text: No retained goal/task-parameter evidence establishes the requested playlist title and ordered file list, and no independent `done=false` evidence already establishes failure.
+    support:
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.goal
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.schema
+    rationale: Without the evaluator inputs, retained VLC playlist rows cannot be compared to the benchmark criterion.
+  - text: The post-run VLC DB snapshot/query rows are missing or unusable, and retained completion evidence does not already show `done=false`.
+    support:
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.is_successful
+    - official/install/android_world/task_evals/single/vlc.py::_get_playlist_info_query
+    - official/install/android_world/suite_utils.py::_run_task
+    rationale: The evaluator-visible state needed to determine `verify_playlist` is absent.
+  - text: The post-run VLC DB rows satisfy `verify_playlist`, but retained execution evidence does not establish whether the run finished with `done=true`.
+    support:
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+    - official/install/android_world/suite_utils.py::_run_task
+    rationale: Evaluator truth alone is insufficient because native success is runner-gated by `done`.
+stronger:
+  additional_conditions:
+  - id: exact_playlist_title
+    text: Beyond native success, the stored playlist title should exactly equal the requested title, not merely pass the evaluator's fuzzy, case-insensitive playlist-name match.
+    rationale: The official user goal says to create a playlist titled with the requested name, but `verify_playlist` accepts approximate playlist-name matches via `fuzzy_match(..., ignore_case=True)`, so native success can over-credit near-miss titles.
+    decisive_artifacts:
+    - artifact: Retained dispatched goal or task-parameter record
+      question: What exact playlist title was requested?
+      support:
+      - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.goal
+      - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.schema
+    - artifact: Post-run VLC database snapshot or exported playlist rows
+      question: What exact `Playlist.name` value is stored for the playlist whose rows otherwise correspond to the requested ordered files?
+      support:
+      - official/install/android_world/task_evals/single/vlc.py::_get_playlist_info_query
+      - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+    support:
+    - official/install/android_world/task_evals/single/vlc.py::VlcCreatePlaylist.goal
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match

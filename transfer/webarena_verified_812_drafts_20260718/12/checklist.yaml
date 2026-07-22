@@ -1,0 +1,65 @@
+schema_version: case_checklist_v1
+case_unit_id: '12'
+domain: webarena_verified
+task_id: '12'
+native:
+  user_goal:
+    text: Report the total number of store reviews that mention the term "satisfied".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The sole configured AgentResponseEvaluator must score 1.0: after released parsing and normalization, the response must match task type RETRIEVE, status SUCCESS, and exactly one numeric retrieved-data item equal to 2 under unordered comparison. With that sole evaluator at 1.0 and no evaluation error, TaskEvalResult.score is 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator; EvaluatorResult.create converts an assertion-free comparison to score 1.0, and TaskEvalResult.create requires every configured evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response parse to a mapping whose evaluator-normalized task type, status, and retrieved data match RETRIEVE, SUCCESS, and exactly one numeric item equal to 2?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Can the required trace be parsed into a NetworkTrace and, if environment-URL fallback is needed, does it contain an event from which the shopping-admin base URL can be recovered?
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: The required response and trace inputs are accepted without parsing or context error, and AgentResponseEvaluator produces no assertions when comparing the normalized response with RETRIEVE, SUCCESS, and the singleton numeric value 2.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The resulting sole evaluator score is 1.0, so the overall TaskEvalResult has score 1.0 and success status.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The normalized response comparison produces any failure assertion, including an invalid response structure, missing or mismatched task type or status, or missing, wrong, or extra retrieved data; the evaluator and overall task then score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Response or trace parsing, evaluation-context construction, evaluator execution, or orchestration errors produce an error result with overall score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained response or trace is absent, truncated, or cannot be associated with the evaluated run, and the evidence does not establish whether the input itself was absent or invalid during evaluation.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    rationale: Such a retention or run-association gap prevents reconstructing the native comparison; an input affirmatively shown to have been missing or invalid during evaluation is a failure instead.
+stronger:
+  additional_conditions: []

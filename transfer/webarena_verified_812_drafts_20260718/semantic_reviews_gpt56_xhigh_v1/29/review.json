@@ -1,0 +1,218 @@
+{
+  "decision": "revise",
+  "checklist_items": [
+    {
+      "id": "identity_and_scope",
+      "status": "pass",
+      "rationale": "The domain, case unit, and task identifiers match case 29, and the checklist remains case-specific.",
+      "evidence": [
+        "case_packet.md::Case Metadata",
+        "checklist.yaml::case_unit_id/domain/task_id"
+      ]
+    },
+    {
+      "id": "native_user_goal",
+      "status": "pass",
+      "rationale": "The stated goal faithfully preserves the DIY forum, most-recent-post, author exclusion, vote comparison, counting, and required output fields.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::official instruction",
+        "derived/task.json::intent",
+        "checklist.yaml::native.user_goal"
+      ]
+    },
+    {
+      "id": "official_evaluator_semantics",
+      "status": "pass",
+      "rationale": "The checklist correctly checks the three explicitly configured response fields—task_type, status, and retrieved_data—using the supplied schema and unordered exact array comparison. It does not incorrectly require the materialized error_details default.",
+      "evidence": [
+        "derived/tag_task.json::eval[0]",
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator"
+      ]
+    },
+    {
+      "id": "evaluator_composition",
+      "status": "pass",
+      "rationale": "It identifies exactly one AgentResponseEvaluator and correctly requires its score, and therefore TaskEvalResult.score, to equal 1.0.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::evaluator sequence",
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "checklist.yaml::native.checked_by"
+      ]
+    },
+    {
+      "id": "decisive_post_run_evidence",
+      "status": "fail",
+      "rationale": "The checklist makes network.har decisive even though the sole configured evaluator examines the agent response. The packet's batch artifact contract does not make the HAR necessary to reconstruct this case's configured comparison.",
+      "evidence": [
+        "derived/task.json::eval[0]",
+        "case_packet.md::Benchmark Task Summary::required run artifacts",
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+      ]
+    },
+    {
+      "id": "decision_rules",
+      "status": "fail",
+      "rationale": "The rules elevate retained-HAR parsing to a case-specific success/failure requirement, and the generic reference to missing artifacts can make loss of a nondecisive HAR undecided. Only loss of the response evidence needed for this configured evaluator should cause undecided.",
+      "evidence": [
+        "checklist.yaml::native.success_if[1]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]",
+        "derived/task.json::eval[0]"
+      ]
+    },
+    {
+      "id": "source_support_pointers",
+      "status": "pass",
+      "rationale": "The cited task fields, packet section, evaluator methods, and result constructors are all represented in the packet; no evaluator instance or expected value is invented.",
+      "evidence": [
+        "case_packet.md::Source Inventory",
+        "checklist.yaml::native"
+      ]
+    },
+    {
+      "id": "stronger_conditions",
+      "status": "pass",
+      "rationale": "The empty stronger list avoids adding unsupported trajectory, state, or judge requirements.",
+      "evidence": [
+        "checklist.yaml::stronger.additional_conditions",
+        "case_packet.md::Benchmark Task Summary"
+      ]
+    },
+    {
+      "id": "minimality_and_no_run_leakage",
+      "status": "fail",
+      "rationale": "There is no run leakage, but the native checklist is not minimal because it adds network.har and trace-processing rules that are unnecessary for the sole configured response check.",
+      "evidence": [
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "checklist.yaml::native.fail_if[1]",
+        "derived/task.json::eval"
+      ]
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "nondecisive_network_artifact",
+      "checklist_item_id": "decisive_post_run_evidence",
+      "message": "network.har is presented as decisive despite there being no configured NetworkEventEvaluator and no case-specific response value whose comparison depends on the trace.",
+      "required_change": "Remove network.har from decisive_artifacts and retain complete agent_response.json as the minimal sufficient native evidence.",
+      "evidence": [
+        "derived/task.json::eval[0]",
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+      ]
+    },
+    {
+      "id": "trace_based_decision_rules",
+      "checklist_item_id": "decision_rules",
+      "message": "The success, failure, and undecided rules improperly make retained trace parsing or loss relevant to this response-only configured evaluation.",
+      "required_change": "Express success and failure through the AgentResponseEvaluator comparison and its resulting score; restrict undecided to post-run integrity or provenance loss that prevents reconstruction of the supplied agent response.",
+      "evidence": [
+        "checklist.yaml::native.success_if[1]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    {
+      "id": "remove_extra_native_scope",
+      "checklist_item_id": "minimality_and_no_run_leakage",
+      "message": "The extra HAR artifact and trace-processing clauses make the checklist broader than the minimal configured claim.",
+      "required_change": "Delete the trace-specific artifact and clauses while preserving the response parsing, normalization, exact expected values, unordered comparison, error handling, and all-evaluator composition.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::evaluator sequence",
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "checklist.yaml::native.fail_if[1]"
+      ]
+    }
+  ],
+  "revised_checklist": {
+    "native": {
+      "user_goal": {
+        "text": "In the DIY forum, identify the username and title of the most recent post, count its comments that are both from someone other than the author and more downvoted than upvoted, and return a list of objects with keys username, post_title, and count.",
+        "support": [
+          "derived/task.json::intent"
+        ]
+      },
+      "benchmark_success": {
+        "text": "The sole AgentResponseEvaluator must score 1.0: after released parsing and schema normalization, the evaluator-recognized task type must be RETRIEVE, status must be SUCCESS, and retrieved_data must equal under unordered exact-array comparison the singleton object with username ziostraccette, post_title How can I bring an HDMI cable from my pc downstairs to my TV upstairs?, and count 0. TaskEvalResult.score must consequently be 1.0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "derived/tag_task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "checked_by": {
+        "text": "The released WebArenaVerifiedEvaluator runs the one configured AgentResponseEvaluator, and TaskEvalResult.create assigns score 1.0 only when every configured evaluator score equals 1.0.",
+        "support": [
+          "derived/task.json::eval[0].evaluator",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "decisive_artifacts": [
+        {
+          "artifact": "agent_response.json",
+          "question": "What complete final response was supplied, and do its evaluator-recognized task type, status, and retrieved_data parse, normalize, and compare to the official expected values under the configured unordered rule?",
+          "support": [
+            "derived/task.json::eval[0]",
+            "derived/tag_task.json::eval[0].expected",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+          ]
+        }
+      ],
+      "success_if": [
+        {
+          "text": "The complete retained response passes released parsing and normalization with evaluator-recognized task type RETRIEVE, status SUCCESS, and exactly the singleton retrieved-data object containing username ziostraccette, post title How can I bring an HDMI cable from my pc downstairs to my TV upstairs?, and numeric count 0; array order is ignored.",
+          "support": [
+            "derived/task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+          ]
+        },
+        {
+          "text": "The sole AgentResponseEvaluator completes without error and scores 1.0, so TaskEvalResult.score is 1.0.",
+          "support": [
+            "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "fail_if": [
+        {
+          "text": "A complete supplied response is invalid for comparison or any compared value differs after normalization, including a wrong or missing task type or status, missing or null retrieved_data, a missing or extra array item, or a mismatch in the singleton object's username, post_title, count, or schema-visible keys.",
+          "support": [
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator"
+          ]
+        },
+        {
+          "text": "With a complete provenance-established response, any response parsing, normalization, or comparison error, evaluator error, or task orchestration error that produces a non-1.0 score is native failure.",
+          "support": [
+            "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+            "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "undecided_if": [
+        {
+          "text": "Post-run retention, integrity, or provenance loss affecting agent_response.json prevents reconstruction of the exact response supplied for evaluation.",
+          "rationale": "This is loss of decisive review evidence. A complete response known to have been null, malformed, invalid, mismatching, or rejected during evaluation is instead native failure."
+        }
+      ]
+    },
+    "stronger": {
+      "additional_conditions": []
+    }
+  }
+}

@@ -1,0 +1,121 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "791",
+  "domain": "webarena_verified",
+  "task_id": "791",
+  "native": {
+    "user_goal": {
+      "text": "Using GitLab's Web IDE, create `car/urls.json` in the `gimmiethat.space` repository, make it a JSON object whose `urls` array contains the full URLs of the five most recent `cars`-forum posts in newest-to-oldest order, and commit the change to the default branch.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is `TaskEvalResult.score == 1.0`, requiring both configured evaluator scores to equal 1.0: `AgentResponseEvaluator` must accept a response that normalizes to the compared mapping `task_type=MUTATE`, `status=NOT_FOUND_ERROR`, `retrieved_data=null`, and `NetworkEventEvaluator` must accept the selected last matching `GET __REDDIT__/forums` event with response status 200 after all query parameters are ignored.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released `WebArenaVerifiedEvaluator` runs `AgentResponseEvaluator` over the retained agent response and `NetworkEventEvaluator` over the retained network trace; `TaskEvalResult.create` then conjunctively computes the task score.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the released response evaluator normalize the response to exactly the compared `MUTATE` / `NOT_FOUND_ERROR` / null-retrieved-data mapping without assertions or an evaluator error?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Among evaluation events, does the released network evaluator find matching `GET /forums` requests, select the last such match, and accept it with response status 200 after ignoring every query parameter?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff the complete response artifact gives `AgentResponseEvaluator` score 1.0 on the normalized `MUTATE` / `NOT_FOUND_ERROR` comparison and the complete HAR gives `NetworkEventEvaluator` score 1.0 on the last-matching `GET /forums`, status-200 comparison; both scores being 1.0 yields task score 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either complete evaluator input produces score 0.0 or an evaluator/orchestration error—for example, the response does not normalize to the accepted mapping, or the HAR has no qualifying selected `GET /forums` event with status 200. Any non-1.0 component or error makes the task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when a required run artifact was not retained, is truncated, or cannot be tied to the evaluator input, and no retained official evaluator result resolves that component; a complete but malformed or invalid evaluator input is failure, not undecided.",
+        "rationale": "The native claim is conjunctive, so loss of either stored input prevents evidence review without establishing that the evaluator itself failed."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_intended_repository_mutation",
+        "text": "Beyond the native response/GET checks, require retained post-run evidence that GitLab Web IDE was used to commit `car/urls.json` to the default branch of `gimmiethat.space`, and that the file parses as a JSON object whose `urls` array contains exactly the five contemporaneously most recent `cars`-forum post full URLs in newest-to-oldest order.",
+        "rationale": "The official intent requires this repository mutation, content, ordering, Web IDE use, and default-branch commit, while the released checks accept a `NOT_FOUND_ERROR` response plus a generic successful `GET /forums` and inspect neither GitLab state nor the cars-forum post set.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Run-end GitLab default-branch snapshot and commit metadata",
+            "question": "Does the default branch of `gimmiethat.space` contain a committed `car/urls.json` with a JSON object and a five-element `urls` array?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          },
+          {
+            "artifact": "Contemporaneous cars-forum listing evidence, such as a retained page/API response or HAR response content",
+            "question": "Does it establish the five most recent cars-forum posts and their full URLs in newest-to-oldest order, and does that ordered list equal the file's `urls` array?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          },
+          {
+            "artifact": "Retained GitLab Web IDE browser trace",
+            "question": "Does the trace show that the file creation and default-branch commit were performed through the Web IDE?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0]",
+          "derived/task.json::eval[1]"
+        ]
+      }
+    ]
+  }
+}

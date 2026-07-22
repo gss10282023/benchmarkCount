@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -u
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: neurips-score-status JOB_ID" >&2
+  exit 2
+fi
+
+job_id=$1
+if [[ ! $job_id =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$ ]]; then
+  echo "Invalid JOB_ID." >&2
+  exit 2
+fi
+
+unit=neurips-score-$job_id.service
+summary=/srv/neurips-score/jobs/$job_id/state/_batch_summary.json
+
+if systemctl is-active --quiet "$unit"; then
+  echo "job_status=running"
+elif [[ -f $summary ]]; then
+  read -r task_count completed failed < <(
+    /opt/neurips-draft/venv/bin/python -c '
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as handle:
+    value = json.load(handle)
+print(int(value.get("task_count", 0)), int(value.get("completed", 0)), int(value.get("failed", 0)))
+' "$summary" 2>/dev/null || echo "0 0 1"
+  )
+  if [[ $task_count -gt 0 && $completed -eq $task_count && $failed -eq 0 ]]; then
+    echo "job_status=finished_success"
+  elif [[ $task_count -gt 0 && $completed -eq $task_count ]]; then
+    echo "job_status=finished_with_failures"
+  else
+    echo "job_status=incomplete_or_stopped"
+  fi
+else
+  echo "job_status=not_running_or_failed_before_summary"
+fi
+
+if [[ -f $summary ]]; then
+  /opt/neurips-draft/venv/bin/python - "$summary" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    value = json.load(handle)
+for key in (
+    "task_count",
+    "completed",
+    "success",
+    "failed",
+    "scorer",
+    "model",
+    "reasoning_effort",
+    "max_parallel",
+    "transfer_manifest",
+):
+    if key in value:
+        print(f"{key}={value[key]}")
+PY
+fi
+
+systemctl show "$unit" \
+  --property ActiveState \
+  --property SubState \
+  --property Result \
+  --property ExecMainStatus \
+  --no-pager 2>/dev/null || true
+journalctl --unit "$unit" --no-pager --lines 30 2>/dev/null || true

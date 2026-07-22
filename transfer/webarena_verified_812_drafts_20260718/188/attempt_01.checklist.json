@@ -1,0 +1,135 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "188",
+  "domain": "webarena_verified",
+  "task_id": "188",
+  "native": {
+    "user_goal": {
+      "text": "Obtain the total cost of the user's most recent shopping order marked cancelled, and return only the numeric value without additional details.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0: the sole AgentResponseEvaluator must accept the parsed and normalized response as task_type RETRIEVE, status SUCCESS, and retrieved_data containing exactly the one unordered currency value 365.42.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator invokes the sole configured AgentResponseEvaluator; TaskEvalResult succeeds only when every configured evaluator has score 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the submitted response parse to an object whose evaluator-visible fields normalize to task_type RETRIEVE, status SUCCESS, and retrieved_data [365.42], with no missing or mismatched compared field?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the HAR present and parseable as the required NetworkTrace so that the official evaluation context can be formed?",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/types/eval.py::TaskEvalContext"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The required artifacts form a valid evaluation context and the sole AgentResponseEvaluator returns score 1.0 after structural normalization and comparison.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "The evaluator-visible response matches task_type RETRIEVE and status SUCCESS, and retrieved_data normalizes as exactly the one-element unordered currency result [365.42].",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The submitted response is null or non-object after permitted parsing, lacks or mismatches a compared task_type or status field, or has missing, empty, non-normalizable, incorrect, or extra retrieved_data instead of exactly [365.42].",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered"
+        ]
+      },
+      {
+        "text": "Any evaluator or orchestration error, or any configured evaluator score other than 1.0, makes TaskEvalResult.score 0.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Retained evidence is missing or corrupt such that neither the submitted response nor an official TaskEvalResult can be established; an explicitly null, malformed, or mismatching submission is failure rather than undecided.",
+        "rationale": "Without the retained submission or its official evaluation result, the native comparison outcome cannot be reconstructed."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "shopping_state_grounding",
+        "text": "In addition to native response matching, retained shopping evidence must show that 365.42 is the total of the chronologically latest order marked cancelled.",
+        "rationale": "The user requests a value derived from shopping order state, but AgentResponseEvaluator reads only agent_response_raw and does not verify that the claimed amount agrees with that state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Do retained shopping responses identify cancelled orders with sufficient recency and total information to establish that the latest one totals 365.42?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+        ]
+      },
+      {
+        "id": "number_only_user_output",
+        "text": "A retained user-visible or original response must present only the numeric token 365.42, with no prose, code fence, or additional details outside the evaluator protocol envelope.",
+        "rationale": "The task expressly requests a number only, while the evaluator compares a structured protocol object and can extract JSON from a fenced block, so native success does not enforce the requested user-visible format.",
+        "decisive_artifacts": [
+          {
+            "artifact": "agent_response.json raw/original response",
+            "question": "Does the retained original user-visible output consist only of 365.42, apart from any separately stored evaluator protocol envelope?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+              "official/src/webarena_verified/types/eval.py::TransformedAgentResponse"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/types/eval.py::TransformedAgentResponse"
+        ]
+      }
+    ]
+  }
+}

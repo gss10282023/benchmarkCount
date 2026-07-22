@@ -1,0 +1,119 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "642",
+  "domain": "webarena_verified",
+  "task_id": "642",
+  "native": {
+    "user_goal": {
+      "text": "Create a notice in the books forum titled \"Big little lies Meet up!\" with body \"virtual meetup for Big little lies on Sep 10th\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0, requiring both configured evaluator scores to equal 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS under its normalization, and NetworkEventEvaluator accepts the last matching Reddit submission event with the configured URL, POST data, and 302 response.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task-config order, then TaskEvalResult.create composes their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the final response parse and normalize to the configured response mapping—task_type MUTATE, status SUCCESS, and normalized retrieved_data null—without structural mismatch or evaluator error?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last POST event whose normalized URL matches either __REDDIT__/submit or __REDDIT__/submit/books a 302 response with submission[forum] = 10037, submission[title] = \"Big little lies Meet up!\", and submission[body] = \"virtual meetup for Big little lies on Sep 10th\" under the evaluator comparison rule?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The stored final response produces AgentResponseEvaluator.score = 1.0 by matching the configured MUTATE/SUCCESS response after official parsing and normalization.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "The HAR's selected last matching POST event produces NetworkEventEvaluator.score = 1.0 by matching an accepted submission URL, the three configured form values, and response status 302.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "Both evaluator scores equal 1.0, so TaskEvalResult has score 1.0 and success status.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Given a readable final response, any response parse, normalization, structural-comparison, or evaluator error that makes AgentResponseEvaluator.score less than 1.0 makes the overall task score 0.0, even if the network check passes.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "Given a complete HAR, no eligible POST event, a mismatch in the selected last eligible event, or a NetworkEventEvaluator error makes its score less than 1.0 and therefore makes the overall task score 0.0, even if the response check passes.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecidable only if agent_response.json or network.har is unavailable or was incompletely retained so the corresponding run input cannot be reconstructed; a retained malformed or nonmatching input is native non-success, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_reddit_post",
+        "text": "Beyond native success, retained post-run Reddit state must show an extant books-forum post with the exact requested title and body.",
+        "rationale": "The instruction requires creation of a post, while the released checks inspect only the final response and a matching submission network event with status 302; they do not inspect post-run Reddit state to confirm persistence.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Reddit post-page DOM or state snapshot",
+            "question": "Does the retained post-run state show an extant post in the books forum titled \"Big little lies Meet up!\" with body \"virtual meetup for Big little lies on Sep 10th\"?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

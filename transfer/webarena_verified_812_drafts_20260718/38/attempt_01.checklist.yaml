@@ -1,0 +1,69 @@
+schema_version: case_checklist_v1
+case_unit_id: '38'
+domain: webarena_verified
+task_id: '38'
+native:
+  user_goal:
+    text: Determine, using the OSRM direction service, whether Duquesne University in Pittsburgh is reachable by car from Pittsburgh Airport within one hour, returning true if so and false otherwise.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult has score 1.0: the sole configured AgentResponseEvaluator scores 1.0 after parsing the response and finding evaluator-normalized task type RETRIEVE, status SUCCESS, and retrieved data equal as an unordered Boolean collection to [true], with no comparison or evaluator error.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator checks the submitted response, and TaskEvalResult requires every configured evaluator score—only that evaluator here—to equal 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the exact submitted content parse under the evaluator to a mapping whose task_type (or legacy performed_operation) normalizes to RETRIEVE, status to SUCCESS, and retrieved_data to exactly the one-item Boolean collection [true], without evaluator-visible key, normalization, or comparison errors?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: 'The exact submitted response yields score 1.0 from the sole AgentResponseEvaluator: normalized task type is RETRIEVE, normalized status is SUCCESS, and normalized unordered retrieved_data is exactly [true], with no evaluator error or failed assertion.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The exact submitted response is null, is not parsed as a mapping, has missing or mismatching evaluator-visible response fields, or causes a normalization, comparison, evaluator, or task-evaluation error.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: The normalized retrieved_data is missing or null, or its unordered contents differ from the one-item Boolean collection [true], including any missing or extra item.
+    support:
+    - derived/task.json::eval[0].expected.retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  undecided_if:
+  - text: The retained agent_response.json is absent, truncated during retention, or cannot be established as the exact submitted response; network.har alone does not disclose the agent_response_raw value checked by this evaluator.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - derived/task.json::eval
+stronger:
+  additional_conditions:
+  - id: verify_osrm_route_evidence
+    text: Beyond native response matching, network.har shows a successful OSRM driving-directions request from Pittsburgh Airport to Duquesne University and a returned route duration no greater than 3,600 seconds.
+    rationale: The official instruction explicitly requires OSRM, but the configured evaluator is only AgentResponseEvaluator and reads only agent_response_raw; native success therefore does not verify that OSRM was queried or that its route duration supports the returned true value.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the trace contain a successful OSRM driving-directions request with endpoints corresponding to Pittsburgh Airport and Duquesne University, whose response reports a route duration of at most 3,600 seconds?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value

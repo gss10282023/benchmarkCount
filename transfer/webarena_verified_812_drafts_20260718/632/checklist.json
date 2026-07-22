@@ -1,0 +1,98 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "632",
+  "domain": "webarena_verified",
+  "task_id": "632",
+  "native": {
+    "user_goal": {
+      "text": "Create a post in f/sports titled \"running shoes recommendations?\" with body \"Hey, looking for good running shoes under $500, any suggestions?\"",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success requires TaskEvalResult.score = 1.0: both the AgentResponseEvaluator and NetworkEventEvaluator must score 1.0.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator and NetworkEventEvaluator, then TaskEvalResult.create composes their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the submitted response parse and normalize to an AgentResponseEvaluator match for task_type MUTATE and status SUCCESS?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching a POST to either configured Reddit submit endpoint have response status 302 and form fields submission[forum]=\"10080\", submission[title]=\"running shoes recommendations?\", and submission[body]=\"Hey, looking for good running shoes under $500, any suggestions?\" under the evaluator's normalization?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both official checks score 1.0: the agent response is accepted as MUTATE/SUCCESS, and the last matching Reddit POST event matches the configured endpoint, status 302, forum, title, and body values.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure occurs if either official check fails or errors, including an unaccepted agent response, no qualifying Reddit POST event, or a mismatch in the last qualifying event's status or configured form values.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecidable if agent_response.json or network.har is absent, unreadable, or incomplete enough that its evaluator-visible input cannot be reconstructed; a complete HAR containing no qualifying event is a failure, not undecided.",
+        "rationale": "Both retained evaluator inputs are needed to determine the two required scores without treating missing review evidence as proof of benchmark failure."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_reddit_post",
+        "text": "Beyond native scoring, retained post-run Reddit state must show a post created during the run in f/sports with the requested title and body.",
+        "rationale": "The task asks for a created post, while the released evaluator checks an agent success response and a matching POST/302 network event but does not inspect whether the post persisted in Reddit state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Reddit post record or state snapshot with creation metadata",
+            "question": "Does it record a post created during this run in f/sports titled \"running shoes recommendations?\" with body \"Hey, looking for good running shoes under $500, any suggestions?\"",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,64 @@
+schema_version: case_checklist_v1
+case_unit_id: '281'
+domain: webarena_verified
+task_id: '281'
+native:
+  user_goal:
+    text: Provide the full names of available Oral-B brush heads designed for children and the minimum and maximum model prices, returning only a result object with a names list and numeric min and max fields.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 exactly when the sole AgentResponseEvaluator scores 1.0: after response parsing and schema normalization, task_type and status match RETRIEVE and SUCCESS, and retrieved_data matches the configured value by unordered recursive comparison.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The sole AgentResponseEvaluator checks the submitted response; TaskEvalResult then applies the rule that every configured evaluator must score 1.0.
+    support:
+    - derived/task.json::eval[0].evaluator
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json (raw submitted final response)
+    question: Does the response parse and normalize to RETRIEVE/SUCCESS with retrieved_data unordered-equal to the configured names and price-range object?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  success_if:
+  - text: 'The response receives AgentResponseEvaluator score 1.0: normalized task_type is RETRIEVE, normalized status is SUCCESS, and normalized retrieved_data is unordered-equal to one object with names containing "Oral-B Kids Extra Soft Replacement Brush Heads featuring STAR WARS, 2 count" and "Kids By Oral-b Stages Power Star Wars Replacement Heads 4 Pack", min 12.99, and max 14.98; order of compared arrays is immaterial.'
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].ordered
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  fail_if:
+  - text: A retained submitted response fails if the evaluator reports any mismatch or error, including an invalid response shape, missing or different task_type/status, or missing, extra, or different compared retrieval items, fields, names, or prices; the resulting evaluator and task score is 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The submitted response cannot be established because agent_response.json is absent or truncated and no official TaskEvalResult tied to that response is retained.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    rationale: This is missing review evidence; an actually submitted null, malformed, or incomplete response is instead a benchmark-counted failure.
+stronger:
+  additional_conditions:
+  - id: strict_output_only
+    text: Beyond native scoring, require the raw final answer, apart from the benchmark response envelope, to contain only the requested names/min/max result object, with no surrounding prose, code fences, or unrecognized detail fields.
+    rationale: The task explicitly requires an object with only the named keys and no additional details, while the evaluator can extract JSON from a fenced block and normalizes only configured response fields, allowing some raw surrounding content or unrelated top-level fields to escape native comparison.
+    decisive_artifacts:
+    - artifact: agent_response.json (raw, before evaluator parsing or transformation)
+      question: Is the response limited to the protocol envelope and the names/min/max result object, without fences, prose, or unrecognized fields?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value

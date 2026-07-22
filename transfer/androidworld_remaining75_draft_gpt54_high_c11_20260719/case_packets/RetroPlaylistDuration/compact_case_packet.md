@@ -1,0 +1,845 @@
+# AndroidWorld Compact Draft Packet
+
+This is the complete LLM-visible pre-run source packet for one contract draft. The full audit packet and frozen source closure remain available separately.
+
+```json
+{
+  "authority_rule": "Use canonical runtime goal/evaluator semantics. Treat task_metadata.json wording as descriptive only; every disagreement is retained in metadata_comparison and metadata_conflicts.",
+  "identity": {
+    "case_unit_id": "RetroPlaylistDuration",
+    "domain": "androidworld",
+    "group": "official100",
+    "selection_rank": 84,
+    "task_id": "RetroPlaylistDuration"
+  },
+  "integrity": {
+    "semantic_record_sha256": "51cb9e2ae4e6e72e461174a69d61461a2a2f439214adaae77ae419d75096230c",
+    "shared_source_snapshot_manifest_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/androidworld_source_snapshot_manifest.json",
+    "shared_source_snapshot_manifest_sha256": "cdc4c9543ac50fb88837feb787179d5e73b6651f167b0d50f64b2332473b62bf",
+    "source_closure_sha256": "c8dfe1291b61759ccd10890b94c4ee65e5aac8e47fd012d614a1909b99e7aff3",
+    "source_commit": "d9c569f764b3a5629321858de03ff653d0f24056"
+  },
+  "schema_version": "androidworld_compact_draft_packet/v2",
+  "source_context": {
+    "available_post_run_artifact_types": [
+      "post_state",
+      "trace",
+      "screenshot",
+      "tool_log",
+      "message",
+      "native_evaluator_input",
+      "native_evaluator_output",
+      "file"
+    ],
+    "contract_template": {
+      "claim_scope": "native_aligned"
+    },
+    "evaluator_description": {
+      "canonical_module": "android_world.task_evals.single.retro_music",
+      "definition": {
+        "definition_kind": "python_class",
+        "incidental_runtime_module_excluded": null,
+        "mro": [
+          {
+            "canonical_androidworld_source": true,
+            "module": "android_world.task_evals.single.retro_music",
+            "qualname": "RetroPlaylistDuration",
+            "source_ref": {
+              "ast_sha256": "635361f97248f4b2c75c079e006df479e6db3c9486f46b43f98b2f9a4cf8efaa",
+              "end_line": 305,
+              "file_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+              "path": "android_world/task_evals/single/retro_music.py",
+              "snippet_sha256": "08738a5bd41cd7856dd9a9d01196f1f64aff8522e75f5587eba05c852134a786",
+              "start_line": 246,
+              "symbol": "RetroPlaylistDuration"
+            }
+          },
+          {
+            "canonical_androidworld_source": true,
+            "module": "android_world.task_evals.single.retro_music",
+            "qualname": "RetroCreatePlaylist",
+            "source_ref": {
+              "ast_sha256": "f243fcba78345451c46eee1f3023f000a48befdf31eafbed54a985ab7000cc4f",
+              "end_line": 187,
+              "file_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+              "path": "android_world/task_evals/single/retro_music.py",
+              "snippet_sha256": "5a1ea92d72c28afa11ba56e5c907ffcd5614e3431f32bd41beef6d574bf44913",
+              "start_line": 120,
+              "symbol": "RetroCreatePlaylist"
+            }
+          },
+          {
+            "canonical_androidworld_source": true,
+            "module": "android_world.task_evals.task_eval",
+            "qualname": "TaskEval",
+            "source_ref": {
+              "ast_sha256": "85d1a56897097bc400580d972badbaf66e2063a3fb9ddf45bfa65bfe92d05f09",
+              "end_line": 190,
+              "file_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+              "path": "android_world/task_evals/task_eval.py",
+              "snippet_sha256": "555d49d2ef6e2fdd5d52484234181bdb3f7d874ac66bb5e068d01403f050351b",
+              "start_line": 30,
+              "symbol": "TaskEval"
+            }
+          },
+          {
+            "canonical_androidworld_source": false,
+            "qualname": "ABC",
+            "runtime_reported_module": "abc",
+            "source_ref": null
+          },
+          {
+            "canonical_androidworld_source": false,
+            "module": "builtins",
+            "qualname": "object",
+            "source_ref": null
+          }
+        ],
+        "runtime_reported_module": "android_world.task_evals.single.retro_music",
+        "source_bindings": [
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+            "ast_sha256": "635361f97248f4b2c75c079e006df479e6db3c9486f46b43f98b2f9a4cf8efaa",
+            "end_line": 305,
+            "owner_module": "android_world.task_evals.single.retro_music",
+            "owner_qualname": "RetroPlaylistDuration",
+            "sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+            "snippet_sha256": "08738a5bd41cd7856dd9a9d01196f1f64aff8522e75f5587eba05c852134a786",
+            "start_line": 246
+          }
+        ]
+      },
+      "evaluator": {
+        "branches": [],
+        "method_chain": [
+          {
+            "branch_node_count": 1,
+            "direct_calls": [
+              "_get_playlist_data",
+              "float"
+            ],
+            "direct_parameter_reads": [
+              "playlist_name"
+            ],
+            "owner_class": "RetroPlaylistDuration",
+            "owner_module": "android_world.task_evals.single.retro_music",
+            "source_ref": {
+              "ast_sha256": "3ee14abff65cca4e6773f5fcbe81609c547f363cba29d07f13f02ce7860832dd",
+              "end_line": 293,
+              "file_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+              "path": "android_world/task_evals/single/retro_music.py",
+              "snippet_sha256": "fc9bdadbbace77297c869d19df37940a0489ca49d1e14d5256c8f699e845d554",
+              "start_line": 286,
+              "symbol": "RetroPlaylistDuration.is_successful"
+            }
+          },
+          {
+            "branch_node_count": 0,
+            "direct_calls": [
+              "_get_playlist_data",
+              "f.split",
+              "int",
+              "sqlite_validators.verify_playlist"
+            ],
+            "direct_parameter_reads": [
+              "files",
+              "playlist_name"
+            ],
+            "owner_class": "RetroCreatePlaylist",
+            "owner_module": "android_world.task_evals.single.retro_music",
+            "source_ref": {
+              "ast_sha256": "6bceb8b6cca0dd9814652dc8c8dae5e4efb66bd1803f0ff85ec08048c5e37003",
+              "end_line": 170,
+              "file_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+              "path": "android_world/task_evals/single/retro_music.py",
+              "snippet_sha256": "450f39abf161efbfc5b99e724d42d03d426efe250cd113e122ef94a2a035dac6",
+              "start_line": 162,
+              "symbol": "RetroCreatePlaylist.is_successful"
+            }
+          },
+          {
+            "branch_node_count": 0,
+            "direct_calls": [
+              "self._check_is_initialized"
+            ],
+            "direct_parameter_reads": [],
+            "owner_class": "TaskEval",
+            "owner_module": "android_world.task_evals.task_eval",
+            "source_ref": {
+              "ast_sha256": "4ba02bae85e87232a171f4ab6decd0f081113181a5d2fcbd220a205512f58e16",
+              "end_line": 180,
+              "file_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+              "path": "android_world/task_evals/task_eval.py",
+              "snippet_sha256": "cb4c4fd2a9f4efa9fe8fb8328f459b54febf84903006338ae246acd0c445e098",
+              "start_line": 166,
+              "symbol": "TaskEval.is_successful"
+            }
+          }
+        ],
+        "runner_score_semantics": {
+          "display_success_threshold": "agent_successful > 0.5",
+          "done_gate": "task_successful if interaction_results.done else 0.0",
+          "source_ref": {
+            "ast_sha256": "6287c8b53ca1ea7313f4a186e885a27263c51c622f46921cbe7cc4433a04edaa",
+            "end_line": 289,
+            "file_sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b",
+            "path": "android_world/suite_utils.py",
+            "snippet_sha256": "b24c573174d61b7642dd5dd746911d21c904d793e37582c91e5972a73d634062",
+            "start_line": 223,
+            "symbol": "suite_utils._run_task"
+          },
+          "task_raw_score": "task.is_successful(env)"
+        },
+        "source_bindings": [
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+            "ast_sha256": "3ee14abff65cca4e6773f5fcbe81609c547f363cba29d07f13f02ce7860832dd",
+            "end_line": 293,
+            "owner_module": "android_world.task_evals.single.retro_music",
+            "owner_qualname": "RetroPlaylistDuration.is_successful",
+            "sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+            "snippet_sha256": "fc9bdadbbace77297c869d19df37940a0489ca49d1e14d5256c8f699e845d554",
+            "start_line": 286
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+            "ast_sha256": "6bceb8b6cca0dd9814652dc8c8dae5e4efb66bd1803f0ff85ec08048c5e37003",
+            "end_line": 170,
+            "owner_module": "android_world.task_evals.single.retro_music",
+            "owner_qualname": "RetroCreatePlaylist.is_successful",
+            "sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+            "snippet_sha256": "450f39abf161efbfc5b99e724d42d03d426efe250cd113e122ef94a2a035dac6",
+            "start_line": 162
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+            "ast_sha256": "4ba02bae85e87232a171f4ab6decd0f081113181a5d2fcbd220a205512f58e16",
+            "end_line": 180,
+            "owner_module": "android_world.task_evals.task_eval",
+            "owner_qualname": "TaskEval.is_successful",
+            "sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+            "snippet_sha256": "cb4c4fd2a9f4efa9fe8fb8328f459b54febf84903006338ae246acd0c445e098",
+            "start_line": 166
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/suite_utils.py",
+            "ast_sha256": "6287c8b53ca1ea7313f4a186e885a27263c51c622f46921cbe7cc4433a04edaa",
+            "end_line": 289,
+            "owner_module": "android_world.suite_utils",
+            "owner_qualname": "suite_utils._run_task",
+            "sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b",
+            "snippet_sha256": "b24c573174d61b7642dd5dd746911d21c904d793e37582c91e5972a73d634062",
+            "start_line": 223
+          }
+        ]
+      },
+      "is_successful": {
+        "branches": [],
+        "live_evaluator_execution_performed": false,
+        "method_chain": [
+          {
+            "branch_node_count": 1,
+            "direct_calls": [
+              "_get_playlist_data",
+              "float"
+            ],
+            "direct_parameter_reads": [
+              "playlist_name"
+            ],
+            "owner_class": "RetroPlaylistDuration",
+            "owner_module": "android_world.task_evals.single.retro_music",
+            "source_ref": {
+              "ast_sha256": "3ee14abff65cca4e6773f5fcbe81609c547f363cba29d07f13f02ce7860832dd",
+              "end_line": 293,
+              "file_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+              "path": "android_world/task_evals/single/retro_music.py",
+              "snippet_sha256": "fc9bdadbbace77297c869d19df37940a0489ca49d1e14d5256c8f699e845d554",
+              "start_line": 286,
+              "symbol": "RetroPlaylistDuration.is_successful"
+            }
+          },
+          {
+            "branch_node_count": 0,
+            "direct_calls": [
+              "_get_playlist_data",
+              "f.split",
+              "int",
+              "sqlite_validators.verify_playlist"
+            ],
+            "direct_parameter_reads": [
+              "files",
+              "playlist_name"
+            ],
+            "owner_class": "RetroCreatePlaylist",
+            "owner_module": "android_world.task_evals.single.retro_music",
+            "source_ref": {
+              "ast_sha256": "6bceb8b6cca0dd9814652dc8c8dae5e4efb66bd1803f0ff85ec08048c5e37003",
+              "end_line": 170,
+              "file_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+              "path": "android_world/task_evals/single/retro_music.py",
+              "snippet_sha256": "450f39abf161efbfc5b99e724d42d03d426efe250cd113e122ef94a2a035dac6",
+              "start_line": 162,
+              "symbol": "RetroCreatePlaylist.is_successful"
+            }
+          },
+          {
+            "branch_node_count": 0,
+            "direct_calls": [
+              "self._check_is_initialized"
+            ],
+            "direct_parameter_reads": [],
+            "owner_class": "TaskEval",
+            "owner_module": "android_world.task_evals.task_eval",
+            "source_ref": {
+              "ast_sha256": "4ba02bae85e87232a171f4ab6decd0f081113181a5d2fcbd220a205512f58e16",
+              "end_line": 180,
+              "file_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+              "path": "android_world/task_evals/task_eval.py",
+              "snippet_sha256": "cb4c4fd2a9f4efa9fe8fb8328f459b54febf84903006338ae246acd0c445e098",
+              "start_line": 166,
+              "symbol": "TaskEval.is_successful"
+            }
+          }
+        ],
+        "source_bindings": [
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+            "ast_sha256": "3ee14abff65cca4e6773f5fcbe81609c547f363cba29d07f13f02ce7860832dd",
+            "end_line": 293,
+            "owner_module": "android_world.task_evals.single.retro_music",
+            "owner_qualname": "RetroPlaylistDuration.is_successful",
+            "sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+            "snippet_sha256": "fc9bdadbbace77297c869d19df37940a0489ca49d1e14d5256c8f699e845d554",
+            "start_line": 286
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+            "ast_sha256": "6bceb8b6cca0dd9814652dc8c8dae5e4efb66bd1803f0ff85ec08048c5e37003",
+            "end_line": 170,
+            "owner_module": "android_world.task_evals.single.retro_music",
+            "owner_qualname": "RetroCreatePlaylist.is_successful",
+            "sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+            "snippet_sha256": "450f39abf161efbfc5b99e724d42d03d426efe250cd113e122ef94a2a035dac6",
+            "start_line": 162
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+            "ast_sha256": "4ba02bae85e87232a171f4ab6decd0f081113181a5d2fcbd220a205512f58e16",
+            "end_line": 180,
+            "owner_module": "android_world.task_evals.task_eval",
+            "owner_qualname": "TaskEval.is_successful",
+            "sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+            "snippet_sha256": "cb4c4fd2a9f4efa9fe8fb8328f459b54febf84903006338ae246acd0c445e098",
+            "start_line": 166
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/suite_utils.py",
+            "ast_sha256": "6287c8b53ca1ea7313f4a186e885a27263c51c622f46921cbe7cc4433a04edaa",
+            "end_line": 289,
+            "owner_module": "android_world.suite_utils",
+            "owner_qualname": "suite_utils._run_task",
+            "sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b",
+            "snippet_sha256": "b24c573174d61b7642dd5dd746911d21c904d793e37582c91e5972a73d634062",
+            "start_line": 223
+          }
+        ]
+      },
+      "task_class": "RetroPlaylistDuration"
+    },
+    "initialization": {
+      "device_execution_performed_during_extraction": false,
+      "method_chain": [
+        {
+          "branch_node_count": 0,
+          "direct_calls": [
+            "_clear_playlist_dbs",
+            "_generate_list_with_sum",
+            "_scan_music_directory",
+            "file.split",
+            "file_utils.convert_to_posix_path",
+            "int",
+            "len",
+            "random.choice",
+            "random.randint",
+            "user_data_generation.write_mp3_file_to_device",
+            "zip"
+          ],
+          "direct_parameter_reads": [
+            "files",
+            "noise_files"
+          ],
+          "owner_class": "RetroPlaylistDuration",
+          "owner_module": "android_world.task_evals.single.retro_music",
+          "source_ref": {
+            "ast_sha256": "5b201f672d69d889951e0775633ce5944430cef7e7dfb6acc53d64b3e6cf5265",
+            "end_line": 284,
+            "file_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+            "path": "android_world/task_evals/single/retro_music.py",
+            "snippet_sha256": "f7d0c49d0538c5d2a194d34b1707fe4016f557e3d5597453e0bc369f1e6549ae",
+            "start_line": 260,
+            "symbol": "RetroPlaylistDuration.initialize_task"
+          }
+        },
+        {
+          "branch_node_count": 0,
+          "direct_calls": [
+            "_clear_playlist_dbs",
+            "_scan_music_directory",
+            "file.split",
+            "file_utils.convert_to_posix_path",
+            "random.choice",
+            "random.randint",
+            "super",
+            "super.initialize_task",
+            "user_data_generation.clear_internal_storage",
+            "user_data_generation.write_mp3_file_to_device"
+          ],
+          "direct_parameter_reads": [
+            "files",
+            "noise_files"
+          ],
+          "owner_class": "RetroCreatePlaylist",
+          "owner_module": "android_world.task_evals.single.retro_music",
+          "source_ref": {
+            "ast_sha256": "8aeaa8a22d1989c47a782501f0a4c61607516bf325c194d132ece257fee2983d",
+            "end_line": 160,
+            "file_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+            "path": "android_world/task_evals/single/retro_music.py",
+            "snippet_sha256": "d942d660f6f5af80ab95deb3393d352301476900c647ea09d75b9b7b97f4afe4",
+            "start_line": 147,
+            "symbol": "RetroCreatePlaylist.initialize_task"
+          }
+        },
+        {
+          "branch_node_count": 2,
+          "direct_calls": [
+            "RuntimeError",
+            "logging.info",
+            "random.seed",
+            "self._initialize_apps",
+            "self.initialize_device_time",
+            "self.params.get"
+          ],
+          "direct_parameter_reads": [
+            "seed"
+          ],
+          "owner_class": "TaskEval",
+          "owner_module": "android_world.task_evals.task_eval",
+          "source_ref": {
+            "ast_sha256": "789c520bbfefb2cf815434042709e7d9d74585ebb19c2598d02dfe9c38769b1c",
+            "end_line": 157,
+            "file_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+            "path": "android_world/task_evals/task_eval.py",
+            "snippet_sha256": "51c8fe9ebb14bc1362b24c3c53691dc666b9eaf949e8e6dc7251472e335f8c47",
+            "start_line": 142,
+            "symbol": "TaskEval.initialize_task"
+          }
+        }
+      ],
+      "source_bindings": [
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+          "ast_sha256": "5b201f672d69d889951e0775633ce5944430cef7e7dfb6acc53d64b3e6cf5265",
+          "end_line": 284,
+          "owner_module": "android_world.task_evals.single.retro_music",
+          "owner_qualname": "RetroPlaylistDuration.initialize_task",
+          "sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+          "snippet_sha256": "f7d0c49d0538c5d2a194d34b1707fe4016f557e3d5597453e0bc369f1e6549ae",
+          "start_line": 260
+        },
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+          "ast_sha256": "8aeaa8a22d1989c47a782501f0a4c61607516bf325c194d132ece257fee2983d",
+          "end_line": 160,
+          "owner_module": "android_world.task_evals.single.retro_music",
+          "owner_qualname": "RetroCreatePlaylist.initialize_task",
+          "sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+          "snippet_sha256": "d942d660f6f5af80ab95deb3393d352301476900c647ea09d75b9b7b97f4afe4",
+          "start_line": 147
+        },
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+          "ast_sha256": "789c520bbfefb2cf815434042709e7d9d74585ebb19c2598d02dfe9c38769b1c",
+          "end_line": 157,
+          "owner_module": "android_world.task_evals.task_eval",
+          "owner_qualname": "TaskEval.initialize_task",
+          "sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+          "snippet_sha256": "51c8fe9ebb14bc1362b24c3c53691dc666b9eaf949e8e6dc7251472e335f8c47",
+          "start_line": 142
+        }
+      ]
+    },
+    "metadata_comparison": {
+      "canonical_templates": [],
+      "comparison_is_semantic_proof": false,
+      "differences": [],
+      "fixed_seed_sample_shape_matches": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "has_difference": false,
+      "matches_runtime": true,
+      "metadata_placeholders": [
+        "playlist_name"
+      ],
+      "metadata_template": "Create a playlist in Retro Music titled \"{playlist_name}\" with a duration between 45 and 50 minutes using the provided songs.",
+      "status": "fixed_seed_goal_shape_match"
+    },
+    "metadata_conflicts": [],
+    "native_sources": [
+      {
+        "owner_module": "android_world.task_evals.single.retro_music",
+        "owner_qualname": "RetroPlaylistDuration",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+        "source_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.retro_music",
+        "owner_qualname": "RetroPlaylistDuration.goal",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+        "source_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.retro_music",
+        "owner_qualname": "RetroCreatePlaylist.schema",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+        "source_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.retro_music",
+        "owner_qualname": "RetroPlaylistDuration.generate_random_params",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+        "source_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.retro_music",
+        "owner_qualname": "RetroPlaylistDuration.initialize_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+        "source_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.retro_music",
+        "owner_qualname": "RetroCreatePlaylist.initialize_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+        "source_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0"
+      },
+      {
+        "owner_module": "android_world.task_evals.task_eval",
+        "owner_qualname": "TaskEval.initialize_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+        "source_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.retro_music",
+        "owner_qualname": "RetroPlaylistDuration.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+        "source_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.retro_music",
+        "owner_qualname": "RetroCreatePlaylist.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+        "source_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0"
+      },
+      {
+        "owner_module": "android_world.task_evals.task_eval",
+        "owner_qualname": "TaskEval.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+        "source_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb"
+      },
+      {
+        "owner_module": "android_world.suite_utils",
+        "owner_qualname": "suite_utils._run_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/suite_utils.py",
+        "source_sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.retro_music",
+        "owner_qualname": "RetroPlaylistDuration.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+        "source_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.retro_music",
+        "owner_qualname": "RetroCreatePlaylist.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+        "source_sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0"
+      },
+      {
+        "owner_module": "android_world.task_evals.task_eval",
+        "owner_qualname": "TaskEval.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+        "source_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb"
+      },
+      {
+        "owner_module": "android_world.suite_utils",
+        "owner_qualname": "suite_utils._run_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/suite_utils.py",
+        "source_sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b"
+      }
+    ],
+    "official_policy": "AndroidWorld has no separate policy document. The frozen task class, parameter generator/schema, initialize_task implementation, runtime-dispatched goal, is_successful implementation, and suite runner are authoritative. task_metadata.json is descriptive and is not allowed to override conflicting runtime semantics.",
+    "parameter_schema": {
+      "observed_parameter_keys": [
+        "files",
+        "noise_files",
+        "playlist_name",
+        "seed"
+      ],
+      "observed_parameter_types": {
+        "files": [
+          "builtins.list"
+        ],
+        "noise_files": [
+          "builtins.list"
+        ],
+        "playlist_name": [
+          "builtins.str"
+        ],
+        "seed": [
+          "builtins.int"
+        ]
+      },
+      "runner_injected_parameters": [
+        "seed"
+      ],
+      "schema_completeness": "declared_not_assumed_complete",
+      "source_bindings": [
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+          "ast_sha256": "f243fcba78345451c46eee1f3023f000a48befdf31eafbed54a985ab7000cc4f",
+          "end_line": 187,
+          "owner_module": "android_world.task_evals.single.retro_music",
+          "owner_qualname": "RetroCreatePlaylist.schema",
+          "sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+          "snippet_sha256": "5a1ea92d72c28afa11ba56e5c907ffcd5614e3431f32bd41beef6d574bf44913",
+          "start_line": 120
+        },
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+          "ast_sha256": "e781ce333f279031646087954de86d164b0154c5840c6d64719dc22571405078",
+          "end_line": 305,
+          "owner_module": "android_world.task_evals.single.retro_music",
+          "owner_qualname": "RetroPlaylistDuration.generate_random_params",
+          "sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+          "snippet_sha256": "89952c9a30c8137dd0b1335aab3c0b57d0cadc3fadf0e8e250440db71741ce88",
+          "start_line": 295
+        }
+      ],
+      "value": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "playlist_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "playlist_name",
+          "files"
+        ],
+        "type": "object"
+      }
+    },
+    "semantic_record": {
+      "path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/semantic_records/cases/RetroPlaylistDuration/canonical_task_semantics.json",
+      "sha256": "51cb9e2ae4e6e72e461174a69d61461a2a2f439214adaae77ae419d75096230c"
+    },
+    "task_text": {
+      "benchmark": "AndroidWorld",
+      "canonical_goal": {
+        "authority": "runtime_goal_dispatched_by_android_world.suite_utils",
+        "branches": [],
+        "computed_expression": {
+          "branch_node_count": 0,
+          "direct_calls": [],
+          "direct_parameter_reads": [
+            "playlist_name"
+          ]
+        },
+        "dispatch_phase": "after_initialize_task",
+        "generation_semantics": {
+          "computed_goal_semantics": {
+            "branch_node_count": 0,
+            "direct_calls": [],
+            "direct_parameter_reads": [
+              "playlist_name"
+            ]
+          },
+          "runtime_samples": [
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Create a playlist in Retro Music titled \"Sleepytime Songs 865\" with a duration between 45 and 50 minutes using the provided songs.",
+              "dispatch_goal_sha256": "11fb429bad759fa4a9782ac89dde794f16e67bfa164d1b63583245cbcb7c21e1",
+              "parameter_keys": [
+                "files",
+                "noise_files",
+                "playlist_name",
+                "seed"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 0
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Create a playlist in Retro Music titled \"Hip Hop Bangers 138\" with a duration between 45 and 50 minutes using the provided songs.",
+              "dispatch_goal_sha256": "ebc8546b278e3cc49a4f327b4d8cef02f977f12f41f8b056ae11a80e9cbd3a12",
+              "parameter_keys": [
+                "files",
+                "noise_files",
+                "playlist_name",
+                "seed"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 1
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Create a playlist in Retro Music titled \"Study Sessions 979\" with a duration between 45 and 50 minutes using the provided songs.",
+              "dispatch_goal_sha256": "6a702dd44c5c8bc43a0cf1a347d313e7fe39cddd62c3c30040e58117e288f573",
+              "parameter_keys": [
+                "files",
+                "noise_files",
+                "playlist_name",
+                "seed"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 2
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Create a playlist in Retro Music titled \"Country Classics 244\" with a duration between 45 and 50 minutes using the provided songs.",
+              "dispatch_goal_sha256": "8b74a8338f67c9000c11c602019eb1329ba9dbf1f76c4382470a6aa86a888344",
+              "parameter_keys": [
+                "files",
+                "noise_files",
+                "playlist_name",
+                "seed"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 3
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Create a playlist in Retro Music titled \"Tranquil Tunes 242\" with a duration between 45 and 50 minutes using the provided songs.",
+              "dispatch_goal_sha256": "904367d0091b92c9d4eac46a4b2f8f59c8ec0fee4ce196429bca6c4c5ecd23f4",
+              "parameter_keys": [
+                "files",
+                "noise_files",
+                "playlist_name",
+                "seed"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 4
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Create a playlist in Retro Music titled \"Blues Vibes 638\" with a duration between 45 and 50 minutes using the provided songs.",
+              "dispatch_goal_sha256": "a7fc6ee8d12e2a21868bc9e05a48f3e96bd2ec60094d298e244fc18f6f0fb8e4",
+              "parameter_keys": [
+                "files",
+                "noise_files",
+                "playlist_name",
+                "seed"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 5
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Create a playlist in Retro Music titled \"Hip Hop Hits 332\" with a duration between 45 and 50 minutes using the provided songs.",
+              "dispatch_goal_sha256": "e7e7e1bc45b464fe3d965c10b2a93cce63f3366e9171ab4ba69a2bfdedf4c2b9",
+              "parameter_keys": [
+                "files",
+                "noise_files",
+                "playlist_name",
+                "seed"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 7
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Create a playlist in Retro Music titled \"Jazz Lounge 464\" with a duration between 45 and 50 minutes using the provided songs.",
+              "dispatch_goal_sha256": "1db956f624cae3164ab610b4182021864f3dcfc66d45b4f3124196a95e6b0f72",
+              "parameter_keys": [
+                "files",
+                "noise_files",
+                "playlist_name",
+                "seed"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 11
+            }
+          ],
+          "samples_are_examples_not_generic_templates": true,
+          "templates": []
+        },
+        "representation_kind": "computed_goal",
+        "source_bindings": [
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/retro_music.py",
+            "ast_sha256": "0542b79e2ce9d23f8663f05d22b72ed7c5c25a39c16e0a3cecfb0b133e887fb2",
+            "end_line": 258,
+            "owner_module": "android_world.task_evals.single.retro_music",
+            "owner_qualname": "RetroPlaylistDuration.goal",
+            "sha256": "6e886d452febd533253e24f1faee5d642982df92b35c5873e9af5e4805e791a0",
+            "snippet_sha256": "742a76d457dce89e22f36d8e878882822446c830bdc4cd8dd7ea6ba008468eb7",
+            "start_line": 252
+          }
+        ]
+      },
+      "difficulty": "medium",
+      "metadata_semantic_role": "descriptive_non_authoritative_when_conflicting",
+      "metadata_task_template": "Create a playlist in Retro Music titled \"{playlist_name}\" with a duration between 45 and 50 minutes using the provided songs.",
+      "optimal_steps": "15",
+      "tags": [
+        "math_counting",
+        "complex_ui_understanding",
+        "repetition",
+        "parameterized"
+      ],
+      "task_name": "RetroPlaylistDuration"
+    },
+    "trace_schema": {
+      "artifacts": [
+        "device state",
+        "system state",
+        "checkpoint artifacts",
+        "observations",
+        "actions",
+        "messages",
+        "evaluator input",
+        "evaluator output"
+      ],
+      "episodes_per_record": 1
+    }
+  }
+}
+```

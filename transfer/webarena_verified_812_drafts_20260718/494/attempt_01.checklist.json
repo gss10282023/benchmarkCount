@@ -1,0 +1,103 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "494",
+  "domain": "webarena_verified",
+  "task_id": "494",
+  "native": {
+    "user_goal": {
+      "text": "Notify Alex Thomas on their most recent pending order with the message \"Yo, your order will be shipped soon!\"",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success requires both configured evaluators to score 1.0: AgentResponseEvaluator accepts the final response as a successful MUTATE, and NetworkEventEvaluator accepts the last matching POST to __SHOPPING_ADMIN__/sales/order/addComment/order_id/304 with HTTP 200 and the configured notification form values.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArena-Verified evaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order, then applies TaskEvalResult's all-evaluators-must-score-1.0 composition.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the final response parse and pass the configured normalized response comparison for task_type MUTATE and status SUCCESS?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching POST and the order-304 endpoint path also match the normalized URL under the isAjax ignore rule, HTTP 200, history[comment]=\"Yo, your order will be shipped soon!\", and history[is_customer_notified]=\"1\"?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both checks pass: agent_response.json satisfies AgentResponseEvaluator's successful-MUTATE comparison, and network.har satisfies NetworkEventEvaluator's last-matching-event comparison for the configured order-304 POST, HTTP status, comment, and notification flag; consequently both evaluator scores are 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure is established if either check scores 0 or errors—for example, the response is malformed or does not normalize to successful MUTATE, or the qualifying POST is absent or its selected last event mismatches the normalized URL, HTTP 200, comment, or notification flag. Either failed evaluator makes the task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored-evidence review is undecidable only when agent_response.json or network.har was not retained, is truncated, or cannot be attributed to this run, so at least one configured check cannot be reconstructed. Retained malformed or mismatching evaluator input is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ],
+        "rationale": "A retention gap does not reveal how the missing evaluator input scored."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_persisted_target_and_notification",
+        "text": "Post-run shopping-admin state must show that order 304 belongs to Alex Thomas, is their most recent pending order, and contains the exact comment with its customer-notified indicator set.",
+        "rationale": "The native network check accepts a matching request and HTTP 200 at a hard-coded order endpoint; it does not inspect persisted order history or verify the customer, pending status, and recency relationship required by the task intent.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run shopping-admin order-state snapshot or export",
+            "question": "Does it establish that order 304 is Alex Thomas's most recent pending order and that its history persists \"Yo, your order will be shipped soon!\" as customer-notified?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

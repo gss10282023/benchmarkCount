@@ -1,0 +1,68 @@
+schema_version: case_checklist_v1
+case_unit_id: '618'
+domain: webarena_verified
+task_id: '618'
+native:
+  user_goal:
+    text: Re-post the image of Wife's costume from /f/pics to the funny forum using the image URL and the title "from /f/pics".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both official checks score 1.0: the agent response matches the expected MUTATE/SUCCESS response, and the last qualifying Reddit submit POST matches the specified forum, title, image URL, and 302 response status.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order, then requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize to the expected task_type MUTATE and status SUCCESS response for this non-retrieve task?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event qualifying as a POST to the normalized Reddit /submit URL a 302 response with submission[forum]="10046", submission[title]="from /f/pics", and submission[url]="__REDDIT__/submission_images/6bfbf1280d28d84a9261695f0cac5a90addaaff1174807a2b381fdc159f3ed00.jpg"?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Both artifacts are evaluable, AgentResponseEvaluator scores 1.0 for the MUTATE/SUCCESS response, and NetworkEventEvaluator scores 1.0 for the last qualifying submit POST with all specified values and status 302.
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: With sufficient retained artifacts, either evaluator errors or scores below 1.0—for example, the response does not match MUTATE/SUCCESS, no qualifying submit POST exists, or the selected POST differs in any specified form value or response status.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained agent response or network trace is missing, unreadable, or truncated so that the applicable official comparison cannot be reconstructed.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: persisted_repost_exists
+    text: Beyond native request-trace acceptance, retained post-run Reddit state shows that the repost actually exists in the funny forum with title "from /f/pics" and the specified Wife's costume image URL.
+    rationale: The task asks for a persistent repost, while the released evaluators accept a matching POST with a 302 response plus the agent's success response and do not inspect resulting Reddit state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit state snapshot or exported post record
+      question: Does a resulting post exist in the funny forum with the specified title and image URL?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

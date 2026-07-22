@@ -1,0 +1,98 @@
+case_unit_id: qemu-startup
+domain: terminal_bench_2_1
+native:
+  benchmark_success:
+    support:
+    - official/tests/test.sh::13-29
+    - official/tests/test_outputs.py::expect
+    - official/tests/test_outputs.py::test_version
+    text: '`official/tests/test.sh` first rejects `/` as the working directory, then runs the configured uvx/pytest command against `/tests/test_outputs.py`; native reward is 1 exactly when that command returns zero and 0 when it returns nonzero. The sole test, `test_version`, invokes its expect script without checking that subprocess status, then opens `/tmp/data.txt` and requires its contents to include `6.6.4-1-lts`.'
+  checked_by:
+    support:
+    - official/tests/test.sh::13-29
+    - official/tests/test_outputs.py::test_version
+    text: Checked by the working-directory guard and uvx/pytest invocation in `official/tests/test.sh`, with CTRF output requested at `/logs/verifier/ctrf.json`; pytest executes `official/tests/test_outputs.py::test_version`, and the shell maps the pytest exit status to reward.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the retained CTRF report record whether `test_version` passed, failed, or errored and expose any recorded failure details?
+    support:
+    - case_packet.md::Available Artifact Inventory (types only; no per-record values)
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_version
+  - artifact: verifier/test-stdout.txt
+    question: Does retained verifier stdout establish the working-directory or pytest session outcome, including collection results, the test summary, and any reported failure?
+    support:
+    - case_packet.md::Available Artifact Inventory (types only; no per-record values)
+    - official/tests/test.sh::13-29
+  - artifact: verifier/test-stderr.txt
+    question: Does retained verifier stderr establish an invocation, collection, test, or session error that caused the configured pytest command not to succeed?
+    support:
+    - case_packet.md::Available Artifact Inventory (types only; no per-record values)
+    - official/tests/test.sh::18-29
+  fail_if:
+  - support:
+    - official/tests/test.sh::13-29
+    - official/tests/test_outputs.py::test_version
+    text: Retained non-label verifier evidence establishes that the working-directory guard exited or that the configured uvx/pytest command returned nonzero, including an invocation, collection, session, test failure, or test error such as an unreadable `/tmp/data.txt` or a missing `6.6.4-1-lts` substring.
+  success_if:
+  - support:
+    - official/tests/test.sh::13-29
+    - official/tests/test_outputs.py::test_version
+    text: Retained non-label verifier evidence establishes that the working-directory guard did not exit and the configured uvx/pytest command returned zero; for the normal single-test session this includes `test_version` passing after `/tmp/data.txt` was opened and found to contain `6.6.4-1-lts`.
+  undecided_if:
+  - support:
+    - case_packet.md::Native Evaluator Semantics
+    - case_packet.md::Available Artifact Inventory (types only; no per-record values)
+    - official/tests/test.sh::13-29
+    text: Retained non-label verifier artifacts are absent or too incomplete to establish whether the guard and configured uvx/pytest command succeeded or failed; a missing test node alone is not U when logs establish a nonzero verifier outcome.
+  user_goal:
+    support:
+    - official/instruction.md::1-1
+    text: Start `/app/alpine.iso` in QEMU so the user can connect with `telnet 127.0.0.1 6665` and see the login prompt, run the VM in the background and leave it running, and do not finish until it is ready.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained action trace contain a fresh telnet/readiness probe to 127.0.0.1:6665 whose returned output shows the login prompt?
+      support:
+      - case_packet.md::Available Artifact Inventory (types only; no per-record values)
+      - official/instruction.md::1-1
+    - artifact: agent/*-stdout.txt
+      question: Does retained output from a fresh connection to 127.0.0.1:6665 directly show the login prompt?
+      support:
+      - case_packet.md::Available Artifact Inventory (types only; no per-record values)
+      - official/instruction.md::1-1
+    id: live_telnet_login_prompt
+    rationale: The instruction explicitly requires the login prompt. Native `test_version` attempts that interaction, but it ignores the expect subprocess status and ultimately passes solely from reading `/tmp/data.txt` and finding the kernel substring, so a pass node does not by itself prove a fresh live prompt was observed.
+    support:
+    - official/instruction.md::1-1
+    - official/tests/test_outputs.py::expect
+    - official/tests/test_outputs.py::test_version
+    text: Retained evidence should directly establish that a fresh connection to `telnet 127.0.0.1 6665` reaches the login prompt for the running VM.
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trace show a successful QEMU launch command referencing `/app/alpine.iso`, with any subsequent process inspection confirming that command?
+      support:
+      - case_packet.md::Available Artifact Inventory (types only; no per-record values)
+      - official/instruction.md::1-1
+    id: qemu_iso_launch_provenance
+    rationale: The instruction requires starting that exact ISO in QEMU. Native `test_version` neither inspects a QEMU command/process nor identifies the boot-media path; it only checks the contents of `/tmp/data.txt` after invoking expect.
+    support:
+    - official/instruction.md::1-1
+    - official/tests/test_outputs.py::test_version
+    text: Retained evidence should establish that QEMU was successfully launched using the specified `/app/alpine.iso`, rather than merely establishing the expected kernel substring.
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the ordered trace show a successful background or detached QEMU launch followed by an agent-issued readiness check that observed the login prompt before the agent completed?
+      support:
+      - case_packet.md::Available Artifact Inventory (types only; no per-record values)
+      - official/instruction.md::1-1
+    id: background_launch_and_agent_readiness_wait
+    rationale: Background execution and blocking until ready are explicit instructions. The native verifier runs only afterward and does not inspect the launch mode or establish that the agent itself waited for readiness before completing.
+    support:
+    - official/instruction.md::1-1
+    - official/tests/test.sh::18-29
+    - official/tests/test_outputs.py::test_version
+    text: Retained evidence should establish that QEMU was launched in a background or detached mode and that the agent did not finish until its own readiness check observed the telnet login prompt.
+task_id: terminal-bench/qemu-startup

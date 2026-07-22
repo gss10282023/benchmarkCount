@@ -1,0 +1,101 @@
+schema_version: case_checklist_v1
+case_unit_id: '105'
+domain: webarena_verified
+task_id: '105'
+native:
+  user_goal:
+    text: Navigate to the page showing not-yet-closed issues in the OpenAPITools/openapi-generator repository that are filtered by the OpenAPI Generator CLI label.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if all three configured checks score 1.0: the AgentResponseEvaluator, the issues-page NetworkEventEvaluator, and the GraphQL/referer NetworkEventEvaluator.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerified evaluator runs the configured AgentResponseEvaluator followed by two NetworkEventEvaluator instances and combines their scores with all-of semantics.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After official parsing and normalization, does the response earn 1.0 against expected task_type NAVIGATE and status SUCCESS? For this non-retrieve task, the retrieved_data value is not compared.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: 'Does the HAR earn 1.0 on both network checks: a final 200 GET navigation to the repository issues path with all query parameters ignored, and the selected last 200 POST to /api/graphql whose Referer is one of the two accepted OpenAPI Generator CLI issue-list URLs?'
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Required for success: the AgentResponseEvaluator scores 1.0 after normalizing the response to task_type NAVIGATE and status SUCCESS; retrieved_data does not affect this non-retrieve check.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: 'Required for success: the issues-page network check scores 1.0 because the last evaluator-visible navigation is a 200 GET whose normalized URL matches ^__GITLAB__/OpenAPITools/openapi-generator/-/issues.*$; all query-parameter names are ignored.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: 'Required for success: the GraphQL/referer check scores 1.0 because its selected last event is a 200 POST to __GITLAB__/api/graphql with Referer equal to the labeled issues URL, either with state=opened or with state omitted; page and sort parameters are ignored.'
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  fail_if:
+  - text: 'Sufficient for failure: the AgentResponseEvaluator does not score 1.0 because the response is invalid, errors during evaluation, or does not normalize to the expected NAVIGATE/SUCCESS response.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: 'Sufficient for failure: the issues-page network check does not score 1.0, including when no navigation event exists or the last navigation event has the wrong normalized issues path or response status.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: 'Sufficient for failure: the GraphQL/referer network check does not score 1.0, including when no qualifying POST/Referer event exists or the selected last event fails the configured URL, Referer, method, or 200-status comparison.'
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: 'Sufficient for failure: any evaluator or task-orchestration error makes TaskEvalResult.score 0.0.'
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecided if agent_response.json or network.har is missing, unreadable, or too incomplete to reconstruct one or more checks, unless the remaining complete evidence already proves at least one check fails.
+    rationale: Absence from retained evidence does not establish what the run supplied; all three checks are needed to prove success, while one evidenced failed check is enough to prove failure.
+stronger:
+  additional_conditions:
+  - id: rendered_filtered_issue_list
+    text: Beyond native scoring, require a retained final-page screenshot or DOM/accessibility snapshot to show the OpenAPITools/openapi-generator Issues page with the OpenAPI Generator CLI label filter and an open/not-yet-closed state active.
+    rationale: The task asks for a page showing that filtered list, while the released checks inspect the declared response and network URL/Referer signals without verifying the rendered final-page state.
+    decisive_artifacts:
+    - artifact: Final-page screenshot or DOM/accessibility snapshot
+      question: Does the retained final page visibly show the repository issue list with the OpenAPI Generator CLI label filter and an open/not-yet-closed state active?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - derived/task.json::eval[2]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+  - id: navigate_retrieved_data_null
+    text: Beyond native scoring, require agent_response.json to omit retrieved_data or set it to null for this NAVIGATE task.
+    rationale: The task expectation and public response contract specify null retrieved_data for navigation, but the released AgentResponseEvaluator skips retrieved_data value comparison for non-retrieve tasks and can therefore accept non-null reported data.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: 'Does the raw final NAVIGATE response omit retrieved_data or contain retrieved_data: null?'
+      support:
+      - derived/task.json::eval[0].expected.retrieved_data
+      - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse
+    support:
+    - derived/task.json::eval[0].expected.retrieved_data
+    - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values

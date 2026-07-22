@@ -1,0 +1,198 @@
+--- live/draft_case_checklist.py
++++ snapshot/draft_case_checklist.py
+@@ -57,6 +57,17 @@
+     case_packet_support_paths,
+     validate_checklist_guardrails,
+ )
++from neurips_ed_track_minimal.hardened_staging import (  # noqa: E402
++    StagingError as HardenedStagingError,
++    build_codex_exec_argv as build_hardened_codex_exec_argv,
++    coverage_receipt_from_events,
++    exact_case_workspace,
++    load_frozen_o200k_token_counter,
++    materialize_case_workspace,
++    staged_prompt,
++    unseal_case_workspace_for_cleanup,
++    verify_case_workspace,
++)
+ 
+ 
+ class DraftChecklistError(RuntimeError):
+@@ -382,31 +393,27 @@
+     if codex_executable is None:
+         raise DraftChecklistError("Could not resolve the Codex CLI executable on PATH.")
+     codex_executable = str(Path(codex_executable).resolve())
+-    return [
+-        codex_executable,
+-        "exec",
+-        "--cd",
+-        str(workspace_root),
+-        "--skip-git-repo-check",
+-        "--ephemeral",
+-        "--ignore-user-config",
+-        "--sandbox",
+-        sandbox,
+-        "--model",
+-        model,
+-        "-c",
+-        f'model_reasoning_effort="{reasoning_effort}"',
+-        "-c",
+-        'model_verbosity="low"',
+-        "--color",
+-        "never",
+-        "--json",
+-        "--output-schema",
+-        str(schema_path),
+-        "-o",
+-        str(output_path),
+-        "-",
+-    ]
++    if sandbox != "read-only":
++        raise DraftChecklistError(
++            "v6_clean2_hardened requires the custom read-only permission profile"
++        )
++    try:
++        return build_hardened_codex_exec_argv(
++            codex_executable=Path(codex_executable),
++            workspace_root=workspace_root,
++            schema_path=schema_path,
++            output_path=output_path,
++            model=model,
++            reasoning_effort=reasoning_effort,
++            repository_root=Path('/Users/gss/Downloads/revised_agent_benchmark_paper_package'),
++            wave_tmp_root=Path(os.environ["TMPDIR"]),
++            auth_home=Path(os.environ["CODEX_HOME"]),
++            original_codex_home=Path('/Users/gss/.codex'),
++            isolated_home=Path(os.environ["HOME"]),
++            real_home=Path('/Users/gss'),
++        )
++    except HardenedStagingError as exc:
++        raise DraftChecklistError(f"invalid isolated Codex command: {exc}") from exc
+ 
+ 
+ def build_codex_workspace_files(
+@@ -514,37 +521,44 @@
+             "Could not find `codex` on PATH. Install Codex CLI and run `codex login` first."
+         )
+ 
+-    with tempfile.TemporaryDirectory(prefix="case-checklist-codex-") as temp_dir:
++    with exact_case_workspace(
++        Path(os.environ["TMPDIR"]),
++        extract_case_metadata(case_packet_text)["case_unit_id"],
++    ) as temp_dir:
+         workspace_root = Path(temp_dir)
+-        instructions_path = workspace_root / "draft_instructions.md"
+-        template_path = workspace_root / "template.yaml"
+-        case_packet_path = workspace_root / "case_packet.md"
++        try:
++            token_counter, tokenizer_binding = load_frozen_o200k_token_counter(
++                tokenizer_root=Path('/Users/gss/Downloads/revised_agent_benchmark_paper_package/rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/draft_generation/tokenizer/tiktoken_0_12_0_py312'),
++                merge_table_path=Path('/Users/gss/Downloads/revised_agent_benchmark_paper_package/rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/draft_generation/tokenizer/tiktoken_0_12_0_py312/encoding_cache/fb374d419588a4632f3f557e76b4b70aebbca790'),
++            )
++            materialization = materialize_case_workspace(
++                workspace_root,
++                case_packet_text=case_packet_text,
++                model_output_schema=model_output_schema,
++                token_counter=token_counter,
++                tokenizer_binding=tokenizer_binding,
++            )
++        except HardenedStagingError as exc:
++            raise DraftChecklistError(f"canonical packet staging failed: {exc}") from exc
+         schema_path = workspace_root / "output_schema.json"
+         output_path = workspace_root / "draft_body.json"
+-        workspace_files = build_codex_workspace_files(
++        prompt = staged_prompt(
+             instructions=instructions,
+             template_text=template_text,
+-            case_packet_text=case_packet_text,
+-            model_output_schema=model_output_schema,
+-        )
+-        instructions_path.write_text(
+-            workspace_files["draft_instructions.md"], encoding="utf-8"
+-        )
+-        template_path.write_text(workspace_files["template.yaml"], encoding="utf-8")
+-        case_packet_path.write_text(
+-            workspace_files["case_packet.md"], encoding="utf-8"
+-        )
+-        schema_path.write_text(workspace_files["output_schema.json"], encoding="utf-8")
+-
+-        prompt = build_codex_stdin_prompt(build_codex_read_plan(workspace_files))
+-        command = build_codex_command(
+-            workspace_root=workspace_root,
+-            schema_path=schema_path,
+-            output_path=output_path,
+-            model=model,
+-            reasoning_effort=reasoning_effort,
+-            sandbox=sandbox,
+-        )
++            manifest=materialization,
++        )
++        try:
++            command = build_codex_command(
++                workspace_root=workspace_root,
++                schema_path=schema_path,
++                output_path=output_path,
++                model=model,
++                reasoning_effort=reasoning_effort,
++                sandbox=sandbox,
++            )
++        except BaseException:
++            unseal_case_workspace_for_cleanup(workspace_root)
++            raise
+         timed_out = False
+         timeout_stderr = ""
+         timeout_stdout = ""
+@@ -572,11 +586,31 @@
+                 stderr=timeout_stderr,
+             )
+         except OSError as exc:
++            unseal_case_workspace_for_cleanup(workspace_root)
+             raise DraftChecklistError(f"Failed to launch Codex CLI: {exc}") from exc
+ 
+         stdout = completed.stdout or ""
+         stderr = completed.stderr or ""
+         events, malformed_lines = load_jsonl_objects(stdout)
++        try:
++            verify_case_workspace(
++                workspace_root,
++                materialization,
++                require_output=completed.returncode == 0,
++            )
++            coverage_receipt = (
++                coverage_receipt_from_events(
++                    events,
++                    materialization["coverage_requirements"],
++                    materialization["reader_operation_expectations"],
++                )
++                if completed.returncode == 0
++                else None
++            )
++        except HardenedStagingError as exc:
++            raise DraftChecklistError(f"staged source coverage/readback failed: {exc}") from exc
++        finally:
++            unseal_case_workspace_for_cleanup(workspace_root)
+ 
+         parsed: dict[str, Any] | None = None
+         parse_failed = False
+@@ -627,7 +661,20 @@
+                 "auth_mode": "codex_login",
+                 "returncode": completed.returncode,
+                 "timeout_seconds": codex_timeout_seconds,
+-                "sandbox": sandbox,
++                "sandbox": None,
++                "permission_profile": "candidate_draft_isolated",
++                "permission_profile_workspace_access": "read",
++                "permission_profile_network_enabled": False,
++                "full_canonical_packet_in_readonly_workspace": True,
++                "full_canonical_packet_in_stdin": False,
++                "instructions_template_protocol_in_stdin": True,
++                "materialization_sha256": materialization["materialization_sha256"],
++                "requirements_sha256": materialization["requirements_sha256"],
++                "reader_operation_expectations_sha256": materialization[
++                    "reader_operation_expectations_sha256"
++                ],
++                "materialized_source_count": materialization["materialized_source_count"],
++                "coverage_receipt": coverage_receipt,
+                 "command": command,
+                 "events": events,
+                 "malformed_event_lines": malformed_lines,

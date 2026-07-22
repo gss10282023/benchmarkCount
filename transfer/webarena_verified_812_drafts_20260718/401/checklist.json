@@ -1,0 +1,106 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "401",
+  "domain": "webarena_verified",
+  "task_id": "401",
+  "native": {
+    "user_goal": {
+      "text": "Change the discussion-forum bio to \"Seeking SDE positions\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response as a successful MUTATE, and NetworkEventEvaluator finds at least one accepted biography-update event in the network trace.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in configuration order; TaskEvalResult.create applies the all-evaluator-scores-equal-1.0 rule.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response pass the released AgentResponseEvaluator comparison for task_type MUTATE and status SUCCESS under its parsing, normalization, and structural-matching rules?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the trace contain at least one evaluation event accepted as a POST to __REDDIT__/user/MarvelsGrantMan136/edit_biography, with user_biography[biography] matching \"Seeking SDE positions\" under evaluator normalization and response status 302?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "AgentResponseEvaluator scores 1.0 for agent_response.json and NetworkEventEvaluator scores 1.0 because network.har contains at least one matching POST/biography/302 event; with both scores 1.0, TaskEvalResult.score is 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native score is 0.0 if the known evaluator input for agent_response.json is absent, invalid, or fails the configured successful-MUTATE comparison, even if the network check passes.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "Native score is 0.0 if the known evaluator input for network.har is invalid or contains no event matching all configured POST URL, biography field, and 302-status criteria, even if the response check passes.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecidable only when it does not preserve what the released evaluator consumed or its result—for example, a retained copy is missing or truncated without establishing that the run input itself was missing—so one or both evaluator scores cannot be reconstructed. A known missing or invalid evaluator input is failure, not undecided.",
+        "rationale": "This distinguishes post-run evidence loss from an evaluator-visible missing or invalid input, which the released scoring path assigns score 0.0."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_bio_matches",
+        "text": "Beyond native success, a retained authenticated end-of-run profile view must show MarvelsGrantMan136's biography exactly as \"Seeking SDE positions\".",
+        "rationale": "The task asks for a persisted bio change, while the released checks can pass from a successful-MUTATE response plus any matching POST with a 302 response; neither check reads the final user-visible biography.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Authenticated end-of-run profile-page DOM snapshot captured after reload",
+            "question": "Does the snapshot identify MarvelsGrantMan136 and display the biography exactly as \"Seeking SDE positions\"?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

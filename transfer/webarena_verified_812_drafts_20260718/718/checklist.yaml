@@ -1,0 +1,81 @@
+schema_version: case_checklist_v1
+case_unit_id: '718'
+domain: webarena_verified
+task_id: '718'
+native:
+  user_goal:
+    text: Downvote the five all-time top posts in the technology forum.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0: the AgentResponseEvaluator scores 1.0 and all five NetworkEventEvaluator instances score 1.0. This requires an accepted MUTATE/SUCCESS response plus an accepted last matching downvote POST for each configured post endpoint.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks agent_response.json; five NetworkEventEvaluator instances check network.har; TaskEvalResult requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response normalize to task_type MUTATE, status SUCCESS, and retrieved_data null so AgentResponseEvaluator scores 1.0?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: For each configured post ID (48670, 134696, 48785, 70354, and 70233), does the last matching POST have choice=-1 and response status 200 under NetworkEventEvaluator normalization?
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: The stored response makes AgentResponseEvaluator score 1.0 for the expected MUTATE/SUCCESS response.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: All five configured endpoint checks find an accepted last matching POST with choice=-1 and status 200, so every NetworkEventEvaluator scores 1.0; together with the response check, all six scores equal 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: AgentResponseEvaluator does not score 1.0 because the response is absent, invalid, mismatched, or causes an evaluator error.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Any one of the five NetworkEventEvaluator instances does not score 1.0, including when no matching POST exists, the selected last POST mismatches choice=-1 or status 200, or evaluation errors.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Task-level evaluation reports an orchestration error; TaskEvalResult then has score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: A retained copy of agent_response.json or network.har is missing, unreadable, or truncated, and it is not known that this condition also affected the artifact supplied to the evaluator.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: Loss or corruption of retained review evidence does not establish what the evaluator actually received.
+stronger:
+  additional_conditions:
+  - id: persisted_downvote_state
+    text: Beyond native success, retained post-run Reddit state confirms that the acting account has vote -1 on all five configured posts.
+    rationale: The native checks accept successful network events, while the task asks for the posts to be downvoted; direct post-run state closes the request-evidence versus persisted-state measurement gap.
+    decisive_artifacts:
+    - artifact: Post-run Reddit account vote-state snapshot
+      question: Does the acting account's stored vote state equal -1 for post IDs 48670, 134696, 48785, 70354, and 70233?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

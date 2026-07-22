@@ -1,0 +1,65 @@
+schema_version: case_checklist_v1
+case_unit_id: '457'
+domain: webarena_verified
+task_id: '457'
+native:
+  user_goal:
+    text: Disable the Karmen yoga pants product on the site because of its quality issues.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts a MUTATE/SUCCESS final response, and NetworkEventEvaluator accepts the configured last matching product-disable save event.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does AgentResponseEvaluator accept the retained response, after its parsing and normalization, as task_type MUTATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last POST matching the configured product-1819 save URL a 302 response whose parsed form data contains product[status] equal to 2?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both evaluators score 1.0: the final response is accepted as MUTATE/SUCCESS, and the last matching POST to the configured product-1819 save path has product[status]=2 and response status 302.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Native failure occurs if either evaluator does not score 1.0 or errors: the final response is not accepted as MUTATE/SUCCESS, no configured POST URL match exists, or the last such match fails the required status field or 302 response check.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: No retained evidence already establishes a failed check, but agent_response.json or network.har is unavailable or unreadable, so the required all-evaluators-pass composition cannot be determined.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+stronger:
+  additional_conditions:
+  - id: verify_final_product_state
+    text: Beyond native success, a retained end-of-run shopping-admin product record must identify Karmen yoga pants (product 1819) and show its status as Disabled.
+    rationale: The native evaluator checks a success declaration and a matching save request with a 302 response, but it does not inspect the final catalog state; the task asks for the product actually to be disabled.
+    decisive_artifacts:
+    - artifact: End-of-run shopping-admin product-record snapshot or export
+      question: Does the post-run record identify Karmen yoga pants as product 1819 and show its status as Disabled?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

@@ -1,0 +1,254 @@
+{
+  "decision": "revise",
+  "checklist_items": [
+    {
+      "id": "identity_and_scope",
+      "status": "pass",
+      "rationale": "The domain, case-unit ID, and task ID match the packet, and the checklist addresses only case 723.",
+      "evidence": [
+        "case_packet.md::Case Metadata",
+        "checklist.yaml::case_unit_id",
+        "checklist.yaml::domain",
+        "checklist.yaml::task_id"
+      ]
+    },
+    {
+      "id": "native_user_goal",
+      "status": "pass",
+      "rationale": "The user goal faithfully restates the instruction to like all FTorrez81 submissions in the iphone13 forum without replacing it with the evaluator predicate.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::official instruction",
+        "derived/task.json::intent",
+        "checklist.yaml::native.user_goal"
+      ]
+    },
+    {
+      "id": "official_evaluator_semantics",
+      "status": "pass",
+      "rationale": "The checklist correctly identifies the configured response fields and requires released parsing and normalization to RETRIEVE, NOT_FOUND_ERROR, and null/no retrieved data. It does not incorrectly require the materialized default error_details field.",
+      "evidence": [
+        "derived/tag_task.json::eval[0].expected",
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "checklist.yaml::native.benchmark_success"
+      ]
+    },
+    {
+      "id": "evaluator_composition",
+      "status": "pass",
+      "rationale": "The checklist identifies exactly one AgentResponseEvaluator and correctly states that its score must be 1.0 for TaskEvalResult.score to be 1.0; evaluator errors and non-1.0 scores are failures.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::evaluator sequence",
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "checklist.yaml::native.benchmark_success",
+        "checklist.yaml::native.fail_if"
+      ]
+    },
+    {
+      "id": "decisive_post_run_evidence",
+      "status": "fail",
+      "rationale": "The checklist incorrectly makes network.har decisive for this response-only case. No NetworkEventEvaluator is configured, and the trace does not change the AgentResponseEvaluator comparison, so complete agent_response.json is the minimal sufficient native evidence.",
+      "evidence": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+        "checklist.yaml::native.decisive_artifacts[1]"
+      ]
+    },
+    {
+      "id": "decision_rules",
+      "status": "fail",
+      "rationale": "Native success is improperly conditioned on trace/context acceptance, and absence of network.har is allowed to produce undecided. Missing a nondecisive batch artifact must not prevent reconstruction of the sole configured response check.",
+      "evidence": [
+        "derived/task.json::eval",
+        "checklist.yaml::native.success_if[1]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]"
+      ]
+    },
+    {
+      "id": "source_support_pointers",
+      "status": "pass",
+      "rationale": "The checklist's cited paths, fields, classes, and methods all appear in the packet; no evaluator instance, source path, or expected value is invented.",
+      "evidence": [
+        "case_packet.md::Source Inventory",
+        "case_packet.md::Packet Source Files",
+        "checklist.yaml::native",
+        "checklist.yaml::stronger"
+      ]
+    },
+    {
+      "id": "stronger_conditions",
+      "status": "pass",
+      "rationale": "The additional post-run Reddit-state condition is explicitly beyond native scoring, captures the concrete mutation-versus-response-evaluator gap, and is measurable from the named additional state export.",
+      "evidence": [
+        "derived/task.json::intent",
+        "derived/task.json::eval[0]",
+        "checklist.yaml::stronger.additional_conditions[0]"
+      ]
+    },
+    {
+      "id": "minimality_and_no_run_leakage",
+      "status": "fail",
+      "rationale": "The checklist contains no run leakage, but its repeated network-trace conditions make the native checklist nonminimal for a case whose sole configured check is AgentResponseEvaluator.",
+      "evidence": [
+        "derived/task.json::eval",
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "checklist.yaml::native.success_if[1]",
+        "checklist.yaml::native.undecided_if[0]"
+      ]
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "nondecisive_network_artifact",
+      "checklist_item_id": "decisive_post_run_evidence",
+      "message": "network.har is presented as decisive even though the sole configured evaluator reads the agent response and no NetworkEventEvaluator is configured.",
+      "required_change": "Remove network.har from native decisive artifacts and retain complete agent_response.json as the minimal sufficient evidence for reconstructing the configured comparison.",
+      "evidence": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+        "checklist.yaml::native.decisive_artifacts[1]"
+      ]
+    },
+    {
+      "id": "trace_dependent_decision_rules",
+      "checklist_item_id": "decision_rules",
+      "message": "The rules require trace acceptance for success and permit a missing trace to make the native result undecided.",
+      "required_change": "Base native success, failure, and undecided solely on the complete retained response or an authoritative evaluator result; restrict undecided to loss, corruption, or provenance failure of that decisive evidence.",
+      "evidence": [
+        "checklist.yaml::native.success_if[1]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]",
+        "derived/task.json::eval"
+      ]
+    },
+    {
+      "id": "nonminimal_native_checklist",
+      "checklist_item_id": "minimality_and_no_run_leakage",
+      "message": "Trace-related artifact and decision clauses add redundant infrastructure conditions to a response-only configured check.",
+      "required_change": "Delete the trace-specific native clauses while preserving the AgentResponseEvaluator semantics and the separate stronger post-state condition.",
+      "evidence": [
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "checklist.yaml::native.success_if[1]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]"
+      ]
+    }
+  ],
+  "revised_checklist": {
+    "native": {
+      "user_goal": {
+        "text": "Like every Reddit submission authored by FTorrez81 in the iphone13 forum.",
+        "support": [
+          "derived/task.json::intent"
+        ]
+      },
+      "benchmark_success": {
+        "text": "TaskEvalResult.score is 1.0 only if the sole AgentResponseEvaluator scores 1.0. Under released parsing and normalization, the explicitly configured response fields must compare as task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null/no data, with no evaluator error; the materialized default error_details is not an explicitly configured comparison field.",
+        "support": [
+          "derived/tag_task.json::eval[0].expected",
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "checked_by": {
+        "text": "AgentResponseEvaluator parses the submitted final response, normalizes the explicitly configured fields using the released response and results-schema rules, structurally compares them with the expected response, and TaskEvalResult composes the sole evaluator score.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "decisive_artifacts": [
+        {
+          "artifact": "agent_response.json",
+          "question": "Does the complete submitted final response pass released parsing and normalization and compare as task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null/no data for the explicitly configured fields?",
+          "support": [
+            "derived/tag_task.json::eval[0].expected",
+            "derived/task.json::eval[0].results_schema",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+          ]
+        }
+      ],
+      "success_if": [
+        {
+          "text": "The complete submitted response is a response form accepted by the released parser and its configured fields normalize and compare as task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null/no data, producing no failure assertions or evaluator error and an AgentResponseEvaluator score of 1.0.",
+          "support": [
+            "derived/tag_task.json::eval[0].expected",
+            "derived/task.json::eval[0].results_schema",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+          ]
+        },
+        {
+          "text": "Because AgentResponseEvaluator is the sole configured evaluator and scores 1.0, TaskEvalResult.score is 1.0.",
+          "support": [
+            "derived/task.json::eval",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "fail_if": [
+        {
+          "text": "With a complete retained response, released parsing or normalization leaves a non-object or invalid value, a configured task_type or status is missing or differs from RETRIEVE or NOT_FOUND_ERROR, retrieved_data does not normalize to null/no data, or response processing raises an evaluator error; AgentResponseEvaluator then scores 0.0.",
+          "support": [
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+          ]
+        },
+        {
+          "text": "Any sole AgentResponseEvaluator score other than 1.0, including an evaluator error score of 0.0, makes TaskEvalResult.score 0.0 and is native failure.",
+          "support": [
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "undecided_if": [
+        {
+          "text": "The complete agent_response.json was not retained, is truncated or corrupt, or cannot be tied to the evaluated run, and no authoritative evaluator result resolves the outcome.",
+          "support": [
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+          ],
+          "rationale": "Without the complete submitted response or an authoritative result, the sole configured comparison cannot be reconstructed; a complete invalid or mismatching response is failure rather than undecided."
+        }
+      ]
+    },
+    "stronger": {
+      "additional_conditions": [
+        {
+          "id": "verify_reddit_like_state",
+          "text": "Beyond the native response-only pass, retained post-run Reddit state must show that every submission authored by FTorrez81 in iphone13 is liked by the acting account; an empty matching set satisfies this only when the evidence establishes that no such submissions exist.",
+          "rationale": "The stated task requests a Reddit mutation, but the released configuration contains only an AgentResponseEvaluator expecting a RETRIEVE/NOT_FOUND_ERROR response and performs no network-event or post-state check.",
+          "decisive_artifacts": [
+            {
+              "artifact": "Authenticated post-run Reddit state snapshot or equivalent state export",
+              "question": "Does it enumerate all iphone13 submissions authored by FTorrez81 and show each as liked by the acting account, or establish that the matching set is empty?",
+              "support": [
+                "derived/task.json::intent",
+                "derived/task.json::instantiation_dict"
+              ]
+            }
+          ],
+          "support": [
+            "derived/task.json::intent",
+            "derived/task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+          ]
+        }
+      ]
+    }
+  }
+}

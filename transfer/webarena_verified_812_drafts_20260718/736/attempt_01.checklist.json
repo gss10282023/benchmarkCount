@@ -1,0 +1,119 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "736",
+  "domain": "webarena_verified",
+  "task_id": "736",
+  "native": {
+    "user_goal": {
+      "text": "Change the LICENSE files in byteblaze/gimmiethat.space and byteblaze/dotfiles to MIT licenses.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "The native task score is 1.0 iff all three configured evaluator scores are 1.0: the AgentResponseEvaluator, the gimmiethat.space NetworkEventEvaluator, and the dotfiles NetworkEventEvaluator.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArena-Verified evaluator uses agent_response.json for the response check and network.har for both network-event checks.",
+      "support": [
+        "case_packet.md::Benchmark Task Summary",
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and normalize, without a structural or value mismatch, to task_type MUTATE, status SUCCESS, and retrieved_data null under the mutate-task comparison?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "For each repository, does its last POST matching a configured update/create/blob URL have status 302 and post data with $.^file_path|file_name$ = LICENSE, branch_name = main, _method matching ^.*(?!delete$).*$, and content matching ^.*MIT.*License.*$?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "All three checks score 1.0; for the response component, parsing and normalization produce no assertion against task_type MUTATE, status SUCCESS, and retrieved_data null.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "For byteblaze/gimmiethat.space, the last URL/method-matching POST uses a configured update/create/blob path and matches the required 302 status, LICENSE selector, main branch, _method pattern, and MIT/License content pattern.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+        ]
+      },
+      {
+        "text": "For byteblaze/dotfiles, the last URL/method-matching POST uses a configured update/create/blob path and matches the required 302 status, LICENSE selector, main branch, _method pattern, and MIT/License content pattern.",
+        "support": [
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Any of the three evaluator scores is not 1.0, including a response mismatch, an absent or mismatching last network event for either repository, or an evaluator/orchestration error; the resulting task score is 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The retained evidence omits agent_response.json or network.har, or omits response fields, request bodies, statuses, or event ordering needed to reconstruct one or more checks.",
+        "rationale": "Such missing stored evidence cannot establish the released evaluator outcomes; an available artifact that deterministically produces a mismatch or evaluator error is failure, not undecided."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_final_license_state",
+        "text": "Beyond native success, a retained post-run GitLab state snapshot shows that LICENSE on main in both repositories exists and contains a complete MIT license text.",
+        "rationale": "The task asks to change both LICENSE files, but the native network checks only require matching POST/302 evidence whose content satisfies a loose MIT/License pattern; they do not inspect durable repository state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run GitLab repository-state snapshot or export",
+            "question": "After the run, do byteblaze/gimmiethat.space and byteblaze/dotfiles each have main/LICENSE stored as a complete MIT license text?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected",
+              "derived/task.json::eval[2].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected.post_data.content",
+          "derived/task.json::eval[2].expected.post_data.content",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

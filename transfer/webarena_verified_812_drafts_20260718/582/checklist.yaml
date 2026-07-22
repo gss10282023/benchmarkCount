@@ -1,0 +1,76 @@
+schema_version: case_checklist_v1
+case_unit_id: '582'
+domain: webarena_verified
+task_id: '582'
+native:
+  user_goal:
+    text: Create a new Reddit forum with name and title "Cyberpunk", description "Welcome to the future", and sidebar "Games, *Books*, Movies, *Future*".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success requires both released evaluators to score 1.0: AgentResponseEvaluator must accept a successful MUTATE response, and NetworkEventEvaluator must accept the last matching forum-creation POST with the specified form values and HTTP 302. Any evaluator score below 1.0 makes TaskEvalResult.score 0.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks agent_response.json; NetworkEventEvaluator checks network.har; TaskEvalResult.create conjunctively aggregates their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the parsed and normalized final response pass the released comparison for task_type MUTATE and status SUCCESS, including its non-retrieve retrieved_data handling?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last POST matching the rendered Reddit /create_forum URL accepted with response status 302 and form values forum[name]="Cyberpunk", forum[title]="Cyberpunk", forum[description]="Welcome to the future", and forum[sidebar]="Games, *Books*, Movies, *Future*"?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Both retained artifacts pass their respective released evaluators, so AgentResponseEvaluator.score = 1.0 and NetworkEventEvaluator.score = 1.0, yielding TaskEvalResult.score = 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The retained final response fails or errors under AgentResponseEvaluator, including an unaccepted structure, task type, or status; that evaluator score is then 0.0 and native success fails.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The HAR fails or errors under NetworkEventEvaluator—for example, no matching POST exists or the last matching POST differs in an evaluated URL, form value, method, or response status; that evaluator score is then 0.0 and native success fails.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: No retained artifact already establishes failure, but agent_response.json or network.har is missing, truncated, or unreadable, so whether both official checks passed cannot be reconstructed from stored evidence.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: persisted_forum_state
+    text: Beyond native scoring, retained post-run Reddit state must show that the forum was actually persisted with the requested name, title, description, and sidebar.
+    rationale: The official intent requires creating a forum, but the native mutation check observes only a matching POST and HTTP 302; it does not inspect the resulting stored forum state.
+    decisive_artifacts:
+    - artifact: Retained post-run Reddit forum-state snapshot or authenticated forum-details capture
+      question: Does a persisted forum exist with name and title "Cyberpunk", description "Welcome to the future", and sidebar "Games, *Books*, Movies, *Future*"?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

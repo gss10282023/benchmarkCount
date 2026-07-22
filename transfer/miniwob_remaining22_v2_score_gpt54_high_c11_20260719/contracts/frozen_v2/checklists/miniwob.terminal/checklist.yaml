@@ -1,0 +1,106 @@
+schema_version: case_checklist_v1
+case_unit_id: miniwob.terminal
+domain: miniwob
+task_id: miniwob.terminal
+native:
+  user_goal:
+    text: 'Use the terminal to delete a file matching the runtime-issued query: either a file ending with the specified
+      extension or a file with no extension.'
+    support:
+    - derived/drafting_context.json::task_text.static_query_text
+    - official/install/miniwob/html/miniwob/terminal.html::lines 196-200
+  benchmark_success:
+    text: Native success is a valid final validation on the task page and URL where the released validator returns
+      done true and binary reward 1.0, which occurs exactly when the oracle-exposed RAW_REWARD_GLOBAL is positive;
+      invalid page or URL instead returns reward 0 and terminates.
+    support:
+    - derived/drafting_context.json::released_evaluator.support
+    - derived/drafting_context.json::released_evaluator.native_semantics
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods.validate.content
+    - derived/official_source_excerpts.json::excerpts.core_reward_wiring.content
+  checked_by:
+    text: '`env.unwrapped.task.validate(page, chat_messages)`, which first rejects invalid page or URL, then reads
+      WOB globals and returns `float(RAW_REWARD_GLOBAL > 0)` with `DONE_GLOBAL`.'
+    support:
+    - derived/drafting_context.json::released_evaluator.entrypoint
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods.validate.content
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods._get_info.content
+  decisive_artifacts:
+  - artifact: native_evaluator_output.json
+    question: Does final validation show reward 1.0 with done true, or reward 0 with an invalid page/URL error or
+      non-positive raw reward?
+    support:
+    - derived/drafting_context.json::artifact_inventory.retained_artifacts[2]
+    - derived/drafting_context.json::released_evaluator.success_evidence_rule
+    - derived/drafting_context.json::released_evaluator.failure_evidence_rule
+  - artifact: task_artifacts/
+    question: Do retained final validation/task-state records show the concrete validator info fields, especially
+      RAW_REWARD_GLOBAL and DONE_GLOBAL, needed to confirm the final validator result is grounded in task state
+      rather than a summary label?
+    support:
+    - derived/drafting_context.json::artifact_inventory.retained_artifacts[3]
+    - derived/drafting_context.json::evaluator_visible_state_schema.support
+    - derived/drafting_context.json::released_evaluator.summary_field_guard
+  success_if:
+  - text: Retained final validation evidence establishes a valid task page and URL, `DONE_GLOBAL` true, and final
+      validator reward `1.0`, with the positive result grounded in `RAW_REWARD_GLOBAL > 0`.
+    support:
+    - derived/drafting_context.json::released_evaluator.success_evidence_rule
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods.validate.content
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods._get_info.content
+  fail_if:
+  - text: Retained final validation evidence shows an invalid page or invalid URL, which the released validator
+      counts as reward `0` and terminal failure.
+    support:
+    - derived/drafting_context.json::released_evaluator.failure_evidence_rule
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods.validate.content
+  - text: Retained final validation evidence shows task completion with `RAW_REWARD_GLOBAL <= 0`, so the released
+      validator returns binary reward `0.0` even if the episode is done.
+    support:
+    - derived/drafting_context.json::released_evaluator.failure_evidence_rule
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods.validate.content
+    - derived/official_source_excerpts.json::excerpts.core_reward_wiring.content
+  - text: 'For a benchmark-counted completed record, retained final validation after the locked action budget establishes
+      that native success was not reached: the page and URL are valid but `done` is false or binary `reward` is
+      `0.0`.'
+    support:
+    - derived/drafting_context.json::released_evaluator.failure_evidence_rule
+    - derived/drafting_context.json::released_evaluator.record_scope_rule
+    - derived/runtime_decision_wiring.json::excerpts.worker_run_smoke_job.content
+    - derived/runtime_decision_wiring.json::excerpts.adapter_execute_smoke_job.content
+  undecided_if:
+  - text: Stored evidence lacks the concrete final validator result or the underlying final validation/task-state
+      fields needed to verify reward and done, so native success or failure cannot be confirmed from retained artifacts.
+    support:
+    - derived/drafting_context.json::artifact_inventory.retained_artifacts[2]
+    - derived/drafting_context.json::artifact_inventory.retained_artifacts[3]
+    - derived/drafting_context.json::released_evaluator.summary_field_guard
+stronger:
+  additional_conditions:
+  - id: deleted_filename_matches_literal_extension_requirement
+    text: 'The deleted filename satisfies the literal runtime query: when an extension is requested it ends with
+      the exact dot-delimited suffix `.<requested extension>`; when no extension is requested, the filename contains
+      no dot.'
+    rationale: The official query displays a dot-delimited extension, while the positive oracle uses the first raw
+      substring occurrence of the extension and does not require the preceding dot. This can reward a basename ending
+      in those letters and can reject a valid filename when the same letters occur earlier in the basename.
+    decisive_artifacts:
+    - artifact: trajectory/steps.json and trajectory/observations/
+      question: Which exact filename was passed to `rm`, and does it have the requested dot-delimited suffix (or
+        no dot for the no-extension query)?
+      support:
+      - derived/drafting_context.json::stronger_measurement.required_additional_conditions[0].decisive_post_run_artifacts
+      - official/install/miniwob/html/miniwob/terminal.html::removeContents
+      - official/install/miniwob/html/miniwob/terminal.html::lines 196-200
+    - artifact: browser_artifacts/page_html/ and browser_artifacts/screenshots/
+      question: Do the retained terminal listing and runtime query corroborate the exact deleted filename and literal
+        extension requirement?
+      support:
+      - derived/drafting_context.json::stronger_measurement.required_additional_conditions[0].decisive_post_run_artifacts
+      - official/install/miniwob/html/miniwob/terminal.html::lines 52-53
+      - official/install/miniwob/html/miniwob/terminal.html::lines 196-200
+    support:
+    - official/install/miniwob/html/miniwob/terminal.html::lines 52-53
+    - official/install/miniwob/html/miniwob/terminal.html::removeContents
+    - official/install/miniwob/html/miniwob/terminal.html::lines 196-200
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods.validate.content

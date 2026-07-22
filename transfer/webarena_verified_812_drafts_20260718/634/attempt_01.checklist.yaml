@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: '634'
+domain: webarena_verified
+task_id: '634'
+native:
+  user_goal:
+    text: Create a post in f/iphone titled "used iphone recommendations?" with body "Hey, looking for good used iphone under $1000, any suggestions?"
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both the configured AgentResponseEvaluator and NetworkEventEvaluator must score 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the two configured evaluators and composes their scores with TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize to the key/value projection accepted for the configured MUTATE, SUCCESS, and retrieved_data response?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last qualifying POST to either configured Reddit submit path return 302 and match submission[forum] = "10052", submission[title] = "used iphone recommendations?", and submission[body] = "Hey, looking for good used iphone under $1000, any suggestions?" under evaluator normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Success iff both checks score 1.0: agent_response.json passes the configured normalized structural comparison, and the selected last qualifying HAR event matches the configured POST paths, method, status, and form values.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Failure if either official check is not 1.0, including an evaluator error: the response projection differs from the configured comparison, no qualifying POST exists, or the selected last qualifying POST fails any configured URL, method, 302-status, or form-value comparison.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when a required retained artifact is unavailable or retention-damaged so the original evaluator input cannot be reconstructed. A complete input that is malformed, mismatched, or contains no qualifying event is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+stronger:
+  additional_conditions:
+  - id: persisted_post_exists
+    text: Beyond native success, retained post-run Reddit state must show that the requested post exists in f/iphone with the configured title and body.
+    rationale: The task asks to create a post, but the native evaluator checks a self-reported success response and a matching POST that returned 302; it does not verify persisted Reddit state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit post record or page capture
+      question: Does it show a post in f/iphone titled "used iphone recommendations?" with body "Hey, looking for good used iphone under $1000, any suggestions?" after the run?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

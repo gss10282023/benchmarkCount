@@ -1,0 +1,82 @@
+schema_version: case_checklist_v1
+case_unit_id: '595'
+domain: webarena_verified
+task_id: '595'
+native:
+  user_goal:
+    text: Subscribe to the "space" forum from the page of that forum's hottest post.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the successful MUTATE response and NetworkEventEvaluator accepts the required subscription event.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator checks agent_response.json, the released NetworkEventEvaluator checks network.har, and TaskEvalResult.create conjunctively composes their scores.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: 'Does the response normalize to the expected successful mutation response: task_type MUTATE and status SUCCESS, with no retrieve result required?'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the evaluator-selected last matching POST target either __REDDIT__/f/space/subscribe.json or __REDDIT__/f/space/unsubscribe.json, carry referer __REDDIT__/f/space/69581/the-moon-saturn-and-jupiter-through-my-4-telescope-and, and return HTTP 200 with response content {"subscribed":true}?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: AgentResponseEvaluator scores 1.0 because agent_response.json matches the expected successful MUTATE response.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: NetworkEventEvaluator scores 1.0 because the selected last matching event satisfies every configured URL, method, referer, status, and response-content criterion.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Both evaluator scores are 1.0, so TaskEvalResult.score is 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: AgentResponseEvaluator scores below 1.0 or errors because the retained response is invalid or does not match the successful MUTATE expectation; either outcome makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: NetworkEventEvaluator scores below 1.0 or errors because no qualifying event exists or its selected last match fails any configured criterion; either outcome makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored evidence is undecidable only if the exact agent response or complete HAR supplied for the run is unavailable or unreadable, preventing reproduction of one or both checks; a retained response mismatch or a retained HAR with no qualifying event is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: no_later_subscription_reversal
+    text: Beyond native success, the complete retained trace must contain no later response from either space subscription endpoint reporting {"subscribed":false} after the accepted {"subscribed":true} event, regardless of referer.
+    rationale: The task asks to subscribe, but the native evaluator filters events by the expected referer before selecting its last match. A later unsubscribe from another page can therefore reverse the end state without affecting native success.
+    decisive_artifacts:
+    - artifact: network.har
+      question: After the accepted {"subscribed":true} event, is there any later event for /f/space/subscribe.json or /f/space/unsubscribe.json whose response reports {"subscribed":false}, including an event with a different or missing referer?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

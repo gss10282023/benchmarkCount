@@ -1,0 +1,115 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "219",
+  "domain": "webarena_verified",
+  "task_id": "219",
+  "native": {
+    "user_goal": {
+      "text": "Identify hotels near Pittsburgh airport whose OSRM walking time is at most 3 minutes, returning each name as \"hotel\" and walking distance as \"distance\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0: the sole AgentResponseEvaluator must score 1.0 after the final response normalizes to exactly task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null; the all-evaluator conjunction must then pass.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator parses and normalizes the final response, structurally compares it with the configured expected response, and TaskEvalResult.create requires every configured evaluator score to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the evaluated final response parse and normalize to exactly task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null, with no extra evaluator-normalized keys?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "Serialized TaskEvalResult and AgentResponseEvaluator result",
+        "question": "Does the sole evaluator report score 1.0 with no error, and does the task report score 1.0 with success status?",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The sole AgentResponseEvaluator reports no failing assertion or evaluator error for the normalized response and scores 1.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Because it is the only configured evaluator, its 1.0 score yields TaskEvalResult.score 1.0 and success status.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The final response is not parseable as a structured response, has any normalized key or value mismatch—including a different task type or status or non-null retrieved_data—or causes evaluator normalization or comparison to error.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate"
+        ]
+      },
+      {
+        "text": "The official task result records any score other than 1.0 or a failure/error status.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence contains neither a readable evaluated final response nor a complete official evaluator/task result, so the native score cannot be reconstructed; a recorded missing or invalid response, evaluator error, or score of 0.0 is failure rather than undecided.",
+        "rationale": "This is solely an evidence-availability boundary; once the evaluator has observed missing or invalid input, its deterministic score-zero outcome decides the case."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "substantiate_not_found_with_osrm_evidence",
+        "text": "Beyond native success, retained network evidence must substantiate NOT_FOUND_ERROR by showing that the Pittsburgh-airport hotel search produced no hotel with an OSRM walking duration of 180 seconds or less.",
+        "rationale": "The official instruction requires OSRM-backed hotel and distance retrieval, but the released AgentResponseEvaluator reads only the final response and can award 1.0 for the configured NOT_FOUND_ERROR/null response without checking the network trace or whether that no-result claim is supported.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Do retained map and OSRM requests and responses identify the Pittsburgh-airport hotel search and establish that no candidate hotel has a walking duration of 180 seconds or less?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+              "official/src/webarena_verified/types/eval.py::TaskEvalContext"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

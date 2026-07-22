@@ -1,0 +1,68 @@
+schema_version: case_checklist_v1
+case_unit_id: '358'
+domain: webarena_verified
+task_id: '358'
+native:
+  user_goal:
+    text: Return the shipping method for order 187.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: The task succeeds only when the sole configured AgentResponseEvaluator scores 1.0, making TaskEvalResult.score 1.0. The response must normalize without error to task_type RETRIEVE and status SUCCESS, and retrieved_data—after the evaluator's scalar-to-singleton coercion—must compare unordered, with no missing or extra values, as one string matching ^flat rate[^a-z0-9]*(?:fixed)$.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator; TaskEvalResult.create assigns task score 1.0 only when every configured evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize without error to RETRIEVE/SUCCESS with exactly one retrieved value matching ^flat rate[^a-z0-9]*(?:fixed)$ under the evaluator's unordered comparison?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the trace parse as a NetworkTrace and permit evaluation-context and configuration validation to complete without a trace-related error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: Replaying the complete retained artifacts with the official evaluator produces no AgentResponseEvaluator assertions or evaluation error, gives that sole evaluator score 1.0, and therefore gives TaskEvalResult score 1.0/status success.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: With complete readable artifacts, official evaluation produces TaskEvalResult score 0.0/status failure or error, including from an invalid response, a task_type or status mismatch, missing/extra/nonmatching retrieved data, or a trace/context/orchestration error.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored evidence is undecidable if agent_response.json or network.har is absent, unreadable, or not attributable to this run and no retained official TaskEvalResult establishes the score; network evidence alone cannot establish the response comparison.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+stronger:
+  additional_conditions:
+  - id: raw_retrieved_data_array
+    text: In addition to native success, require agent_response.json.retrieved_data to be encoded as a JSON array containing the single matching shipping-method value, rather than as a scalar accepted through coercion.
+    rationale: The official response type and this case's results schema specify an array, but the released evaluator wraps a scalar actual value into a singleton before comparison; native success therefore does not enforce the documented array shape.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Is the raw retrieved_data member a one-element JSON array rather than a scalar?
+      support:
+      - derived/task.json::eval[0].results_schema
+      - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse.retrieved_data
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    support:
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse.retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data

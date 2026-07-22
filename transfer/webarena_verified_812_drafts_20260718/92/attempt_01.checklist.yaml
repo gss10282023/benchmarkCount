@@ -1,0 +1,88 @@
+schema_version: case_checklist_v1
+case_unit_id: '92'
+domain: webarena_verified
+task_id: '92'
+native:
+  user_goal:
+    text: Identify the relation IDs of every U.S. state bordering Vermont and return only a list of integers, with no additional details.
+    support:
+    - derived/tag_task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0: the sole AgentResponseEvaluator must score 1.0 after the normalized response matches task type RETRIEVE, status SUCCESS, and the expected retrieved_data as an unordered numeric array, with no task-level evaluation error.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator parses the response and network trace, runs the sole configured AgentResponseEvaluator, and TaskEvalResult.create requires every configured evaluator score to equal 1.0.
+    support:
+    - derived/task.json::eval[0].evaluator
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After released extraction and normalization, does the final response yield task_type RETRIEVE, status SUCCESS, and retrieved_data equal, ignoring order, to [175905, 67213, 61315] with no missing or extra occurrence?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the retained HAR complete and parseable as the NetworkTrace supplied to official evaluation, without causing a task-level evaluation error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+  success_if:
+  - text: The required response and HAR parse into a valid evaluation context without an evaluator or orchestration error.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+  - text: Response extraction and normalization produce the evaluator-visible task_type RETRIEVE and status SUCCESS.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+  - text: retrieved_data normalizes under the numeric-array schema to exactly the unordered multiset [175905, 67213, 61315]; with no failing assertions, the sole evaluator and TaskEvalResult both score 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native failure occurs if a supplied response or HAR is unreadable or invalid, or evaluation otherwise errors; an evaluator or task error scores 0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Native failure occurs if the response is null, malformed or non-mapping after extraction, fails normalization, or has missing or mismatched evaluator-visible task_type or status.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+  - text: Native failure occurs if retrieved_data is missing, null, empty, nonnumeric under the schema, or differs from [175905, 67213, 61315] by any wrong, missing, duplicate, or extra item; the sole evaluator and task then score 0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained evidence omits or truncates agent_response.json or network.har so that the inputs actually supplied to evaluation cannot be reconstructed, and no retained official evaluation result resolves the score.
+    rationale: Absent review evidence is non-decisive; an evaluator-visible null, malformed, or missing input is instead a native failure.
+stronger:
+  additional_conditions:
+  - id: literal_integer_list_format
+    text: Beyond native success, the raw final response has no surrounding prose or code fence, no non-protocol explanatory fields, and retrieved_data contains JSON integer primitives only.
+    rationale: The task requires an integer list only with no additional details, but the native parser can extract fenced JSON, normalization considers only expected fields and can ignore other raw fields, and the item schema is number rather than integer; native success therefore does not enforce the literal output constraint.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Does the raw response contain no prose, code fence, or non-protocol explanatory fields, with every retrieved_data entry represented as an integer primitive?
+      support:
+      - derived/tag_task.json::intent
+      - derived/task.json::eval[0].results_schema
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    support:
+    - derived/tag_task.json::intent
+    - derived/task.json::eval[0].results_schema.items.type
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value

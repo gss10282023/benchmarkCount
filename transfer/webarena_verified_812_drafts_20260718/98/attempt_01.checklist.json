@@ -1,0 +1,123 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "98",
+  "domain": "webarena_verified",
+  "task_id": "98",
+  "native": {
+    "user_goal": {
+      "text": "Find the nearest tea cafe to the University of Pittsburgh using OSRM walking directions, and return only a list of objects containing its location and a distance expressed numerically in m or km.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0: the sole AgentResponseEvaluator must score 1.0 after parsing and schema-normalizing the response and unordered-comparing it with RETRIEVE/SUCCESS and the single expected result—Fuku Tea, 3716 Forbes Avenue, Pittsburgh, Pennsylvania 15213, at 653m.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator parses the retained response and network trace, validates the evaluation context, runs AgentResponseEvaluator, and assigns task score 1.0 only when every configured evaluator score is 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "After the released parser and schema normalization, does the final response contain RETRIEVE/SUCCESS and an unordered retrieved_data value exactly matching one Fuku Tea entry at 653m with the specified full address?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "derived/task.json::eval[0].results_schema",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the trace parseable as the evaluator's NetworkTrace input and, if environment URLs require trace-based recovery, sufficient to establish the map base URL without an evaluation error?",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The response's evaluator-normalized task_type and status are RETRIEVE and SUCCESS, and retrieved_data is an exact unordered schema-normalized match to one object with distance equivalent to 653m and location {name: Fuku Tea, house_number: 3716, street: Forbes Avenue, city: Pittsburgh, state: Pennsylvania, postcode: 15213}.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered"
+        ]
+      },
+      {
+        "text": "Trace/context processing and evaluation complete without error, leaving the sole AgentResponseEvaluator score and TaskEvalResult.score both equal to 1.0.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The response cannot be parsed or normalized as required, or any compared task type, status, retrieved-data value, key structure, or array membership differs from the evaluator-normalized expected response, including missing or extra retrieved-data entries.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_recursive"
+        ]
+      },
+      {
+        "text": "Trace parsing, context/config validation, evaluator execution, or orchestration errors—or any configured evaluator score other than 1.0—produce TaskEvalResult.score 0.0.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The retained evidence omits or truncates an evaluator input needed to reconstruct the response comparison or determine whether evaluation completed, and no retained TaskEvalResult establishes the score; a present invalid response or recorded evaluation error is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify-osrm-walking-provenance",
+        "text": "Beyond native scoring, require network evidence of a successful OSRM walking-directions request for the University of Pittsburgh–Fuku Tea route whose returned distance supports the reported 653m.",
+        "rationale": "The instruction explicitly requires OSRM, but the task config contains only AgentResponseEvaluator and that evaluator reads the final response rather than validating route-service traffic; native scoring therefore checks the reported answer but not the required OSRM provenance.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Does the trace contain a successful OSRM walking-directions request with endpoints corresponding to the University of Pittsburgh and Fuku Tea and a returned route distance consistent with 653m?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

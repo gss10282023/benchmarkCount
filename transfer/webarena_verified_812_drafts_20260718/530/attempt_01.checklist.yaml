@@ -1,0 +1,89 @@
+schema_version: case_checklist_v1
+case_unit_id: '530'
+domain: webarena_verified
+task_id: '530'
+native:
+  user_goal:
+    text: Fill the shopping Contact Us form with a refund message for the kitchen organizer bought around February 2023, substituting its order ID and amount, then leave the completed form ready for review without submitting it.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::instantiation_dict
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if all three configured checks score 1.0: the agent response normalizes to task type MUTATE, status SUCCESS, and null retrieved data; the last matching POST to a URL matching ^http://.*/dummy_bin$ has response status -1 and the required form data; and no POST matches the shopping contact submission endpoint.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs one AgentResponseEvaluator and two NetworkEventEvaluator configurations, then composes their scores conjunctively.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize to task_type MUTATE, status SUCCESS, and retrieved_data null under the configured agent-response comparison?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last matching POST to ^http://.*/dummy_bin$ have response status -1, form_id contact-form, name Emma Lopez, email emma.lopez@gmail.com, and a comment matching the configured refund regex for order 161 and amount 68.88?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - artifact: network.har
+    question: Does the complete trace contain no POST whose URL matches the rendered shopping /contact/index/post endpoint?
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: The agent response passes the configured comparison for normalized task_type MUTATE, status SUCCESS, and retrieved_data null.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: The last matching dummy_bin POST has status -1 and all required form fields, with its comment matching the configured anchored pattern for order 161, amount 68.88, and the stated breakage reason.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: The complete trace has no POST matching the shopping contact submission endpoint.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  fail_if:
+  - text: The agent-response check scores below 1.0 or errors because the retained response is invalid or does not normalize to the configured MUTATE/SUCCESS comparison.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The positive network check scores below 1.0 or errors because no dummy_bin POST matches, or because the last matching POST has the wrong status or required form data.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Any POST matching the shopping /contact/index/post endpoint establishes failure of the should-not-exist check, regardless of that event's response status or payload.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  undecided_if:
+  - text: Stored evidence is undecided only when agent_response.json or the complete network.har is missing, unreadable, or truncated so at least one native check cannot be determined, and the available evidence does not already establish another check's failure.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    rationale: Success requires all three checks, while one conclusively observed failed check is sufficient for failure.
+stronger:
+  additional_conditions:
+  - id: final_form_ready_for_review
+    text: At run end, retained browser-state evidence shows the shopping Contact Us form still open and populated with Emma Lopez, emma.lopez@gmail.com, and the configured refund comment for order 161 and amount 68.88, with no submission confirmation replacing the form.
+    rationale: The official task requires leaving the filled form ready for review, but the native evaluator observes a historical dummy_bin POST and absence of a submission POST; those network events do not prove that the final displayed form remained populated and reviewable.
+    decisive_artifacts:
+    - artifact: Final browser-state capture with DOM/form-control values
+      question: At the end of the run, is the Contact Us form visibly active with the required identity and refund-message values still populated?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

@@ -4,65 +4,46 @@ domain: androidworld
 task_id: SystemBrightnessMinVerify
 native:
   user_goal:
-    text: Verify that screen brightness is already at minimum.
+    text: Turn brightness to the min value.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemBrightnessMinVerify
-    rationale: The verify variant's class docstring states this intent.
+    - derived/canonical_task_semantics.json::goal.runtime_samples[0].dispatch_goal_model
   benchmark_success:
-    text: 'Native success is a single binary evaluator check: this task passes iff the released evaluator returns 1.0, which here means the post-run Android setting `screen_brightness` equals `1`.'
+    text: Native success requires a completed episode (`done=true`) and, under the released evaluator, a final `settings get system screen_brightness` value that parses to integer `1`.
     support:
-    - official/install/android_world/task_evals/task_eval.py::TaskEval.is_successful
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemBrightnessMinVerify.generate_random_params
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
   checked_by:
-    text: Released task evaluator `_SystemBrightnessToggle.is_successful`, using an ADB settings query.
+    text: AndroidWorld runner completion gating in `_run_task`, plus `_SystemBrightnessToggle.is_successful`.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
   decisive_artifacts:
-  - artifact: Evaluator result record for this task
-    question: Does retained official evaluator output mark this task successful or unsuccessful?
+  - artifact: Episode result record or raw trace with terminal `done` status
+    question: Does retained run evidence show `done=true`, or `done=false` that gates native failure?
     support:
-    - official/install/android_world/task_evals/task_eval.py::TaskEval.is_successful
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
-  - artifact: Post-run device settings capture containing `screen_brightness`
-    question: If recomputing from retained state, does post-run evidence show `settings get system screen_brightness` returned `1`?
+    - official/install/android_world/suite_utils.py::_run_task
+  - artifact: Final evaluator-visible brightness reading
+    question: What final integer value is retained for `settings get system screen_brightness`?
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemBrightnessMinVerify.generate_random_params
+    - official/install/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
   success_if:
-  - text: A retained official evaluator result for this task records success.
+  - text: Retained evidence shows `done=true` and a final evaluator-visible `screen_brightness` value of integer `1`.
     support:
-    - official/install/android_world/task_evals/task_eval.py::TaskEval.is_successful
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
-  - text: Or, absent evaluator output, retained post-run state evidence clearly shows `screen_brightness == 1`.
-    support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemBrightnessMinVerify.generate_random_params
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
   fail_if:
-  - text: A retained official evaluator result for this task records failure.
+  - text: Retained evidence shows `done=false`; the runner forces native failure regardless of the task raw score.
     support:
-    - official/install/android_world/task_evals/task_eval.py::TaskEval.is_successful
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
-  - text: Or, absent evaluator output, retained post-run state evidence clearly shows `screen_brightness` is present and not `1`.
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: Retained evidence shows `done=true` and a final evaluator-visible `screen_brightness` value that parses to an integer other than `1`.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemBrightnessMinVerify.generate_random_params
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
   undecided_if:
-  - text: Neither a reliable evaluator result nor a reliable post-run `screen_brightness` value is retained.
-    rationale: Without either decisive artifact, the native end-state rule cannot be applied from stored evidence.
-stronger:
-  additional_conditions:
-  - id: verify-no-brightness-change
-    text: For the verify variant, retained interaction trace or screen recording shows brightness was not changed during the run; native scoring would still accept any run that ends with `screen_brightness == 1`.
-    rationale: The class says this task verifies brightness is already at minimum, and initialization sets brightness to minimum before the run, but the released evaluator checks only the final brightness value.
-    decisive_artifacts:
-    - artifact: Interaction trace or screen recording
-      question: Does retained run evidence show no brightness adjustment was performed during the run?
-      support:
-      - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemBrightnessMinVerify
-      - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemBrightnessMinVerify.initialize_task
-      - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
+  - text: Retained evidence does not establish a usable terminal `done` status or a usable final `screen_brightness` observation, and no other retained artifact independently establishes one of the success or fail conditions.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemBrightnessMinVerify
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemBrightnessMinVerify.initialize_task
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/system.py::_SystemBrightnessToggle.is_successful
+    rationale: The native decision depends on both the runner completion gate and the evaluator-visible final brightness reading; if stored evidence for either check is missing or unusable, the benchmark claim cannot be resolved from post-run artifacts alone.
+stronger:
+  additional_conditions: []

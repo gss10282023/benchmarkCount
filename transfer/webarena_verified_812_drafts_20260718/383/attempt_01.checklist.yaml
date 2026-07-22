@@ -1,0 +1,85 @@
+schema_version: case_checklist_v1
+case_unit_id: '383'
+domain: webarena_verified
+task_id: '383'
+native:
+  user_goal:
+    text: Determine whether a Hyatt hotel is near Pittsburgh Airport and, if so, return its name and the names of supermarkets within a 15-minute drive as a list of objects with keys "hotel" and "supermarkets", using OSRM directions.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: evaluation completes without error and the sole configured AgentResponseEvaluator scores 1.0 after schema-normalizing and comparing the final response''s task_type, status, and retrieved_data, with array order ignored.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator, which parses the final response, normalizes values under the result schema, and recursively compares them; TaskEvalResult.create then requires every configured evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the exact response supplied to the evaluator parse and normalize to the required task type, status, hotel, and supermarket values under the configured unordered comparison?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+  - artifact: network.har
+    question: Can the retained HAR be parsed into the NetworkTrace required to construct the official evaluation context without an orchestration error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+  success_if:
+  - text: The evaluator input normalizes to task_type "RETRIEVE", status "SUCCESS", and retrieved_data containing exactly one object whose hotel is "Hyatt Regency Pittsburgh International Airport" and whose supermarkets are exactly "Giant Eagle" and "ALDI"; outer and nested array order is ignored.
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].ordered
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: The retained inputs permit evaluation to complete without error, the sole AgentResponseEvaluator score is 1.0, and therefore TaskEvalResult.score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The exact supplied response, after the evaluator's parsing and normalization, is not dict-like, omits or mismatches task_type or status, has missing or empty retrieved_data, or differs from the required retrieved-data structure in element count, object keys, or normalized values.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: The HAR cannot be parsed, evaluation orchestration or the evaluator errors, or the sole evaluator otherwise scores less than 1.0; in each case TaskEvalResult.score is 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: One or both required run artifacts are absent or truncated and no retained TaskEvalResult resolves the score, so the exact evaluator input or its evaluation context cannot be reconstructed.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+stronger:
+  additional_conditions:
+  - id: verify_osrm_driving_times
+    text: Beyond native scoring, retained evidence must show OSRM direction-service results from the reported hotel to every reported supermarket, with each driving duration no greater than 15 minutes (900 seconds).
+    rationale: The task explicitly requires OSRM and a 15-minute driving criterion, but the configured evaluator only compares the final response and includes no network-event check, so native scoring can accept the expected names without evidence that OSRM established the travel times.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Which hotel and supermarkets did the run report?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - artifact: network.har
+      question: Does the trace contain OSRM route requests and responses linking the reported hotel to each reported supermarket with durations of at most 900 seconds?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value

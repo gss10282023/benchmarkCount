@@ -1,0 +1,129 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "191",
+  "domain": "webarena_verified",
+  "task_id": "191",
+  "native": {
+    "user_goal": {
+      "text": "Find and report the total cost of the user's most recent order marked as \"processing\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when the sole configured AgentResponseEvaluator scores 1.0. Here, that requires the evaluator-visible response to match task type RETRIEVE, status NOT_FOUND_ERROR, and null retrieved_data after parsing and normalization, without an evaluator error.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The AgentResponseEvaluator parses the final response, normalizes its configured fields, and compares them structurally; TaskEvalResult then applies the all-evaluator-scores-equal-1.0 rule.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained final response parse and normalize to task type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data absent or null?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the required retained network trace readable so the official evaluation context can be constructed without a trace-parsing or orchestration error?",
+        "support": [
+          "case_packet.md::Benchmark Task Summary",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The retained response is a comparable object whose task_type, or legacy performed_operation alias, normalizes to RETRIEVE; whose status normalizes to NOT_FOUND_ERROR; and whose retrieved_data is absent or normalizes to null, producing no comparison assertions.",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "The required trace is readable and evaluation completes without error; the sole evaluator scores 1.0, so TaskEvalResult.score is 1.0.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The retained response is not a comparable object, has a missing or mismatched evaluator-visible task type or status, has non-null retrieved_data after normalization, or otherwise produces a comparison assertion; the sole evaluator and task score are 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "A malformed or unreadable retained input causes an evaluator or orchestration ERROR, which gives TaskEvalResult.score 0.0.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "One or both required run artifacts are absent, truncated, or not attributable to this run, and no complete official evaluation result is retained, so the evaluator-visible inputs or resulting score cannot be reconstructed.",
+        "support": [
+          "case_packet.md::Benchmark Task Summary",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "corroborate_not_found_against_shopping_state",
+        "text": "Beyond the native response-only match, retained shopping evidence must corroborate NOT_FOUND_ERROR by establishing that no order marked \"processing\" existed; otherwise the native pass does not establish the requested latest-order total.",
+        "rationale": "The official instruction asks for a total derived from shopping state, but the only configured evaluator reads the final response and expects NOT_FOUND_ERROR with null data without checking whether a processing order actually exists.",
+        "decisive_artifacts": [
+          {
+            "artifact": "agent_response.json",
+            "question": "Does the response make the NOT_FOUND_ERROR and no-data claim accepted by the native evaluator?",
+            "support": [
+              "derived/task.json::eval[0].expected",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+            ]
+          },
+          {
+            "artifact": "network.har",
+            "question": "Do retained shopping responses establish whether any processing order existed and, if one did, identify the latest order and its total cost?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

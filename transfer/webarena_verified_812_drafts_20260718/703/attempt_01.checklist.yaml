@@ -1,0 +1,68 @@
+schema_version: case_checklist_v1
+case_unit_id: '703'
+domain: webarena_verified
+task_id: '703'
+native:
+  user_goal:
+    text: Create a marketing price rule named "Thanks giving sale" for all registered customers that gives a $40 discount on all their purchases.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the normalized MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the evaluator-selected last matching POST save event with status 302 and the configured form values.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator and composes their scores with an all-of rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the released response parser and normalizer accept the response as the expected object with task_type MUTATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last evaluation event matching POST to __SHOPPING_ADMIN__/sales_rule/promo_quote/save have response status 302 and all nine configured POST field/value pairs?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks score 1.0: the response normalizes to the accepted MUTATE/SUCCESS object, and the selected last matching save event has status 302 with coupon_type=1, customer_group_ids[0]=1, discount_amount=40, is_active=1, name="Thanks giving sale", rule[actions][1][aggregator]=all, rule[actions][1][type]=Magento\SalesRule\Model\Rule\Condition\Product\Combine, rule[actions][1][value]=1, and website_ids[0]=1 under evaluator normalization.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Fail if either check does not score 1.0: the response is rejected or mismatches its expected normalized object; no POST event matches the save endpoint and method; the evaluator-selected last such event mismatches status or any configured POST value; or either evaluator errors.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only if a retained copy of agent_response.json or network.har is missing or incomplete so the evaluator-visible input cannot be reconstructed. Malformed or mismatching content known to have been supplied is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: persisted_rule_state
+    text: Beyond native success, retained post-run shopping-admin state must show a persisted rule named "Thanks giving sale" configured for all registered customers to apply a $40 discount without product restrictions.
+    rationale: The official intent requires creating a rule, but the native evaluators inspect only the agent's success response and a matching POST/302 event; they do not verify that the rule was actually persisted in application state.
+    decisive_artifacts:
+    - artifact: Post-run shopping-admin rule-store record or state export
+      question: Does persisted post-run state contain the requested rule with the stated customer scope, $40 discount, and unrestricted product applicability?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

@@ -1,0 +1,69 @@
+schema_version: case_checklist_v1
+case_unit_id: '45'
+domain: webarena_verified
+task_id: '45'
+native:
+  user_goal:
+    text: Open the current GitLab project's issues page showing the most recent open issues.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: TaskEvalResult.score is 1.0 only when both AgentResponseEvaluator and NetworkEventEvaluator score 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator compares the normalized final response, the released NetworkEventEvaluator compares the selected last navigation event, and TaskEvalResult composes both scores.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After released parsing and normalization, does the response match task_type NAVIGATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the evaluator-selected last navigation event match the configured GitLab issues URL as a GET with response status 200 under URL normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: The normalized final response matches NAVIGATE/SUCCESS/null and the selected last navigation event matches GET __GITLAB__/a11yproject/a11yproject.com/-/issues with HTTP 200, so both evaluator scores are 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The native claim fails if replay of the retained response and HAR gives either evaluator a score other than 1.0, including a response mismatch, a missing or mismatching selected navigation event, or an evaluator error.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  undecided_if:
+  - text: Undecided only when evidence for at least one component is missing or cannot be identified as the input actually evaluated, no retained official result supplies that component score, and available evidence does not already establish failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult
+stronger:
+  additional_conditions:
+  - id: visible_open_recent_filter
+    text: Beyond native scoring, retained final-page evidence shows the issues list restricted to open issues and ordered most-recent-first.
+    rationale: The task explicitly requires open/recent filtering, while the released checks establish only a successful normalized response and a GET/200 navigation event at the issues URL; they do not inspect the rendered filter or ordering state.
+    decisive_artifacts:
+    - artifact: Final-page DOM/accessibility snapshot or screenshot
+      question: Does the rendered GitLab issues page visibly show the Open filter active and most-recent-first ordering?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

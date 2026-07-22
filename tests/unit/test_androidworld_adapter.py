@@ -126,6 +126,7 @@ def test_androidworld_worker_run_smoke_job_writes_expected_artifacts(tmp_path: P
 
     assert summary["status"] == "completed"
     assert summary["success"] is True
+    assert summary["native_score"] == 1
     assert (config.output_dir / "native_evaluator_input.json").exists()
     assert (config.output_dir / "native_evaluator_output.json").exists()
     assert (config.output_dir / "artifact_manifest.json").exists()
@@ -184,6 +185,7 @@ def test_execute_smoke_job_androidworld_builds_raw_run_and_llm_logs(tmp_path: Pa
                 {
                     "status": "completed",
                     "success": True,
+                    "native_score": 0.5,
                     "task_name": "ClockStopWatchRunning",
                     "instance_id": 0,
                 }
@@ -231,6 +233,7 @@ def test_execute_smoke_job_androidworld_builds_raw_run_and_llm_logs(tmp_path: Pa
     raw_run = json.loads(Path(result["raw_run_path"]).read_text(encoding="utf-8"))
     assert raw_run["status"] == "COMPLETED"
     assert raw_run["native_label"] == "success"
+    assert raw_run["native_score"] == 0.5
     assert raw_run["llm_calls_log_path"].endswith("calls.jsonl")
     manifest = json.loads(Path(result["artifact_manifest_path"]).read_text(encoding="utf-8"))
     artifact_types = {artifact["artifact_type"] for artifact in manifest["artifacts"]}

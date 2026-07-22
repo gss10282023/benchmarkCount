@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: fix-ocaml-gc
+domain: terminal_bench_2_1
+task_id: terminal-bench/fix-ocaml-gc
+native:
+  user_goal:
+    text: Fix the OCaml garbage-collector change so the compiler no longer crashes during bootstrap, then run the basic testsuite with `make -C testsuite one DIR=tests/basic` and have it run cleanly.
+    support:
+    - official/instruction.md::1-1
+  benchmark_success:
+    text: Native success is established when retained verifier evidence shows the official verifier rebuilt the OCaml tree, ran `make -C testsuite one DIR=tests/basic`, and the verifier's `test_tests_output` check passed; that check requires `/app/ocaml/tests.txt` to exist and contain `40 tests passed`.
+    support:
+    - official/tests/test.sh::1-32
+    - official/tests/test_outputs.py::6-17
+  checked_by:
+    text: The task-specific verifier script plus its pytest assertion over `/app/ocaml/tests.txt`.
+    support:
+    - official/tests/test.sh::1-32
+    - official/tests/test_outputs.py::6-17
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the retained pytest report show `test_tests_output` passed rather than failed or missing?
+    support:
+    - official/tests/test.sh::24-32
+    - official/tests/test_outputs.py::6-17
+  - artifact: verifier/test-stdout.txt
+    question: Does the retained verifier stdout show the verifier ran the OCaml rebuild/tests flow and produced the `tests.txt`-based check outcome consistent with the CTRF report?
+    support:
+    - official/tests/test.sh::18-29
+    - official/tests/test_outputs.py::6-17
+  success_if:
+  - text: '`verifier/ctrf.json` shows the verifier''s `test_tests_output` check passed, and retained verifier stdout is consistent with the official flow that rebuilds OCaml, runs `make -C testsuite one DIR=tests/basic`, and checks `/app/ocaml/tests.txt` for `40 tests passed`.'
+    support:
+    - official/tests/test.sh::18-29
+    - official/tests/test_outputs.py::6-17
+  fail_if:
+  - text: '`verifier/ctrf.json` shows `test_tests_output` failed, including because `/app/ocaml/tests.txt` was missing or because its contents did not include `40 tests passed`.'
+    support:
+    - official/tests/test_outputs.py::12-17
+  - text: Retained verifier stdout/stderr shows the official verifier did not complete the rebuild/tests flow successfully, and the retained pytest report correspondingly records the check as failed.
+    support:
+    - official/tests/test.sh::18-32
+    - official/tests/test_outputs.py::12-17
+  undecided_if:
+  - text: The retained non-label verifier artifacts needed to establish the pytest outcome or its underlying `tests.txt` condition are missing, truncated, or inconsistent, so success and failure cannot be determined independently of released reward metadata.
+    support:
+    - case_packet.md::65-74
+    - official/tests/test.sh::24-32
+    - official/tests/test_outputs.py::6-17
+stronger:
+  additional_conditions:
+  - id: instruction-level-bootstrap-success
+    text: Beyond the native check, retained evidence should show the OCaml compiler bootstrap/build itself completed successfully after the fix, not merely that `/app/ocaml/tests.txt` contained `40 tests passed`.
+    rationale: The official instruction says the bug causes the compiler to crash while bootstrapping itself, but the released pytest oracle operationalizes only the retained `tests.txt` existence/content check. The shell script does run `make -j4`, yet the decisive native oracle is the single pytest assertion over `tests.txt`, so a stricter review can separately require retained build evidence for successful bootstrap.
+    decisive_artifacts:
+    - artifact: verifier/test-stdout.txt
+      question: Does retained verifier stdout show the `make clean && ./configure && make -j4` bootstrap/build step completed successfully before the testsuite run?
+      support:
+      - official/instruction.md::1-1
+      - official/tests/test.sh::18-23
+    - artifact: verifier/test-stderr.txt
+      question: Is retained verifier stderr free of build/bootstrap failure evidence that would contradict a successful OCaml bootstrap?
+      support:
+      - official/instruction.md::1-1
+      - official/tests/test.sh::18-23
+    support:
+    - official/instruction.md::1-1
+    - official/README.md::20-24
+    - official/tests/test.sh::18-29
+    - official/tests/test_outputs.py::6-17

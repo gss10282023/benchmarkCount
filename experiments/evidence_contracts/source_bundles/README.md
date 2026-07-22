@@ -1,7 +1,7 @@
 # Contract source bundles
 
 `main_case_units_source_bundle.json` contains the validated drafter-input index
-for the 400 selected P0 main-study evidence contracts.
+for the 300 currently selected P0 main-study evidence contracts.
 
 The current bundle is `contract_source_bundle.v2`:
 

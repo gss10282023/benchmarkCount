@@ -23,6 +23,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m evidence_system.cli.build_miniwob_case_selection", description=COMMAND.responsibility)
     parser.add_argument("--bootstrap-check", action="store_true")
     parser.add_argument("--infra-config", default="configs/infra.yaml")
+    parser.add_argument(
+        "--source-infra-config",
+        help="Source discovery/materialization infra; defaults to --infra-config.",
+    )
+    parser.add_argument("--agents-config", default="configs/agents.yaml")
+    parser.add_argument(
+        "--source-mode",
+        choices=("remote", "local"),
+        default="remote",
+        help="Read BrowserGym/MiniWoB sources over SSH (default) or from paths in the local locked infra config.",
+    )
     parser.add_argument("--main-manifest", default="experiments/experiment_manifest.yaml")
     parser.add_argument("--official-splits", default="experiments/official_splits")
     parser.add_argument("--selected-sources", default="experiments/official_splits/miniwob_selected_task_sources.json")
@@ -35,6 +46,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--selected-count", type=int, default=50)
     parser.add_argument("--selection-offset", type=int, default=0)
     parser.add_argument("--manifest-id")
+    parser.add_argument(
+        "--result-namespace",
+        help="Optional locked run-set namespace written to the generated manifest.",
+    )
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -54,6 +69,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         payload = build_miniwob_case_selection(
             infra_config_path=args.infra_config,
+            source_infra_config_path=args.source_infra_config or args.infra_config,
+            agents_config_path=args.agents_config,
+            source_mode=args.source_mode,
             main_manifest_path=args.main_manifest,
             official_splits_root=args.official_splits,
             manifest_path=args.appendix_manifest,
@@ -63,6 +81,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             selected_count=args.selected_count,
             selection_offset=args.selection_offset,
             manifest_id=args.manifest_id,
+            result_namespace=args.result_namespace,
         )
     except ContractLifecycleError as exc:
         result = {"status": "blocked", "reason": str(exc)}

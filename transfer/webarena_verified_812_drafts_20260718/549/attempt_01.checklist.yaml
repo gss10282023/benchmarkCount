@@ -1,0 +1,68 @@
+schema_version: case_checklist_v1
+case_unit_id: '549'
+domain: webarena_verified
+task_id: '549'
+native:
+  user_goal:
+    text: Add size XXXL to the green Minerva LumaTech V-Tee.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score == 1.0: the AgentResponseEvaluator and both configured NetworkEventEvaluator checks must each score 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the task's three evaluator configurations and composes their scores with an all-must-pass rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does AgentResponseEvaluator parse and normalize the response to task_type MUTATE, status SUCCESS, and retrieved_data null under its non-retrieve-task comparison rule?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: 'Do both last-event checks pass: a POST/302 attribute-save event whose serialized_options matches an encoded XXXL swatch option, and a POST/302 product-save event for product 1492 whose product name is Minerva LumaTech&trade; V-Tee and whose new-product attributes extract exactly as ["size: xxxl, color: green"]?'
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'All three checks score 1.0: the response normalizes to MUTATE/SUCCESS, the last matching attribute-save POST has status 302 and the required XXXL serialized-options value, and the last matching product-save POST has status 302, the required product name, and exactly the required XXXL/green new-product attribute value.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: With both required artifacts retained, any response-check failure/error, attribute-save event failure/error, or product-save event failure/error makes the task score 0.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Either agent_response.json or network.har is absent from the retained evidence, so all three official checks cannot be replayed.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+stronger:
+  additional_conditions:
+  - id: persisted-green-xxxl-configuration
+    text: Beyond native scoring, retained post-run shopping-admin state shows that Minerva LumaTech V-Tee has an available configuration with size XXXL and color green.
+    rationale: The task asks for the size to be added, but the native evaluator accepts a self-reported success plus matching POST/302 trace events and does not inspect the persisted product configuration.
+    decisive_artifacts:
+    - artifact: Retained post-run shopping-admin product-state export or product edit-page capture
+      question: Does product 1492 show an available configuration whose attributes are size XXXL and color green?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[2]
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

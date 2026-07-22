@@ -1,0 +1,91 @@
+schema_version: case_checklist_v1
+case_unit_id: '759'
+domain: webarena_verified
+task_id: '759'
+native:
+  user_goal:
+    text: Show on the map the route and driving time from the city where E-commerce customer Sophia Young lives to New York City, using the OSRM direction service.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both configured components must score 1.0—the AgentResponseEvaluator on the final response and the NetworkEventEvaluator on the HAR. Any component failure or error makes the task score 0.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator and composes their scores through TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After official parsing and normalization, does the response produce an AgentResponseEvaluator score of 1.0 against task_type NAVIGATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the evaluator-selected last navigation event satisfy the configured route URL, Cookie-header, GET-method, and 200-status comparison?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: 'AgentResponseEvaluator scores 1.0: the response parses to a mapping and matches task_type NAVIGATE and status SUCCESS under official normalization. For this non-retrieve task, retrieved_data is not value-checked.'
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: 'NetworkEventEvaluator scores 1.0: the last evaluation event classified as a navigation event is a GET with response status 200, has a Cookie header not containing _osm_directions_engine=fossgis_osrm_bicycle or _osm_directions_engine=fossgis_osrm_foot, and its normalized URL matches ^.*/route/v1/.*/-71.060511,42.3554334;-1.4869496,55.0252998.*$ with all query parameters ignored.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Both evaluator scores equal 1.0 and no evaluator or task-level error occurs, so TaskEvalResult.score is 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: AgentResponseEvaluator returns failure or error, including when the retained response cannot be parsed as the required mapping or does not match NAVIGATE and SUCCESS under its comparison rule.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: NetworkEventEvaluator returns failure or error because no navigation event is selected or the selected last navigation event mismatches any configured URL, Cookie-header, GET-method, or 200-status criterion.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Either evaluator score is not 1.0, or task evaluation errors; TaskEvalResult then scores 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Evidence review is undecided if agent_response.json or network.har is absent or truncated so that the corresponding evaluator input cannot be reconstructed. A complete but malformed input that the official evaluator rejects is failure, not undecided.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+stronger:
+  additional_conditions:
+  - id: rendered_correct_route_and_time
+    text: Beyond native success, retained post-run evidence must establish Sophia Young's customer-record city and show the final map rendering a driving route from that city to New York City with a displayed driving time; the HAR must tie the displayed result to a successful OSRM driving-route request and response.
+    rationale: The task asks for a rendered route and driving time from a customer-derived origin, but the native evaluator checks only a normalized success response and selected request metadata. It does not inspect the rendered map, displayed duration, endpoint labels, or route response content.
+    decisive_artifacts:
+    - artifact: Post-run browser page-state evidence, such as screenshots with DOM or accessibility snapshots
+      question: Does the retained evidence establish Sophia Young's city and show a final map state with that city as origin, New York City as destination, a rendered driving route, and its driving time?
+      support:
+      - derived/task.json::intent
+      - case_packet.md::Benchmark Task Summary
+    - artifact: network.har
+      question: Does a successful OSRM driving-route request and response correspond to the endpoints and duration shown in the retained map evidence?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data

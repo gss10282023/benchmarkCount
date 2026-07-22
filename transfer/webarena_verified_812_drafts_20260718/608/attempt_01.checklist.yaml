@@ -1,0 +1,83 @@
+schema_version: case_checklist_v1
+case_unit_id: '608'
+domain: webarena_verified
+task_id: '608'
+native:
+  user_goal:
+    text: Find a forum focused on city-life topics in the DMV area and post the question "safe and budget apartment to live" there.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both configured checks must score 1.0. AgentResponseEvaluator must accept the response against the MUTATE/SUCCESS expectation, and NetworkEventEvaluator must accept the last matching Reddit POST to either /submit or /submit/washington with forum 10030, title "safe and budget apartment to live", and response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in configured order, then TaskEvalResult.create applies the all-evaluator-scores-equal-1.0 rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize under AgentResponseEvaluator into an accepted response for the configured MUTATE, SUCCESS, and null retrieved-data expectation?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Among evaluation events matching POST and either allowed Reddit submit path, does the last matching event contain submission[forum] = 10030 and submission[title] = "safe and budget apartment to live" and receive status 302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+  success_if:
+  - text: AgentResponseEvaluator scores 1.0 when agent_response.json is accepted under its parsing, normalization, and comparison rules against the configured MUTATE/SUCCESS response expectation.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: NetworkEventEvaluator scores 1.0 when the last POST event matching either allowed submit path has the two required form fields and response status 302.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Both evaluator scores are 1.0, making TaskEvalResult.score 1.0 and its status success.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: AgentResponseEvaluator does not score 1.0 because the retained response is invalid, cannot be normalized, or does not match the configured MUTATE/SUCCESS response expectation.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: NetworkEventEvaluator does not score 1.0 because no matching POST event exists, the last matching allowed-path event lacks either required form value or status 302, or trace evaluation errors.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Either evaluator score being less than 1.0, including an evaluator error scored as 0.0, makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only when post-run retention loss or corruption prevents reconstruction of the exact agent response or ordered HAR evaluation events; an evaluable malformed input, mismatch, or evaluator error is a native failure rather than undecided.
+    rationale: Evidence lost after the run cannot distinguish a passing input from a failing one, whereas artifacts that can be replayed remain subject to the released evaluator's ordinary failure rules.
+stronger:
+  additional_conditions:
+  - id: persisted_reddit_post
+    text: Beyond native scoring, retained post-run Reddit state must show that the submission produced a persisted post titled "safe and budget apartment to live" in forum 10030.
+    rationale: The official intent requires an actual post, while the released checks use the agent's success response and a qualifying POST/302 event without inspecting post-run Reddit state; this condition closes that concrete persistence gap.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the run contain the qualifying submission request identifying forum 10030 and the exact title?
+      support:
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - artifact: Post-run Reddit post page or application-state snapshot
+      question: Does the retained post-run state show the corresponding persisted post with the exact title in forum 10030?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

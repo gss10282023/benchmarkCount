@@ -1,0 +1,77 @@
+schema_version: case_checklist_v1
+case_unit_id: '758'
+domain: webarena_verified
+task_id: '758'
+native:
+  user_goal:
+    text: Show on the map the path and travel time from the big apple to the biggest city in Maine, using the OSRM direction service.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring both configured checks to score 1.0: AgentResponseEvaluator must produce no mismatch for the normalized NAVIGATE/SUCCESS response, and NetworkEventEvaluator must accept the last qualifying navigation event as URL __MAP__, method GET, and response status 200 after normalization.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator applies AgentResponseEvaluator to the retained agent response and NetworkEventEvaluator to the retained network trace; TaskEvalResult.create composes their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response, after the evaluator's parsing and normalization, yield no AgentResponseEvaluator assertion against the configured NAVIGATE/SUCCESS response?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among evaluation events, does the last event classified as a navigation normalize to URL __MAP__, method GET, and response status 200, yielding no NetworkEventEvaluator assertion?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: 'Both official evaluators score 1.0: the response parses and normalizes without a structural mismatch to the configured NAVIGATE/SUCCESS expectation, and the selected last navigation event matches normalized __MAP__/GET/200.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if AgentResponseEvaluator has any failure assertion or evaluation error, including an unaccepted response structure or a normalized task_type/status mismatch.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Fail if NetworkEventEvaluator has any failure assertion or evaluation error because no qualifying navigation exists or the selected last navigation does not match normalized __MAP__/GET/200; either evaluator scoring below 1.0 makes the task score 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retained copies of agent_response.json or network.har are absent, truncated, or unreadable and no equivalent evaluator result is retained, so the inputs actually evaluated cannot be reconstructed; an intact input that produces a mismatch or evaluator error is failure.
+    rationale: Without both evaluator inputs, evidence review cannot reproduce both official checks; this is an evidence-retention gap, not a reclassification of a recorded evaluator failure.
+stronger:
+  additional_conditions:
+  - id: verify_requested_route_display_and_osrm
+    text: Beyond native success, retained UI evidence must show the requested path and travel time on the map for the requested origin and destination, and the network trace must show that a successful OSRM directions request supplied that route.
+    rationale: The instruction requires particular endpoints, a displayed path and travel time, and OSRM use. Native response evaluation checks completion metadata, while the configured navigate check only validates the last navigation as map URL/GET/200; neither check verifies the endpoints, displayed route/time, or OSRM request.
+    decisive_artifacts:
+    - artifact: Final browser screenshot or DOM/page-state capture
+      question: Does the final map visibly show a path and travel time from the big apple to the biggest city in Maine?
+      support:
+      - derived/task.json::intent
+    - artifact: network.har, including relevant request and response data
+      question: Does the trace contain a successful OSRM directions request whose endpoints correspond to the requested places and whose route and duration support the displayed result?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: '670'
+domain: webarena_verified
+task_id: '670'
+native:
+  user_goal:
+    text: Create a new issue in the current GitLab project, byteblaze/dotfiles, to discuss implementing default plugins for .zsh, using an appropriate issue title.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::start_urls[0]
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS with no retrieved data, and NetworkEventEvaluator accepts the last matching POST to the project issues endpoint with response 302 and an issue title matching ^.*default.*plugins.*zsh.*$.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator and NetworkEventEvaluator, with their scores composed by TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response normalize and compare as task_type MUTATE, status SUCCESS, and retrieved_data null, yielding AgentResponseEvaluator score 1.0?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Is the last evaluation event matching POST __GITLAB__/byteblaze/dotfiles/-/issues a 302 response whose parsed issue[title] matches ^.*default.*plugins.*zsh.*$ under the released normalization and comparison rules?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both retained artifacts produce evaluator scores of 1.0: the final-response comparison passes and the last matching issue-creation network event satisfies every configured URL, method, status, and title condition; consequently TaskEvalResult.score is 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Either configured check fails or errors—because the final response is not accepted, or because the last matching issue POST is absent or mismatches the required endpoint, method, 302 status, or title pattern—so TaskEvalResult.score is 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: A required retained artifact is absent or demonstrably truncated or corrupted after the run, preventing reconstruction of either official check; a faithfully retained malformed response or trace that the evaluator rejects is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: The native decision requires faithful copies of both evaluator inputs.
+stronger:
+  additional_conditions:
+  - id: verify_persisted_issue_creation
+    text: Beyond native scoring, require retained post-run GitLab evidence that the captured creation request produced a persisted new issue in byteblaze/dotfiles with an appropriate title about implementing default plugins for .zsh.
+    rationale: The official intent requires opening a new issue, whereas the released network check accepts a matching POST, 302 response, and title pattern without inspecting the resulting GitLab state.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the captured creation response identify the resulting issue, such as through its redirect target, so it can be linked to post-run state?
+      support:
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent.redirect_url
+    - artifact: Post-run GitLab issue record or state snapshot
+      question: Does the request-linked issue persist in byteblaze/dotfiles as a newly created issue with an appropriate title about implementing default plugins for .zsh?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::start_urls[0]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

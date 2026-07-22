@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: '551'
+domain: webarena_verified
+task_id: '551'
+native:
+  user_goal:
+    text: Add sizes 30 and 31 to every color variant of the Diana Tights product in shopping admin.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the last matching Diana Tights save POST against the configured URL, form-data, and 302-response criteria.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then TaskEvalResult.create conjunctively composes their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the final response parse and normalize to the configured MUTATE task type and SUCCESS status under AgentResponseEvaluator?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last POST matching the configured product-save path for product 1854 return 302 and contain every configured form pair for size attribute 144 values 171–174 and color values 49, 50, and 56, including the specified code, position, include, and value_index fields?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.post_data
+  success_if:
+  - text: 'Both official evaluator scores are 1.0: the final response passes the configured MUTATE/SUCCESS comparison, and the last matching product-save POST passes every configured URL, method, form-data, and response-status comparison.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Either official evaluator scores 0.0 or errors—for example, the final response does not pass the configured MUTATE/SUCCESS comparison, or the last matching product-save POST is absent or mismatches any configured URL, method, form-data, or 302-status criterion.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: No retained TaskEvalResult exists and one or both run-associated raw artifacts are unavailable or unreadable, so both evaluator scores cannot be reconstructed; a retained evaluator zero or error is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: persisted_variant_state
+    text: Beyond native scoring, retained post-run catalog state must show sizes 30 and 31 available for every Diana Tights color variant.
+    rationale: The official instruction requires a persisted catalog mutation, while the released checks inspect only a self-reported success response and a matching save request with a 302 response; they do not inspect post-run product or variant state.
+    decisive_artifacts:
+    - artifact: Post-run Diana Tights catalog-state snapshot or export
+      question: Does the retained state identify Diana Tights and show both sizes 30 and 31 for every color variant?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

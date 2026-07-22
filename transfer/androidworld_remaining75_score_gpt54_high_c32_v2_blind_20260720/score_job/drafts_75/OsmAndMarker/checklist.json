@@ -1,0 +1,140 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "OsmAndMarker",
+  "domain": "androidworld",
+  "task_id": "OsmAndMarker",
+  "native": {
+    "user_goal": {
+      "text": "Add a location marker for the dispatched `location` in the OsmAnd maps app.",
+      "support": [
+        "official/install/android_world/task_evals/single/osmand.py::OsmAndMarker",
+        "official/install/android_world/task_metadata.json::[43].task_template"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success requires both: the run finished with `done=true`, and the post-run OsmAnd `map_markers` table contains at least one row whose coordinates match the dispatched `location` under the evaluator rule (`marker_lat` and `marker_lon` each within `<0.001` degrees of the parsed/preloaded target).",
+      "support": [
+        "official/install/android_world/suite_utils.py::_run_task",
+        "official/install/android_world/task_evals/single/osmand.py::OsmAndMarker.is_successful",
+        "official/install/android_world/task_evals/single/osmand.py::_marker_matches_location",
+        "official/install/android_world/task_evals/single/osmand.py::_coords_match"
+      ]
+    },
+    "checked_by": {
+      "text": "AndroidWorld runner done gate plus the `OsmAndMarker` SQLite evaluator over `/data/data/net.osmand/databases/map_markers_db`, table `map_markers`.",
+      "support": [
+        "official/install/android_world/suite_utils.py::_run_task",
+        "official/install/android_world/task_evals/single/osmand.py::OsmAndMarker",
+        "official/install/android_world/task_evals/common_validators/sqlite_validators.py::SQLiteApp.list_rows"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "Retained runtime goal text or task params",
+        "question": "What `location` value was dispatched for this run?",
+        "support": [
+          "official/install/android_world/task_evals/task_eval.py::TaskEval.goal",
+          "official/install/android_world/task_evals/single/osmand.py::OsmAndMarker"
+        ]
+      },
+      {
+        "artifact": "Retained episode completion evidence",
+        "question": "Does the underlying run evidence show the episode ended with `done=true` or `done=false`?",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task"
+        ]
+      },
+      {
+        "artifact": "Post-run OsmAnd `map_markers` table snapshot or equivalent query result",
+        "question": "Does retained evaluator-visible state from `/data/data/net.osmand/databases/map_markers_db` table `map_markers` contain any row whose `marker_lat` and `marker_lon` match the dispatched `location` under `_marker_matches_location`?",
+        "support": [
+          "official/install/android_world/task_evals/single/osmand.py::OsmAndMarker",
+          "official/install/android_world/task_evals/single/osmand.py::_marker_matches_location",
+          "official/install/android_world/task_evals/common_validators/sqlite_validators.py::SQLiteApp.list_rows"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The dispatched `location` is recoverable, completion evidence shows `done=true`, and retained post-run `map_markers` state contains at least one row matching that `location` under the evaluator coordinate rule.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task",
+          "official/install/android_world/task_evals/single/osmand.py::OsmAndMarker.is_successful",
+          "official/install/android_world/task_evals/single/osmand.py::_marker_matches_location"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Completion evidence shows `done=false`; the runner gates the native result to failure regardless of evaluator-visible DB state.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task"
+        ]
+      },
+      {
+        "text": "The dispatched `location` is recoverable and retained post-run `map_markers` state is usable but shows no row matching that `location` under the evaluator rule.",
+        "support": [
+          "official/install/android_world/task_evals/single/osmand.py::OsmAndMarker.is_successful",
+          "official/install/android_world/task_evals/single/osmand.py::_marker_matches_location",
+          "official/install/android_world/task_evals/common_validators/sqlite_validators.py::SQLiteApp.list_rows"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The dispatched `location` is not recoverable from retained goal/parameter evidence, so the DB comparison target cannot be determined.",
+        "support": [
+          "official/install/android_world/task_evals/task_eval.py::TaskEval.goal",
+          "official/install/android_world/task_evals/single/osmand.py::OsmAndMarker"
+        ]
+      },
+      {
+        "text": "Completion evidence is missing or ambiguous, and retained DB state otherwise could satisfy the evaluator match rule.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task",
+          "official/install/android_world/task_evals/single/osmand.py::OsmAndMarker.is_successful"
+        ]
+      },
+      {
+        "text": "Post-run `map_markers` state is missing or unusable, and completion evidence does not independently establish failure via `done=false`.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task",
+          "official/install/android_world/task_evals/common_validators/sqlite_validators.py::SQLiteApp.list_rows"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "osmandmarker_exact_coordinates_when_goal_is_coordinate_pair",
+        "text": "If the dispatched goal specifies explicit latitude/longitude coordinates, require a retained matching marker row to use those coordinates at the stated goal precision, not merely fall within the native evaluator's `<0.001` degree tolerance.",
+        "rationale": "The official dispatched goal can name an exact coordinate pair, while the released evaluator accepts any marker within a roughly 50-100m tolerance on each coordinate.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Retained runtime goal text or task params",
+            "question": "Does the dispatched `location` specify an explicit latitude/longitude coordinate pair?",
+            "support": [
+              "official/install/android_world/task_evals/task_eval.py::TaskEval.goal",
+              "derived/canonical_task_semantics.json::goal.generation_semantics.runtime_samples"
+            ]
+          },
+          {
+            "artifact": "Post-run OsmAnd `map_markers` table snapshot or equivalent query result",
+            "question": "If the goal used explicit coordinates, do the retained marker row coordinates equal those goal coordinates to the stated precision rather than only landing within the native tolerance window?",
+            "support": [
+              "official/install/android_world/task_evals/single/osmand.py::_marker_matches_location",
+              "official/install/android_world/task_evals/single/osmand.py::_coords_match",
+              "official/install/android_world/task_evals/common_validators/sqlite_validators.py::SQLiteApp.list_rows"
+            ]
+          }
+        ],
+        "support": [
+          "official/install/android_world/task_evals/single/osmand.py::_marker_matches_location",
+          "official/install/android_world/task_evals/single/osmand.py::_coords_match",
+          "derived/canonical_task_semantics.json::goal.generation_semantics.runtime_samples"
+        ]
+      }
+    ]
+  }
+}

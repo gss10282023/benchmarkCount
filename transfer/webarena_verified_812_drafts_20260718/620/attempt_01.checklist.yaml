@@ -1,0 +1,73 @@
+schema_version: case_checklist_v1
+case_unit_id: '620'
+domain: webarena_verified
+task_id: '620'
+native:
+  user_goal:
+    text: Create a Reddit advice post in the relations forum titled "deal with long-distance relationships" with post body "Please help".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring both configured evaluator scores to equal 1.0: AgentResponseEvaluator must accept the normalized MUTATE/SUCCESS non-retrieve response shape, and NetworkEventEvaluator must accept the selected last matching Reddit POST with a configured submit URL, response 302, and the required form values.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator on the retained final response and NetworkEventEvaluator on the retained network trace, then conjunctively composes their scores in TaskEvalResult.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - derived/task.json::eval
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: 'After the released parser and normalizer, does the response produce no assertion or evaluator error against the compared response mapping: task_type MUTATE, status SUCCESS, and normalized retrieved_data null?'
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event matching POST and either __REDDIT__/submit or __REDDIT__/submit/relationship_advice accepted with response 302 and form values submission[body]="Please help", submission[forum]="10075", and submission[title]="deal with long-distance relationships"?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Success iff agent_response.json gives AgentResponseEvaluator.score = 1.0 and network.har gives NetworkEventEvaluator.score = 1.0: the response has no normalized comparison mismatch or error, and the selected last matching POST satisfies every configured URL, method, status, and required-form-value comparison.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if the complete retained final response produces any AgentResponseEvaluator mismatch or evaluator error instead of score 1.0, including an invalid response structure or a mismatch in its compared normalized keys or values.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: 'Fail if the complete HAR produces any NetworkEventEvaluator mismatch or error instead of score 1.0: no URL/method-matching POST exists, or the selected last such POST fails any configured URL, response-302, or required-form-value comparison. Either evaluator''s failure makes the task score 0.0.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when the stored copy of agent_response.json or network.har is missing or incomplete enough that the corresponding evaluator-visible input cannot be determined.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    rationale: Missing retained evidence cannot reconstruct the native result; a retained evaluator input that itself yields a mismatch or error is covered by fail_if.
+stronger:
+  additional_conditions:
+  - id: persisted_reddit_post
+    text: Beyond native request-trace success, require post-run Reddit state to show that the submitted post actually exists in the configured relations forum with title "deal with long-distance relationships" and body "Please help".
+    rationale: The official intent requires an actual forum post, while the native mutation evaluator accepts a matching POST/302 network event and does not inspect persistent Reddit state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit state export or authenticated post-record/page capture
+      question: Does a post-run record tied to the submission exist in the configured forum (forum ID 10075/relationship_advice route) with the exact required title and body?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+      - derived/task.json::eval[1].expected.url
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

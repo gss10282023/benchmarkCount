@@ -1,0 +1,124 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "363",
+  "domain": "webarena_verified",
+  "task_id": "363",
+  "native": {
+    "user_goal": {
+      "text": "Measure the walking distance from Carnegie Mellon University to Carnegie Music Hall using the OSRM direction service, and return only a numeric distance string with a km or m unit.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "The sole AgentResponseEvaluator scores 1.0: after response parsing and schema normalization, task_type and status match RETRIEVE and SUCCESS, retrieved_data matches the single expected distance 748m under distance normalization and unordered exact collection comparison, and the resulting TaskEvalResult score is 1.0.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator; a comparison with no failure assertions receives evaluator score 1.0, and TaskEvalResult requires every configured evaluator score to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+        "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the submitted response parse and normalize without evaluator error so that task_type is RETRIEVE, status is SUCCESS, and retrieved_data contains exactly one value matching 748m under the distance normalizer and unordered comparison?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The retained submitted response yields no AgentResponseEvaluator assertions or errors: its normalized task_type is RETRIEVE, status is SUCCESS, and retrieved_data has exactly one distance equal to 748m under the configured distance normalization; consequently both evaluator and task scores are 1.0.",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "derived/task.json::eval[0].results_schema",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The submitted response is malformed or does not yield the required normalized task type, status, and single matching distance—including missing, empty, mismatched, or extra retrieved-data values—or evaluation reports an error; the sole evaluator or resulting task score is then 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The stored evidence does not preserve the response actually supplied to the evaluator—for example, agent_response.json is unavailable, truncated, or cannot be tied to this run. A preserved null, empty, or malformed submission is a native failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+        ],
+        "rationale": "Loss or ambiguity of retained evidence cannot establish what the evaluator received, whereas an explicitly retained invalid submission can be evaluated as failure."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_osrm_walking_method",
+        "text": "Require network.har to evidence a successful OSRM directions request for a walking route between the two specified places, with the returned route distance supporting the submitted value.",
+        "rationale": "The task explicitly mandates OSRM and walking, but the only configured evaluator reads the agent response and does not check network events, so native success does not establish the requested method.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Does the trace show a successful OSRM walking-directions request for Carnegie Mellon University to Carnegie Music Hall whose response distance supports the submitted value?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[0].evaluator",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0].evaluator",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+        ]
+      },
+      {
+        "id": "enforce_value_only_output",
+        "text": "Beyond the benchmark response envelope, require the returned answer content to consist solely of one numeric distance string with a km or m unit and no explanatory or unrelated details.",
+        "rationale": "The task requires the value only, while the evaluator can extract JSON from a fenced response and normalizes only configured fields, allowing some additional raw text or unrelated fields without affecting native success.",
+        "decisive_artifacts": [
+          {
+            "artifact": "agent_response.json",
+            "question": "Apart from mandatory response-envelope fields, does the raw final response contain exactly one distance string and no additional prose or unrelated content?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+        ]
+      }
+    ]
+  }
+}

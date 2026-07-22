@@ -1,0 +1,106 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "478",
+  "domain": "webarena_verified",
+  "task_id": "478",
+  "native": {
+    "user_goal": {
+      "text": "Create a new, empty GitLab repository named `webagent`.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is `TaskEvalResult.score = 1.0`, requiring both configured evaluators to score 1.0: the agent response normalizes to task type `MUTATE`, status `SUCCESS`, and evaluator-visible `retrieved_data` null; and the last evaluation event matching `POST /projects` normalizes to form values `project[name]=webagent`, `project[path]=webagent`, `project[namespace_id]=2505`, `project[initialize_with_readme]=0` with response status 302.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The official `WebArenaVerifiedEvaluator` runs `AgentResponseEvaluator` and `NetworkEventEvaluator`; `TaskEvalResult.create` applies the all-evaluators-must-pass score composition.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and normalize so `AgentResponseEvaluator` matches task type `MUTATE`, status `SUCCESS`, and evaluator-visible `retrieved_data` null without an assertion or evaluator error?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event whose normalized method/path matches `POST /projects` contain the four configured project form values after expected-key extraction and normalization, and have response status 302?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success if both retained artifacts pass their respective official comparisons, so both evaluator scores are 1.0 and the composed task score is 1.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if the response comparison fails or errors, or if the HAR has no matching `POST /projects` event or its last method/path match has any required form-value or response-status mismatch; any evaluator score other than 1.0 makes the task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when a retained copy of `agent_response.json` or `network.har` is missing, unreadable, or truncated so the two official comparisons cannot be reconstructed; evidence that the run actually supplied an invalid response or a missing or mismatching event is failure, not undecided.",
+        "rationale": "Loss or corruption in the post-run evidence archive is non-decisive, unlike evaluator-visible bad input, which receives a zero score."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_empty_repository",
+        "text": "Beyond native success, retained post-run GitLab state must confirm that namespace 2505 contains the project created during the run with name/path `webagent`, and that its repository is empty: no commits, branches, or files.",
+        "rationale": "The released checks accept a self-reported success plus a matching creation request and 302 response, but never inspect persisted GitLab project or repository state; therefore native success does not establish repository existence or actual emptiness required by the task intent.",
+        "decisive_artifacts": [
+          {
+            "artifact": "post-run GitLab project/API state snapshot",
+            "question": "Does the snapshot show a namespace-2505 project named and pathed `webagent`, created during the run, with zero commits and no repository branches or files?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.post_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

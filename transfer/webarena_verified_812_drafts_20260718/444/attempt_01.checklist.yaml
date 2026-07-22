@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '444'
+domain: webarena_verified
+task_id: '444'
+native:
+  user_goal:
+    text: Using GitLab's simple online file editor, change the current project's browser-tab title to `Title Wanted`, commit the website code to a new branch named `title-update`, and leave no merged request.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: '`TaskEvalResult.score` is 1.0 only when both configured evaluators score 1.0: the final response passes the `MUTATE`/`SUCCESS`/null-retrieved-data comparison, and the last qualifying GitLab POST event passes the configured update-request comparison.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released `AgentResponseEvaluator` checks the retained final response, the released `NetworkEventEvaluator` checks the retained network trace, and `TaskEvalResult.create` composes their scores conjunctively.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize so that `AgentResponseEvaluator` finds no difference from `task_type=MUTATE`, `status=SUCCESS`, and `retrieved_data=null`?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event matching POST to the configured GitLab `.../-/update/main/index.html` path a 302 response with `_method=put`, `branch_name=title-update`, `original_branch=main`, `file_path=index.html`, and content satisfying the configured full-document title regex?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success if `agent_response.json` passes its configured comparison and `network.har` passes the specified last-event comparison; both evaluator scores must equal 1.0, yielding `TaskEvalResult.score=1.0`.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if the response comparison fails or errors, if no qualifying POST event exists, or if the last qualifying POST fails or errors on the configured URL, status, or required post data; any evaluator score other than 1.0 makes `TaskEvalResult.score` 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when a retained copy is missing or truncated such that what the evaluator actually received cannot be reconstructed; a complete response or trace showing a missing or mismatching required value is failure, not undecided.
+    rationale: This distinguishes loss of review evidence from an evaluator-visible omission or mismatch, which the released benchmark counts as failure.
+stronger:
+  additional_conditions:
+  - id: durable_gitlab_outcome
+    text: Beyond native scoring, require retained post-run GitLab state to show a durable commit on a newly created `title-update` branch containing the intended `index.html` title change, with no merge request for that branch in the merged state.
+    rationale: The official intent requires a committed new branch and no merged request, while the released evaluator checks only a matching POST receiving 302 plus self-reported success; it does not inspect resulting branch, commit, or merge-request state.
+    decisive_artifacts:
+    - artifact: Post-run GitLab branch, commit, and activity export
+      question: Does it show that `title-update` was created from `main` by the run and that its committed `index.html` contains `<title>Title Wanted</title>`?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+    - artifact: Post-run GitLab merge-request listing
+      question: Does it show that no merge request associated with `title-update` is in the merged state?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

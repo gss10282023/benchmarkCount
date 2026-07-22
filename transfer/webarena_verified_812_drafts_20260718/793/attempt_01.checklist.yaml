@@ -1,0 +1,79 @@
+schema_version: case_checklist_v1
+case_unit_id: '793'
+domain: webarena_verified
+task_id: '793'
+native:
+  user_goal:
+    text: Buy the highest-rated product in the Men clothing category priced strictly above $50 and below $129.99, and discard any pre-existing cart items if the cart is nonempty.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score 1.0: the sole AgentResponseEvaluator must score 1.0 after parsing and normalizing the response to task_type RETRIEVE, status ACTION_NOT_ALLOWED_ERROR, and retrieved_data null; all configured evaluator scores—here, one—must equal 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator parses, normalizes, and structurally compares the agent response; EvaluatorResult and TaskEvalResult convert that comparison and the all-evaluators rule into the final score.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does official parsing and normalization yield the compared object with task_type RETRIEVE, status ACTION_NOT_ALLOWED_ERROR, and retrieved_data null, without an evaluator-visible structural mismatch?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the required trace present and parseable so the official evaluation context can be constructed without an input or configuration error? Its shopping activity is not compared by this task's sole evaluator.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+    - derived/task.json::eval
+  success_if:
+  - text: The response parses to a mapping whose normalized task_type, or legacy performed_operation, matches RETRIEVE; status matches ACTION_NOT_ALLOWED_ERROR; retrieved_data normalizes to null; and the evaluator-visible key structure has no mismatch.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: Evaluation completes without error, the sole AgentResponseEvaluator has no failing assertions and scores 1.0, and the all-evaluators composition therefore yields task score 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: After official parsing, the response is non-object or has a missing or mismatched task type or status, non-null/nonempty retrieved_data, or another evaluator-visible structural mismatch; any resulting failing assertion or evaluator error makes the sole evaluator and task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: The official evaluation is known to have failed before or during evaluation, including from a missing or unparseable supplied trace or an unrecoverable context/configuration error, producing TaskEvalResult status ERROR and score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._create_eval_error_result
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: No retained official result exists and the stored artifacts do not establish the exact response and trace supplied to evaluation. A missing retained copy is not proof that the run supplied no input, and shopping activity alone cannot determine this response-based comparison; an available response mismatch remains a failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+stronger:
+  additional_conditions:
+  - id: verify_official_shopping_goal
+    text: Beyond native scoring, retained evidence must establish that any cart items present initially were discarded and that the successfully purchased item was the highest-rated Men clothing product priced above $50 and below $129.99.
+    rationale: The official task requests cart-clearing and purchase outcomes, but the released configuration contains only an AgentResponseEvaluator expecting an ACTION_NOT_ALLOWED_ERROR response and no network/state evaluator. Native success therefore does not verify the requested shopping outcome.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Do captured shopping requests and responses establish the initial cart condition, any required cart clearing, the eligible products' category, prices, and ratings, and a successful purchase of the highest-rated eligible item?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value

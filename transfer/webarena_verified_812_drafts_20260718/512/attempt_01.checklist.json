@@ -1,0 +1,135 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "512",
+  "domain": "webarena_verified",
+  "task_id": "512",
+  "native": {
+    "user_goal": {
+      "text": "Add a toothpaste product to the user's shopping wish list.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0: the configured AgentResponseEvaluator and NetworkEventEvaluator must each score 1.0.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArena-Verified evaluator parses the final agent response and network trace, runs AgentResponseEvaluator followed by NetworkEventEvaluator, and composes their scores with TaskEvalResult.create.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "After the released response parsing and normalization, does the final response compare without assertions to task_type MUTATE, status SUCCESS, and retrieved_data null?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last matching POST event normalize and compare without assertions to the configured shopping wishlist-add event: URL __SHOPPING__/wishlist/index/add/, response status 302, post data normalized as {qty: null}, and a decoded mage-messages cookie matching the configured toothpaste-added-to-wish-list pattern?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/tracing.py::NetworkEvent.response_cookies"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "AgentResponseEvaluator scores 1.0 because the retained response parses and its normalized structure matches task_type MUTATE, status SUCCESS, and retrieved_data null without assertions.",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "NetworkEventEvaluator scores 1.0 because the trace's selected last matching POST event satisfies every configured normalized URL, status, post-data, and response-cookie comparison.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Both evaluator scores are 1.0; one passing component alone is insufficient.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if AgentResponseEvaluator does not score 1.0 because the response is invalid or its normalized task type, status, or required structure does not match the configured expectation.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Fail if NetworkEventEvaluator does not score 1.0 because no matching POST event exists or the selected last matching event fails any configured normalized URL, 302 status, post-data, or mage-messages cookie comparison.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Fail if either configured evaluator or task evaluation errors; the all-of composition then gives TaskEvalResult.score 0.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecidable only when retention omits or corrupts agent_response.json or network.har so that the evaluator-visible input or its score cannot be reconstructed; a present artifact that is evaluably invalid is failure, not undecided.",
+        "rationale": "Both retained inputs are needed to determine the two mandatory evaluator scores, while a retention gap alone does not establish what the evaluator received during the run."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_wishlist_state",
+        "text": "Beyond native success, retained authenticated post-run wishlist state shows a toothpaste product present in the user's wish list.",
+        "rationale": "The official goal requires a wishlist state mutation, but the released native checks accept a self-reported successful response plus a selected network event and response-cookie message without inspecting persisted wishlist state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Authenticated post-run wishlist state export or full wishlist DOM snapshot",
+            "question": "Does the post-run state identify the user's wishlist and show a toothpaste product as a wishlist item?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "400",
+  "domain": "webarena_verified",
+  "task_id": "400",
+  "native": {
+    "user_goal": {
+      "text": "Change the current user's discussion-forum biography to \"Pro Python Developer with 20 years of Experience\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured evaluators score 1.0: AgentResponseEvaluator accepts the structured final response as MUTATE/SUCCESS under its normalization and comparison rule, and NetworkEventEvaluator finds at least one qualifying POST to the biography-edit endpoint with response status 302 and the requested biography form value; last_event_only is false.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator invokes AgentResponseEvaluator and NetworkEventEvaluator, then TaskEvalResult.create conjunctively combines their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and normalize to a structured response that passes the configured MUTATE/SUCCESS comparison?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the retained evaluation-event set contain at least one event matching the normalized Reddit biography-edit URL, POST method, 302 response status, and form field user_biography[biography] = \"Pro Python Developer with 20 years of Experience\"?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both checks score 1.0: agent_response.json passes the normalized MUTATE/SUCCESS response check, and network.har contains at least one event satisfying every configured network criterion; only this conjunction yields task score 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Failure is established if either retained input fails its official check: the supplied final response does not pass the normalized MUTATE/SUCCESS structural comparison, or the supplied trace has no event matching all configured URL, method, response-status, and biography-form criteria. Any evaluator or orchestration error also yields task score 0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecided when one or both required run artifacts are not retained, no available artifact already establishes failure, and the missing evaluator component therefore cannot be determined.",
+        "rationale": "Because native success is conjunctive, evidence for only one passing evaluator cannot establish the task score, while a decisive failure from either retained component is still sufficient to establish failure."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_biography_state",
+        "text": "Beyond native scoring, retained post-run forum state must show that MarvelsGrantMan136's biography persisted as \"Pro Python Developer with 20 years of Experience\"; a passing self-report and matching 302 POST alone do not satisfy this stronger check.",
+        "rationale": "The official task asks for a state change, but the released evaluators compare only the final response and selected request/response-event fields; they never read the resulting biography from post-run forum state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "post-run authenticated forum profile-state capture",
+            "question": "Does a retained profile page/DOM capture or profile API response show MarvelsGrantMan136's biography equal to \"Pro Python Developer with 20 years of Experience\" after the evaluated mutation?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.url",
+              "derived/task.json::eval[1].expected.post_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

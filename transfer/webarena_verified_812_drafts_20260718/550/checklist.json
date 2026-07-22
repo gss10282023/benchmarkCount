@@ -1,0 +1,130 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "550",
+  "domain": "webarena_verified",
+  "task_id": "550",
+  "native": {
+    "user_goal": {
+      "text": "Add a new XXS size to the blue and purple variants of Nona Fitness Tank in shopping admin.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when all three configured checks score 1.0: the AgentResponseEvaluator accepts the MUTATE/SUCCESS response, one NetworkEventEvaluator accepts the XXS attribute-save POST, and the other accepts the blue-and-purple XXS product-save POST.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "Replay agent_response.json and network.har through the released WebArenaVerifiedEvaluator, which runs each configured evaluator and conjunctively composes their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the response pass the released normalization and structural comparison for the expected MUTATE/SUCCESS non-retrieval response?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "For each configured endpoint, does the last matching POST return 302 and contain the required data: the attribute-save request's serialized_options matches the XXS regex, and the product-save request names Nona Fitness Tank and has exactly the two new-product attributes for size XXS with blue and purple?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The response evaluator scores 1.0 after the stored response is normalized and structurally compared with the expected task_type MUTATE and status SUCCESS response.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "The attribute-save evaluator scores 1.0: the last POST matching /catalog/product_attribute/save/attribute_id/144 returns 302 and its serialized_options matches the configured regex for an XXS swatch-text option.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+        ]
+      },
+      {
+        "text": "The product-save evaluator scores 1.0: the last POST matching the configured product-1732 save URL returns 302, product[name] matches Nona Fitness Tank, and the filtered newProduct attributes compare as the exact unordered pair \"size: xxs, color: blue\" and \"size: xxs, color: purple\".",
+        "support": [
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field",
+          "official/src/webarena_verified/core/utils/jsonpath_utils.py::extract_jsonpath_value",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure if the response check scores below 1.0 or errors because the response is absent, malformed, or does not satisfy the released normalized structural comparison.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Native failure if the attribute-save POST is absent, or if the last matching POST has a non-302 response or serialized_options that does not match the configured XXS pattern.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "Native failure if the product-save POST is absent, or if its last matching event has a non-302 response, the wrong product name, or filtered newProduct attributes other than the exact expected blue-and-purple XXS pair.",
+        "support": [
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecided only when a retained response or HAR was lost or truncated after the run, leaving it unknown what the evaluator received and preventing reconstruction of one or more checks.",
+        "rationale": "This is post-run evidence loss, not an ordinary benchmark failure; a known missing or malformed evaluator input, evaluator error, or non-1.0 evaluator score is failure under the native composition."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_catalog_state",
+        "text": "Post-run shopping-admin state confirms that Nona Fitness Tank has an XXS size combination for both blue and purple.",
+        "rationale": "The task asks for catalog changes, while the native evaluator inspects only the declared response and matching POST/302 trace events; it does not verify that the requested variants persisted in final catalog state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run shopping-admin catalog-state capture",
+            "question": "Does the retained Nona Fitness Tank product record show XXS among the available size/color combinations for both blue and purple?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

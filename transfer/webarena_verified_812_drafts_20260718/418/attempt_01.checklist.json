@@ -1,0 +1,108 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "418",
+  "domain": "webarena_verified",
+  "task_id": "418",
+  "native": {
+    "user_goal": {
+      "text": "Set the current user's GitLab availability status to Busy.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0, requiring both configured evaluators to score 1.0: the agent response must match the expected MUTATE/SUCCESS response under evaluator normalization, and the last matching PUT to the GitLab user-status endpoint must normalize to HTTP 200 with availability = busy and clear_status_after = null.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator; TaskEvalResult.create applies the all-evaluator-scores-must-equal-1.0 rule.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "After evaluator parsing and normalization, does the response match the compared mapping with task_type = MUTATE, status = SUCCESS, and retrieved_data = null, without an error_details key entering actual normalization?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching PUT and the normalized GitLab /api/v4/user/status path normalize to HTTP 200 with post data availability = busy and clear_status_after = null?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both retained inputs pass their official checks: AgentResponseEvaluator scores 1.0 for the normalized MUTATE/SUCCESS response, and NetworkEventEvaluator scores 1.0 for the last matching PUT status event with the expected normalized body and HTTP 200; consequently TaskEvalResult.score is 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure occurs if either evaluator scores other than 1.0 or errors—for example, the response does not match its normalized expectation, or the HAR has no selected matching PUT event or that event mismatches the expected URL, body, method, or HTTP 200 response. Any such component makes TaskEvalResult.score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecidable if agent_response.json or network.har is absent, truncated, or unreadable, so one of the two evaluator-visible inputs cannot be reconstructed.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ],
+        "rationale": "Loss of a retained artifact does not establish whether the input originally supplied to that evaluator passed or failed."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "post_run_busy_state",
+        "text": "In addition to native success, a retained post-run GitLab state capture must show that the current user's availability is Busy.",
+        "rationale": "The official intent specifies an achieved account state, while the released NetworkEventEvaluator verifies only a matching successful HTTP event and does not inspect the persisted post-run status.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run authenticated GitLab status state capture",
+            "question": "Does a retained post-run UI state or status API response show availability = busy for the current user?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

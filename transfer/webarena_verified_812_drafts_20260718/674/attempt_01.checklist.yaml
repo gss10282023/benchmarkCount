@@ -1,0 +1,73 @@
+schema_version: case_checklist_v1
+case_unit_id: '674'
+domain: webarena_verified
+task_id: '674'
+native:
+  user_goal:
+    text: Create a post in the game-related discussion forum about Doc and Pies Arcade Factory Cocktail Arcade Machine, titled "real user feedback on Doc and Pies Arcade Factory Cocktail Arcade Machine", whose Markdown body lists the titles of the OneStopShop reviews rated 3 stars or less in source order as `- "<review title>"` bullets.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score 1.0, requiring both configured evaluators to score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS with null retrieved data, and NetworkEventEvaluator accepts the last matching Reddit submit POST against the configured method, URL rule, response status, and form fields.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in configuration order; TaskEvalResult.create composes their scores conjunctively.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize to an object accepted as task_type MUTATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+  - artifact: network.har
+    question: 'Among evaluation events matching POST and `^__REDDIT__/submit.*$`, does the last one have response status 302 and compared form fields forum `10048`, the required title, and a four-bullet body with titles, in order: `Poorly Made Exterior. Consider a different Company.`; `piece of junk ,..can''t believe I spent money on this !!!!`; `Based arrived broken but game itself works`; `Based arrived broken but game itself works`?'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+  success_if:
+  - text: 'Both official checks pass simultaneously: the response is accepted as MUTATE/SUCCESS with null retrieved data, and the last matching Reddit submit POST is accepted with method POST, the configured URL rule, status 302, forum 10048, the configured title, and the configured four-line body; therefore every evaluator score is 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The agent-response check fails if the retained response cannot be parsed and normalized to the evaluator-required MUTATE/SUCCESS response with null retrieved data.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: The network-event check fails if no qualifying Reddit submit POST exists, or if the last qualifying POST mismatches the configured response status or any compared form field under released normalization.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Any evaluator failure or evaluator error makes the composed task score 0.0 rather than native success.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when a retention defect leaves agent_response.json or network.har missing, unreadable, or truncated so the corresponding official comparison cannot be reconstructed; a complete artifact showing a malformed response or no qualifying event is failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    rationale: This distinguishes unavailable stored evidence from evaluator-visible negative evidence.
+stronger:
+  additional_conditions:
+  - id: persisted_post_state
+    text: Beyond native success, a retained post-run Reddit state snapshot must show that the post persisted in forum 10048 with the configured title and four-line body.
+    rationale: The task asks to create a post, while the released NetworkEventEvaluator checks only a matching submit request and 302 response and does not inspect post-run Reddit state; native success therefore does not directly establish persistence.
+    decisive_artifacts:
+    - artifact: post-run Reddit forum-state snapshot
+      question: Does retained Reddit state show a persisted post in forum 10048 with the configured title and four-line body?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

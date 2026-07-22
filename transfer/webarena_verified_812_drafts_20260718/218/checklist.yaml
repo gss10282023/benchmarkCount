@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '218'
+domain: webarena_verified
+task_id: '218'
+native:
+  user_goal:
+    text: Retrieve the hotel name and walking distance for hotels near CMU, Pittsburgh that are at most a 5-minute walk, using OSRM and the keys "hotel" and "distance".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: TaskEvalResult.score is 1.0 exactly when the sole AgentResponseEvaluator scores 1.0. For this case, its compared normalized response must be exactly task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null; an omitted retrieved_data field is treated as null.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the case's single AgentResponseEvaluator, which parses the response, normalizes configured fields, structurally compares task_type and status, separately checks retrieved_data, and contributes the sole score to TaskEvalResult.
+    support:
+    - derived/task.json::eval[0].evaluator
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: When processed by the released response parser and normalizer, does the submitted response complete without error and yield exactly task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: The retained response normalizes without error to exactly task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null, so the sole evaluator and TaskEvalResult both score 1.0.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Processing completes, but the normalized response is not the required three-field object—for example, it is non-object, lacks or mismatches task_type or status, has non-null retrieved_data, or retains an extra compared field—so the sole evaluator scores 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Response parsing, normalization, comparison, or evaluation raises an error, producing evaluator or task status ERROR and score 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored response is missing, truncated, or cannot be established as the exact response submitted for evaluation.
+    rationale: Without the submitted response, retained evidence cannot determine the evaluator-normalized object; missing review evidence alone does not establish the run's score.
+stronger:
+  additional_conditions:
+  - id: substantiate_not_found_with_osrm
+    text: Beyond native acceptance of a bare NOT_FOUND_ERROR/null response, the retained network trace must show hotel-candidate discovery around CMU and OSRM walking-route results sufficient to establish that no candidate has a walking duration of 5 minutes or less.
+    rationale: The instruction expressly requires OSRM and a 5-minute walking threshold, but the configured sole evaluator checks only response fields and does not verify route-service use or the factual basis of the not-found claim.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the trace contain the candidate-search and OSRM walking-direction requests and responses needed to verify the relevant hotel set and that every candidate's walking duration exceeds 5 minutes?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].evaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values

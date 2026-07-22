@@ -1,0 +1,67 @@
+schema_version: case_checklist_v1
+case_unit_id: '211'
+domain: webarena_verified
+task_id: '211'
+native:
+  user_goal:
+    text: Find the customer with phone number 8015551212 and return a list of objects containing the customer's name and email.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task succeeds iff the sole AgentResponseEvaluator scores 1.0, so all configured evaluator scores equal 1.0: after released parsing and schema normalization, task_type matches RETRIEVE, status matches SUCCESS, and retrieved_data matches, without order significance, the single record {"name":"Sean Miller","email":"sean.miller@gmail.com"}.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The sole configured AgentResponseEvaluator, followed by TaskEvalResult's all-evaluator score composition.
+    support:
+    - derived/task.json::eval[0].evaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the complete evaluator-visible response, after released parsing and non-strict schema normalization, match RETRIEVE, SUCCESS, and exactly the expected customer record under unordered comparison?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].ordered
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+  success_if:
+  - text: 'The complete agent_response.json produces no evaluator error or mismatch assertions: normalized task_type and status match RETRIEVE and SUCCESS, and normalized retrieved_data contains exactly the expected record, with no missing or extra records or record fields, under unordered comparison; consequently both the sole evaluator score and task score are 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: A complete retained response is a native failure if it yields any mismatch assertion, including an invalid response structure, missing or incorrect task_type or status, or missing, extra, or nonmatching normalized retrieved data.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_recursive
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: An evaluator or task-orchestration error is a native failure because the released result construction assigns score 0.0 rather than success.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only when the run-time agent response was not retained or is truncated or corrupted so that its evaluator-visible contents cannot be established; a completely retained null, malformed, or nonmatching response is failure, not undecided.
+    rationale: The native check depends on reconstructing the complete evaluator-visible response, so an evidence-retention gap cannot establish which score the released evaluator would assign.
+stronger:
+  additional_conditions:
+  - id: literal-retrieved-data-array
+    text: Beyond native scoring, require the raw evaluator-visible response to encode retrieved_data as an actual JSON array containing the customer object, as explicitly requested by the task.
+    rationale: The released evaluator wraps any non-list retrieved_data value into a singleton before non-strict normalization, so native scoring can accept a scalar or JSON-encoded object despite the instruction's list requirement.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Is retrieved_data literally a JSON array containing the name-and-email object, rather than a scalar or JSON-encoded object accepted through evaluator coercion?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].results_schema
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer.normalize_array

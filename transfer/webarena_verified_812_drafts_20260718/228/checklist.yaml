@@ -1,0 +1,61 @@
+schema_version: case_checklist_v1
+case_unit_id: '228'
+domain: webarena_verified
+task_id: '228'
+native:
+  user_goal:
+    text: Determine the price range of Sephora products and return only one object with numeric "min" and "max" values, without additional details.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: the sole AgentResponseEvaluator must score 1.0 after parsing and normalization, with normalized task_type, status, and unordered retrieved_data matching the configured expectation and no evaluation error.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator; EvaluatorResult.create scores its assertions, and TaskEvalResult.create requires every configured evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response, under the official parser and schema normalization, yield task_type RETRIEVE, status SUCCESS, and retrieved_data exactly matching the one-item unordered collection [{"min":18.18,"max":94.99}] under currency normalization?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].ordered
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+  - artifact: network.har
+    question: Is the retained HAR parseable as the NetworkTrace required to construct the evaluation context, with usable event data if environment-URL fallback is needed, so evaluator setup does not error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: Success only if the retained inputs let evaluation complete without error and the normalized response has task_type RETRIEVE, status SUCCESS, and an unordered exact structural match to one object with min 18.18 and max 94.99; the sole evaluator and TaskEvalResult then both score 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if the supplied response is null, unparseable, non-object, missing required compared fields, or differs after normalization in task_type, status, retrieved_data, min/max values, or compared collection/object structure; the AgentResponseEvaluator then scores 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_recursive
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Fail if response or HAR parsing, evaluation-context construction, normalization, or evaluator orchestration errors on the actual submitted artifacts, because evaluator or task errors receive score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retention loss or truncation prevents reconstructing the response or trace actually supplied for evaluation; a preserved null, malformed, or mismatching submitted artifact is failure, not undecided.
+    rationale: Loss of post-run evidence prevents applying the native rule, whereas an invalid artifact actually supplied to the evaluator is explicitly scored as failure or error.
+stronger:
+  additional_conditions: []

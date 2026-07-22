@@ -1,0 +1,72 @@
+schema_version: case_checklist_v1
+case_unit_id: '40'
+domain: webarena_verified
+task_id: '40'
+native:
+  user_goal:
+    text: Use the OSRM direction service to determine whether the AMC theatre in Pittsburgh is reachable by car from Hobart Street within one hour; return true if it is, otherwise false.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: The sole AgentResponseEvaluator scores 1.0, making TaskEvalResult.score 1.0, when the parsed and normalized response has the accepted compared structure with task_type RETRIEVE, status SUCCESS, and retrieved_data containing exactly one boolean true under unordered comparison.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator parses the final response, normalizes the configured fields using the boolean-array schema, and compares their structure and values; TaskEvalResult then composes the sole evaluator score.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After released-evaluator parsing and normalization, does the retained response have the accepted compared structure with task_type RETRIEVE, status SUCCESS, and retrieved_data exactly one boolean true?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: 'The retained response produces no AgentResponseEvaluator assertions: its compared structure matches, and its normalized task_type, status, and retrieved_data match RETRIEVE, SUCCESS, and the singleton boolean true, respectively.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+  - text: The sole evaluator consequently has score 1.0, so TaskEvalResult has status success and score 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The retained response is invalid or non-object after parsing, has a compared-key mismatch, or normalizes to a task_type, status, or retrieved_data other than RETRIEVE, SUCCESS, and exactly one boolean true, including missing, null, or extra retrieved items.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+  - text: The evaluator or task evaluation reports an error; the official result constructors assign score 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The exact final response is absent or incomplete in retained evidence and no complete official evaluation result preserves the sole evaluator's score or assertions; network.har alone cannot establish the response comparison.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+stronger:
+  additional_conditions:
+  - id: osrm_one_hour_evidence
+    text: Beyond native success, network.har shows a successful OSRM driving-route response for Hobart Street to the Pittsburgh AMC theatre whose relevant duration is at most 3,600 seconds.
+    rationale: The official instruction requires an OSRM-based determination, but the released configuration invokes only AgentResponseEvaluator, which extracts its actual value solely from the final response; native scoring does not verify an OSRM request or route duration.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the retained HAR contain an OSRM directions request and successful response tied to Hobart Street and the Pittsburgh AMC theatre, with a relevant driving duration no greater than 3,600 seconds?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value

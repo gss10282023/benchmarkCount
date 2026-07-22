@@ -1,0 +1,75 @@
+schema_version: case_checklist_v1
+case_unit_id: '532'
+domain: webarena_verified
+task_id: '532'
+native:
+  user_goal:
+    text: Find the PS3 remote-controller purchase from early 2023, insert its order ID and amount into the prescribed refund message, fill the shopping contact form, and leave it ready for review without submitting it.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::instantiation_dict
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured evaluator scores are 1.0: AgentResponseEvaluator accepts the retained response against the configured MUTATE/SUCCESS/null-retrieved-data expectation, and NetworkEventEvaluator accepts the last matching shopping contact event against the configured GET /contact and HTTP 200 expectation.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator parses, normalizes, and structurally compares agent_response.json; NetworkEventEvaluator filters, selects, normalizes, and compares events from network.har; TaskEvalResult then requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the released AgentResponseEvaluator give the response score 1.0 against the configured MUTATE/SUCCESS/null-retrieved-data expectation under its parsing, normalization, and structural-comparison rules?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the released NetworkEventEvaluator give score 1.0 because the last matching event satisfies its normalized configured expectation of GET shopping /contact with HTTP status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both native checks score 1.0: the retained agent response passes AgentResponseEvaluator and the retained HAR passes NetworkEventEvaluator; consequently TaskEvalResult.score is 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native failure occurs if either configured evaluator scores below 1.0 or errors—including a response comparison failure or absence of a network event satisfying the complete GET /contact and HTTP 200 expectation—because TaskEvalResult.score then becomes 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  undecided_if:
+  - text: The stored evidence is undecidable if agent_response.json or network.har is absent or truncated and no retained official evaluation result resolves the corresponding check, so the two required evaluator outcomes cannot both be reconstructed.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+stronger:
+  additional_conditions:
+  - id: verify_filled_unsubmitted_refund_form
+    text: 'Beyond native scoring, retained browser-state evidence must show the contact form still open and editable with exactly "I need a refund. Order: <resolved order_id>. Amount: <resolved amount>. Reason: It broke after three days of use.", where both resolved values belong to the PS3 remote-controller purchase from early 2023, and complete network evidence must show that the form was not submitted.'
+    rationale: The official task requires correct order-derived values, exact form contents, and non-submission, while the released native checks only compare an agent success response and a successful GET of /contact; they do not inspect form fields, validate the substituted order, or prohibit a submission request.
+    decisive_artifacts:
+    - artifact: browser_trace.zip (retained DOM snapshots)
+      question: Do retained order and final-page snapshots establish the matching purchase's order ID and amount and show the prescribed message in the still-editable contact form?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::instantiation_dict
+    - artifact: network.har
+      question: Is the trace complete for the run, and does it contain no request or response demonstrating submission of the filled contact form?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

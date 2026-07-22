@@ -100,15 +100,14 @@ def _source_bundle(tmp_path: Path, manifest_path: Path) -> Path:
     )
 
 
-def test_step4_main_source_bundle_fixes_400_blinded_p0_sources() -> None:
+def test_step4_main_source_bundle_fixes_300_current_blinded_p0_sources() -> None:
     source_bundle = _load(ROOT / "experiments/evidence_contracts/source_bundles/main_case_units_source_bundle.json")
 
-    assert source_bundle["source_count"] == 400
-    assert len(source_bundle["sources"]) == 400
+    assert source_bundle["source_count"] == 300
+    assert len(source_bundle["sources"]) == 300
     assert Counter(normalize_domain(source["domain"]) for source in source_bundle["sources"]) == {
         "agentdojo": 100,
         "appworld": 100,
-        "webarena_verified": 100,
         "tau3_retail": 100,
     }
 
@@ -186,7 +185,7 @@ def test_step4_current_manifest_prelock_ok_but_formal_lock_required(tmp_path: Pa
     p0_text = json.dumps(p0_report.to_dict(), ensure_ascii=False)
     assert not p0_report.ok
     assert "at least one evidence_contract/v1 file is required" in p0_text
-    for domain in ("agentdojo", "appworld", "webarena_verified", "tau3_retail"):
+    for domain in ("agentdojo", "appworld", "tau3_retail"):
         assert f"P0 main domain {domain} requires locked contracts for manifest case units; missing 100" in p0_text
 
     appendix_report = validate_contracts(

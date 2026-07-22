@@ -1,0 +1,96 @@
+schema_version: case_checklist_v1
+case_unit_id: '42'
+domain: tau3_retail
+task_id: '42'
+native:
+  user_goal:
+    text: Help Mei Patel verify and, if needed, correct her default address and recent order addresses, then check the jigsaw order and, if it has not shipped yet, switch it to the easiest jigsaw using PayPal.
+    support:
+    - derived/task.json::user_scenario.instructions.reason_for_call
+    - derived/task.json::user_scenario.instructions.known_info
+  benchmark_success:
+    text: 'Native success is released `reward=1.0`: the run ends with `AGENT_STOP` or `USER_STOP`, the environment evaluator finds the predicted agent and user databases exactly match the gold state after replaying all official actions, and the NL-assertion factor is 1.0 because this task has no NL assertions.'
+    support:
+    - derived/task.json::evaluation_criteria.reward_basis[0]
+    - derived/task.json::evaluation_criteria.reward_basis[1]
+    - derived/task.json::evaluation_criteria.nl_assertions
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+  checked_by:
+    text: Checked by the released tau2 `evaluate_simulation` reward output, with native success determined by `EnvironmentEvaluator.calculate_reward`'s DB-hash comparison and the empty `NLAssertionsEvaluator` component for this task.
+    support:
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+    - derived/task.json::evaluation_criteria.reward_basis[0]
+    - derived/task.json::evaluation_criteria.reward_basis[1]
+    - derived/task.json::evaluation_criteria.nl_assertions
+  decisive_artifacts:
+  - artifact: adapter/native_run/results.json
+    question: Does the released native evaluator output record `termination_reason` in `{AGENT_STOP, USER_STOP}`, `db_check.db_match=true` / `db_check.db_reward=1.0`, and released `reward=1.0`?
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0].path_pattern
+    - derived/artifact_inventory.json::artifact_classes[0].contents[0]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[2]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[6]
+    - derived/task.json::evaluation_criteria.reward_basis[0]
+    - derived/task.json::evaluation_criteria.reward_basis[1]
+    - derived/task.json::evaluation_criteria.nl_assertions
+  success_if:
+  - text: The retained native evaluator output shows `termination_reason` as `AGENT_STOP` or `USER_STOP` and `db_check.db_match=true` with `db_check.db_reward=1.0`; with reward_basis `DB` plus `NL_ASSERTION` and no task NL assertions, that establishes native success and should coincide with released `reward=1.0`.
+    support:
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+    - derived/task.json::evaluation_criteria.reward_basis[0]
+    - derived/task.json::evaluation_criteria.reward_basis[1]
+    - derived/task.json::evaluation_criteria.nl_assertions
+    - derived/artifact_inventory.json::artifact_classes[0].contents[0]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[2]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[6]
+  fail_if:
+  - text: The retained native evaluator output shows a termination reason outside `{AGENT_STOP, USER_STOP}` or shows `db_check.db_match=false` / `db_check.db_reward=0.0`; for this task's reward basis, either condition is a native failure and should coincide with released `reward=0.0`.
+    support:
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - derived/task.json::evaluation_criteria.reward_basis[0]
+    - derived/task.json::evaluation_criteria.reward_basis[1]
+    - derived/task.json::evaluation_criteria.nl_assertions
+    - derived/artifact_inventory.json::native_db_evidence_rule
+    - derived/artifact_inventory.json::artifact_classes[0].contents[0]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[2]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[6]
+  undecided_if:
+  - text: '`adapter/native_run/results.json` is missing or lacks the released `reward`, `termination_reason`, or `db_check`, and only task logs or traces remain; those retained artifacts alone do not establish the released full agent+user DB-hash comparison.'
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0].path_pattern
+    - derived/artifact_inventory.json::artifact_classes[2].limitations[0]
+    - derived/artifact_inventory.json::artifact_classes[4].limitations[0]
+    - derived/artifact_inventory.json::native_db_evidence_rule
+stronger:
+  additional_conditions:
+  - id: require_auth_and_confirmation
+    text: Beyond native scoring, the retained conversation/tool log should show beginning-of-conversation authentication via name + zip and an explicit user `yes` after the agent listed the intended address and item changes and before the modifying tool calls.
+    rationale: The official retail policy requires authentication at the beginning and explicit confirmation before database updates, but this task's native score is driven by DB state alone because `reward_basis` is `DB` + `NL_ASSERTION` and `nl_assertions` is null.
+    decisive_artifacts:
+    - artifact: adapter/native_run/artifacts/task_<task_id>/sim_<simulation_id>/task.log
+      question: Does the retained conversation/tool record show authentication via name + zip at the beginning, then a list of the intended address/item changes followed by an explicit user `yes` before the modifying calls?
+      support:
+      - derived/artifact_inventory.json::artifact_classes[2].path_pattern
+      - official/policy.md::Retail agent policy
+      - official/policy.md::Modify pending order
+      - official/policy.md::Modify items
+      - derived/task.json::evaluation_criteria.actions[0].name
+      - derived/task.json::evaluation_criteria.actions[4].name
+      - derived/task.json::evaluation_criteria.actions[5].name
+      - derived/task.json::evaluation_criteria.actions[6].name
+      - derived/task.json::evaluation_criteria.actions[9].name
+    support:
+    - official/policy.md::Retail agent policy
+    - official/policy.md::Modify pending order
+    - official/policy.md::Modify items
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - derived/task.json::evaluation_criteria.reward_basis[0]
+    - derived/task.json::evaluation_criteria.reward_basis[1]
+    - derived/task.json::evaluation_criteria.nl_assertions

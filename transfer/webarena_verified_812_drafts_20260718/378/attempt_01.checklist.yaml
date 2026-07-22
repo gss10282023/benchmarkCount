@@ -1,0 +1,66 @@
+schema_version: case_checklist_v1
+case_unit_id: '378'
+domain: webarena_verified
+task_id: '378'
+native:
+  user_goal:
+    text: Show parking near Carnegie Mellon University on the map.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both the configured AgentResponseEvaluator and NetworkEventEvaluator must score 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then TaskEvalResult.create aggregates their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does AgentResponseEvaluator parse and normalize the response to task_type NAVIGATE, status SUCCESS, and retrieved_data null, with no comparison assertion or evaluator error?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does NetworkEventEvaluator find that the selected last navigation event normalizes to a GET of __MAP__/search with query "parking near Carnegie Mellon University" and response status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both components pass: agent_response.json yields AgentResponseEvaluator score 1.0, and network.har yields NetworkEventEvaluator score 1.0 for the specified last-navigation GET, query, and 200 response; therefore TaskEvalResult.score is 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native failure occurs if either evaluator does not score 1.0, including a response parse/normalization/comparison failure or error, or an absent or mismatching selected navigation event; TaskEvalResult.score is then 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  undecided_if:
+  - text: No retained evidence establishes an evaluator failure, but agent_response.json or network.har is absent, unreadable, or incomplete, so the required two-evaluator conjunction cannot be reconstructed.
+    rationale: Partial stored evidence cannot establish that both required evaluator scores were 1.0 unless it already proves a native failure.
+stronger:
+  additional_conditions:
+  - id: rendered_map_results
+    text: Beyond native success, a retained final browser view must visibly show parking results on the map near Carnegie Mellon University.
+    rationale: The official task requires results to be shown on the map, while the native checks establish only an accepted final response and a matching 200 search navigation request; they do not inspect the rendered map or displayed results.
+    decisive_artifacts:
+    - artifact: final_browser_screenshot_or_rendered_state
+      question: Does the final rendered map visibly display parking results near Carnegie Mellon University?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

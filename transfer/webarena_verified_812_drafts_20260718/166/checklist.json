@@ -1,0 +1,119 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "166",
+  "domain": "webarena_verified",
+  "task_id": "166",
+  "native": {
+    "user_goal": {
+      "text": "Return every review title rated 2 stars or below for the product on the current shopping page.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "The sole AgentResponseEvaluator scores 1.0 when the submitted response's compared fields normalize to task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null; because every configured evaluator score must equal 1.0, TaskEvalResult.score is then 1.0.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator; EvaluatorResult.create derives its binary score from comparison assertions, and TaskEvalResult.create applies the all-evaluators rule.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the submitted response parse under the released evaluator, with task_type normalizing to RETRIEVE, status to NOT_FOUND_ERROR, and retrieved_data to null, including the evaluator's treatment of an omitted retrieved_data key as null?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Can the official runner parse the retained trace and, if shopping environment URLs require fallback recovery, obtain a usable base URL without an evaluation-orchestration error?",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Official evaluation completes with no failing AgentResponseEvaluator assertions: the compared response fields match RETRIEVE, NOT_FOUND_ERROR, and null retrieved_data after normalization; the sole evaluator and TaskEvalResult both score 1.0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The submitted response is not accepted as a dict-like response, a compared field does not match the configured normalized value, or non-null retrieved_data is supplied; the AgentResponseEvaluator therefore scores 0.0 or errors.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Evaluation orchestration errors or any configured evaluator score is not 1.0, causing TaskEvalResult.score to be 0.0.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Retention loss leaves the actual submitted response or evaluator completion unknown. An actually submitted null or invalid response, or a known evaluator error, is failure rather than undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_page_review_titles",
+        "text": "Verify from retained page evidence that the response reflects the complete set of review titles rated 2 stars or below on the current product page, allowing no-data only when that set is empty, rather than accepting NOT_FOUND_ERROR/null solely because it matches the configured response.",
+        "rationale": "The stated task requests page-derived review titles, but the released evaluator expects a fixed NOT_FOUND_ERROR/null response and compares only response fields; no configured evaluator verifies the page's reviews.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Do retained shopping responses expose a complete review set with ratings and titles, sufficient to determine every title rated 2 stars or below or establish that none exist?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::start_urls[0]",
+              "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+            ]
+          },
+          {
+            "artifact": "agent_response.json",
+            "question": "Does the submitted response convey exactly the qualifying title set established by retained page evidence, using null or no-data only if that set is empty?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

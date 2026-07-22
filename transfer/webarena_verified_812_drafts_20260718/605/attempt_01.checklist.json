@@ -1,0 +1,107 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "605",
+  "domain": "webarena_verified",
+  "task_id": "605",
+  "native": {
+    "user_goal": {
+      "text": "On Reddit, find a forum focused on gaming consoles and post the question \"what is the recommended console to buy these days\" there.",
+      "support": [
+        "derived/task.json::intent",
+        "derived/task.json::sites"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0, requiring both configured evaluator scores to equal 1.0: AgentResponseEvaluator must accept the final MUTATE/SUCCESS response, and NetworkEventEvaluator must accept the configured last matching Reddit submission event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator over the agent response and NetworkEventEvaluator over the network trace, then composes their scores with an all-must-pass rule.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the released AgentResponseEvaluator accept it against the configured task_type MUTATE, status SUCCESS, and retrieved_data-null semantics for this mutate task?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Among evaluation events, does the last POST whose normalized path matches __REDDIT__/submit or __REDDIT__/submit/consoles pass the full comparison, including response status 302 and post-data matches submission[forum] = \"10039\" and submission[title] = \"what is the recommended console to buy these days\" under official normalization?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff AgentResponseEvaluator scores 1.0 on agent_response.json and NetworkEventEvaluator scores 1.0 on network.har: the response is accepted as MUTATE/SUCCESS and the last eligible submission POST passes every configured URL, method, status, forum-ID, and title comparison, yielding TaskEvalResult.score = 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either evaluator scores 0.0 or errors: the response fails its MUTATE/SUCCESS comparison, or a complete HAR has no eligible submission POST, or its last eligible POST fails any configured URL, method, 302-status, forum-ID, or title check. Any such result makes TaskEvalResult.score = 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only if retained evidence is missing or truncated so either the submitted agent response or the complete ordered HAR events cannot be reconstructed. With complete artifacts, no qualifying event or any evaluator mismatch/error is failure, not undecided.",
+        "support": [
+          "case_packet.md::Benchmark Task Summary",
+          "official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_post_visible",
+        "text": "Beyond native scoring, retained post-run Reddit evidence must show that the requested question exists as a posted submission in a forum focused on gaming consoles.",
+        "rationale": "The official intent requires an actual post, while the native checks inspect only a final self-report and a matching POST/302 network event; NetworkEventEvaluator does not verify persisted Reddit state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Reddit post-detail or forum-listing page/DOM snapshot",
+            "question": "Does post-run Reddit evidence show an existing submission in a gaming-console-focused forum with the displayed question/title \"what is the recommended console to buy these days\"?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

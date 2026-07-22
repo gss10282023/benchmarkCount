@@ -1,0 +1,92 @@
+schema_version: case_checklist_v1
+case_unit_id: path-tracing-reverse
+domain: terminal_bench_2_1
+task_id: terminal-bench/path-tracing-reverse
+native:
+  user_goal:
+    text: Produce `/app/mystery.c`, a standalone C program whose compiled-and-run effect matches `/app/mystery`, stays under the stated compressed-size limit, does not invoke `./mystery`, and still works in isolation.
+    support:
+    - official/instruction.md::1-1
+  benchmark_success:
+    text: 'Native success is a passing verifier run on `/tests/test_outputs.py`: `/app/mystery.c` exists, `gcc -static -o /app/reverse /app/mystery.c -lm` succeeds and `zlib.compress(...)` of the source is under `2100`, and the reconstructed output image reaches cosine similarity `>=0.995` against the original binary''s output.'
+    support:
+    - official/tests/test.sh::18-30
+    - official/tests/test_outputs.py::test_image_c_exists
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_image_similarity
+  checked_by:
+    text: Checked by the task-specific shell verifier, which runs `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA` and treats a zero exit from that pytest invocation as success.
+    support:
+    - official/tests/test.sh::18-30
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does it record pass/fail/error status for `test_image_c_exists`, `test_image_compiles`, and `test_image_similarity`?
+    support:
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::test_image_c_exists
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_image_similarity
+  - artifact: verifier/test-stdout.txt
+    question: Does the retained pytest output corroborate the three official test outcomes and expose any assertion message for file-missing, compile/size, or similarity failure?
+    support:
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::test_image_c_exists
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_image_similarity
+  - artifact: verifier/test-stderr.txt
+    question: If stdout or CTRF is incomplete, does stderr show verifier-command or runtime errors that still establish the pytest invocation did not complete successfully?
+    support:
+    - official/tests/test.sh::18-30
+  success_if:
+  - text: 'Retained verifier evidence establishes that all three official checks passed: `/app/mystery.c` existed, static compilation to `/app/reverse` succeeded with compressed source length under `2100`, and the reconstructed image met the `>=0.995` cosine-similarity threshold against the original output.'
+    support:
+    - official/tests/test.sh::18-30
+    - official/tests/test_outputs.py::test_image_c_exists
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_image_similarity
+  fail_if:
+  - text: Retained verifier evidence shows `test_image_c_exists` failed or errored, establishing that the required `/app/mystery.c` file was not accepted by the verifier.
+    support:
+    - official/tests/test_outputs.py::test_image_c_exists
+  - text: Retained verifier evidence shows `test_image_compiles` failed or errored, establishing that static compilation failed or the verifier's compressed-size check was `>=2100`.
+    support:
+    - official/tests/test_outputs.py::test_image_compiles
+  - text: Retained verifier evidence shows `test_image_similarity` failed or errored, establishing that the reconstructed run did not satisfy the verifier's image-output check, including cosine similarity below `0.995` or failure to produce the compared output.
+    support:
+    - official/tests/test_outputs.py::test_image_similarity
+  - text: Retained verifier logs show the verifier's pytest invocation itself did not exit successfully, even if per-test status is incomplete.
+    support:
+    - official/tests/test.sh::18-30
+  undecided_if:
+  - text: Retained non-label artifacts do not reliably establish whether the pytest invocation completed and whether each of the three official checks passed or failed; for example, `verifier/ctrf.json` is missing or ambiguous and the retained verifier logs do not resolve the outcome.
+    support:
+    - official/tests/test.sh::18-30
+    - official/tests/test_outputs.py::test_image_c_exists
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_image_similarity
+stronger:
+  additional_conditions:
+  - id: exact-output-identity
+    text: Beyond native scoring, require retained evidence that the reconstructed program's output is exactly identical to the original program's output, not merely cosine-similar at `>=0.995`.
+    rationale: The official instruction requires an identical operation, while the released verifier accepts approximate image similarity.
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: If retained, do the original and reconstructed output images match exactly rather than only meeting the cosine-similarity threshold?
+      support:
+      - official/instruction.md::1-1
+      - official/tests/test_outputs.py::test_image_similarity
+    support:
+    - official/instruction.md::1-1
+    - official/tests/test_outputs.py::test_image_similarity
+  - id: literal-gzip-under-2k
+    text: Beyond native scoring, require retained evidence that `/app/mystery.c` satisfies the literal instruction-side size rule `cat mystery.c | gzip | wc` `< 2000`, not just the verifier's `zlib.compress(...) < 2100` check.
+    rationale: The official instruction states a `<2k` gzip-based limit, but the released verifier operationalizes a looser zlib-based `<2100` threshold.
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: If retained, does the submitted `/app/mystery.c` satisfy the literal gzip-and-wc size rule stated in the instruction?
+      support:
+      - official/instruction.md::1-1
+      - official/tests/test_outputs.py::test_image_compiles
+    support:
+    - official/instruction.md::1-1
+    - official/tests/test_outputs.py::test_image_compiles

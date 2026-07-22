@@ -1,0 +1,76 @@
+schema_version: case_checklist_v1
+case_unit_id: '72'
+domain: webarena_verified
+task_id: '72'
+native:
+  user_goal:
+    text: Provide the ZIP code of Yale University.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: the sole AgentResponseEvaluator must score 1.0 after the response normalizes to task_type RETRIEVE, status SUCCESS, and retrieved_data containing exactly the single string 06516; retrieved-data order is ignored.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator, which parses, normalizes, and structurally compares the final response; TaskEvalResult then requires every configured evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response parse and normalize to task_type RETRIEVE, status SUCCESS, and retrieved_data containing exactly 06516 under the evaluator's rules?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Can the retained HAR be parsed as the required network-trace input without causing task-evaluation setup or orchestration to error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+  success_if:
+  - text: agent_response.json yields an evaluator-visible mapping whose task_type and status normalize to RETRIEVE and SUCCESS.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - derived/task.json::eval[0].expected
+  - text: The normalized retrieved_data matches the unordered singleton ["06516"], with no missing or extra element.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: Evaluation completes without error, the sole AgentResponseEvaluator scores 1.0, and the resulting overall task score is 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The final response cannot be interpreted as the required mapping, or an evaluator-visible task_type or status is missing or does not normalize to RETRIEVE and SUCCESS.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+  - text: retrieved_data is missing or empty, fails normalization, differs from 06516, or contains missing or extra elements relative to the expected singleton.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - derived/task.json::eval[0].expected.retrieved_data
+  - text: A retained input is malformed such that evaluation errors, or any configured evaluator score is not 1.0; either condition makes the overall task score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: No retained TaskEvalResult resolves the case and the retained final response or required trace is missing, truncated, or unreadable, preventing reconstruction of the official comparison, provided the available evidence does not already establish a native mismatch.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+    rationale: A retention gap does not establish what response was submitted or what score the official evaluator produced.
+stronger:
+  additional_conditions: []

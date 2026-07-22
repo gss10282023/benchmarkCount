@@ -1,0 +1,131 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "508",
+  "domain": "webarena_verified",
+  "task_id": "508",
+  "native": {
+    "user_goal": {
+      "text": "Buy the highest-rated product in the NS switch category for less than $60, first discarding any existing cart items.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult scores 1.0 only when all five configured evaluator scores are 1.0: the agent response matches the expected MUTATE/SUCCESS response, and the HAR passes all four checks for adding product 40448, a one-item cart containing “Multi Pouch The Legend of Zelda Breath of the Wild for Nintendo Switch,” payment information for customer 27, and the checkout success page.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator parses, normalizes, and structurally compares agent_response.json; four NetworkEventEvaluator instances inspect non-static network.har events using the configured URL, method, status, request/response fields, and last-matching-event rule; TaskEvalResult then conjoins their scores.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and normalize, under AgentResponseEvaluator, to the configured task_type MUTATE, status SUCCESS, and retrieved_data null without a structural mismatch?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Do the last matching events satisfy all four configured checks: (1) POST add product 40448 with status 200 and post_data product=40448; (2) GET cart totals with status 200, items_qty=1, and the specified item name at $.items[0].name; (3) POST payment-information with status 200 and $.billingAddress.customerId=27; and (4) GET checkout/onepage/success with status 200?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "derived/task.json::eval[3]",
+          "derived/task.json::eval[4]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "agent_response.json receives score 1.0 by matching the configured MUTATE/SUCCESS response under the released parsing, normalization, and structural-comparison rules.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "network.har receives score 1.0 on each of the four configured network checks—product add, one-item cart totals, payment information, and success-page GET—so all five evaluator scores equal 1.0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "derived/task.json::eval[3]",
+          "derived/task.json::eval[4]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The agent-response evaluator scores 0.0 or errors because the response is missing, invalid, structurally mismatched, or does not normalize to the configured MUTATE/SUCCESS response.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Any one of the four network evaluators scores 0.0 or errors, including when no matching event exists or the selected last matching event differs on a configured URL, method, status, post-data, or response-content field; any such result makes the task score 0.0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "derived/task.json::eval[3]",
+          "derived/task.json::eval[4]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Retained evidence is absent or demonstrably truncated so that the agent response or one or more required HAR fields cannot be assessed; a complete artifact that records a mismatch or no matching event is failure, not undecided.",
+        "rationale": "This distinguishes evidence-retention loss from an evaluator-visible missing or mismatching value."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "confirmed_order_state",
+        "text": "Beyond native scoring, retained evidence must identify a newly completed order whose sole line item is one unit of product 40448.",
+        "rationale": "The official goal requires a purchase, while the native checkout checks independently constrain request URL, method, status, and selected request data but require no order identifier or final-order response content; matching HTTP events can therefore score without direct evidence of durable order creation.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har response bodies",
+            "question": "Do the retained cart-totals, payment-information, and order-confirmation responses establish a newly created order and link it to a cart containing only one unit of product 40448?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[2]",
+              "derived/task.json::eval[3]",
+              "derived/task.json::eval[4]",
+              "official/src/webarena_verified/types/tracing.py::NetworkEvent.response_content"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[2].expected",
+          "derived/task.json::eval[3].expected",
+          "derived/task.json::eval[4].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

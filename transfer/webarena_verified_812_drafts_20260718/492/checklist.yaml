@@ -1,0 +1,59 @@
+schema_version: case_checklist_v1
+case_unit_id: '492'
+domain: webarena_verified
+task_id: '492'
+native:
+  user_goal:
+    text: Notify Jane Doe on her most recent pending order with the message "sorry we are out of stock, please reorder".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 iff both configured evaluator scores are 1.0: AgentResponseEvaluator accepts the final response under the configured MUTATE/SUCCESS comparison, and NetworkEventEvaluator accepts the selected last matching POST to __SHOPPING_ADMIN__/sales/order/addComment/order_id/302 with response status 200 and required post-data values history[comment]="sorry we are out of stock, please reorder" and history[is_customer_notified]="1".'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks the retained final response, NetworkEventEvaluator checks the retained network trace, and TaskEvalResult combines their scores conjunctively.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response, under AgentResponseEvaluator parsing, normalization, and structural comparison, match the configured MUTATE/SUCCESS expectation?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the selected last POST matching __SHOPPING_ADMIN__/sales/order/addComment/order_id/302 have response status 200 and evaluator-equal values for history[comment] and history[is_customer_notified], with isAjax ignored in query parameters?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff the response check scores 1.0 and the network check scores 1.0, including a matching selected last POST with the configured endpoint, 200 status, exact configured message value, and customer-notified value "1".
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native non-success occurs if either evaluator scores other than 1.0 or errors; this includes a rejected final response, no matching POST, or a mismatch in the selected last event's normalized URL, method, response status, or required post-data values.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Evidence review is undecided only if agent_response.json or network.har is missing, truncated, or unreadable as retained evidence, preventing replay of both required checks; a complete artifact that the evaluator rejects or errors on is native non-success, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: The conjunctive score cannot be verified from only one evaluator's retained input.
+stronger:
+  additional_conditions: []

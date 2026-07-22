@@ -1,0 +1,68 @@
+schema_version: case_checklist_v1
+case_unit_id: '649'
+domain: webarena_verified
+task_id: '649'
+native:
+  user_goal:
+    text: Create a post in the dataisbeautiful forum titled "What could diffusion model help the dataisbeautiful field?"
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success requires both configured evaluators to score 1.0: AgentResponseEvaluator accepts the final response as a successful MUTATE, and NetworkEventEvaluator accepts the last matching Reddit POST with the configured endpoint, forum value, title, and 302 response status.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks the retained final response; NetworkEventEvaluator checks the retained network trace; TaskEvalResult.create assigns score 1.0 only when both evaluator scores are 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does official parsing and normalization produce no AgentResponseEvaluator mismatch or error against the expected successful MUTATE response?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event matching a POST to __REDDIT__/submit or __REDDIT__/submit/dataisbeautiful a 302 response whose form data has submission[forum] equal to 10042 and submission[title] equal to the exact requested title under official normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks pass: the final response is accepted as task_type MUTATE with status SUCCESS, and the last matching Reddit POST is accepted with submission[forum]=10042, the exact title, and response_status=302; therefore both evaluator scores equal 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native failure or error occurs if either evaluator does not score 1.0—for example, the final response mismatches or cannot be evaluated, no qualifying Reddit POST exists, or the last matching POST fails any configured URL, form-value, method, or response-status criterion.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored evidence is undecidable only when either evaluator input was not retained completely enough to determine what the evaluator received. A complete artifact showing malformed input, a missing event, or a mismatch is failure rather than undecided.
+    rationale: Both retained evaluator inputs are needed to independently apply the benchmark's conjunctive decision rule.
+stronger:
+  additional_conditions:
+  - id: persisted_submission
+    text: Beyond native scoring, require retained post-run Reddit state to show a submission created during the run in dataisbeautiful with the exact requested title.
+    rationale: The released evaluator verifies a successful-MUTATE response and matching POST/302 traffic but does not inspect persisted Reddit state, so native success does not directly establish that the requested post exists.
+    decisive_artifacts:
+    - artifact: Post-run Reddit state snapshot or authenticated submission-page capture
+      question: Does it show a submission created during this run in dataisbeautiful titled "What could diffusion model help the dataisbeautiful field?"
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

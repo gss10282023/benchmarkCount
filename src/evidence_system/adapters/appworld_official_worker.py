@@ -50,9 +50,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-tokens", type=int, default=4096)
     parser.add_argument("--openrouter-api-key-env", default="OPENROUTER_API_KEY")
     parser.add_argument("--max-steps", type=int, default=50)
-    parser.add_argument("--lm-retry-after-seconds", type=int, default=15)
-    parser.add_argument("--lm-max-retries", type=int, default=100)
+    parser.add_argument("--lm-retry-after-seconds", type=int, default=60)
+    # AppWorld's simplified LanguageModel interprets max_retries as the total
+    # number of attempts, not the number of retries after the first request.
+    parser.add_argument("--lm-max-retries", type=int, default=1)
     args = parser.parse_args(argv)
+    if args.lm_max_retries != 1:
+        parser.error("--lm-max-retries must be 1; automatic paid-request retries are disabled")
     config = AppWorldOfficialConfig(
         job=_loads_json_object(args.job_json, field_name="job-json"),
         source_entry=_loads_json_object(args.source_entry_json, field_name="source-entry-json"),
@@ -107,7 +111,7 @@ def run_official_job(config: AppWorldOfficialConfig) -> dict[str, Any]:
         "official_agent_name": "simplified_react_code_agent",
         "official_prompt_path": "react_code_agent/instructions.txt",
         "max_steps": config.max_steps,
-        "compatibility_mode": "locked_data_runtime_patch",
+        "compatibility_mode": "official_fail_closed",
     }
     _write_json(output_dir / "run_summary.json", summary)
 
@@ -116,13 +120,15 @@ def run_official_job(config: AppWorldOfficialConfig) -> dict[str, Any]:
         raise RuntimeError("APPWORLD_ROOT must be set")
     os.environ.setdefault("OPENAI_API_KEY", "unused-for-litellm")
 
+    compatibility = validate_official_runtime_compatibility(appworld_root)
+    summary["data_version"] = compatibility["data_version"]
+    summary["db_version"] = compatibility["db_version"]
+    summary["code_data_version"] = compatibility["code_data_version"]
+    _write_json(output_dir / "run_summary.json", summary)
+
     from appworld.common.path_store import path_store
     from appworld.evaluator import evaluate_task
     from appworld_agents.code.simplified.run import run_experiment
-
-    data_version = apply_locked_data_compatibility_patch(appworld_root)
-    summary["data_version"] = data_version
-    _write_json(output_dir / "run_summary.json", summary)
 
     prompt_file_path = os.path.join(path_store.experiment_prompts, "react_code_agent", "instructions.txt")
     runner_config = build_runner_config(
@@ -149,6 +155,11 @@ def run_official_job(config: AppWorldOfficialConfig) -> dict[str, Any]:
     _write_json(output_dir / "native_evaluator_input.json", native_input)
 
     task_output_root = Path(appworld_root) / "experiments" / "outputs" / config.experiment_name / "tasks" / task_id
+    # completed_summary() in the campaign launcher is the only resume gate. If
+    # the worker is invoked, its underlying AppWorld task directory must be
+    # fresh so skip_if_finished cannot reuse an older, incompatible attempt.
+    if task_output_root.exists():
+        shutil.rmtree(task_output_root)
     try:
         run_experiment(
             experiment_name=config.experiment_name,
@@ -174,9 +185,11 @@ def run_official_job(config: AppWorldOfficialConfig) -> dict[str, Any]:
             }
         )
         _write_json(output_dir / "run_summary.json", summary)
+        sanitize_lm_call_log(task_output_root / "logs" / "lm_calls.jsonl")
         copy_tree(task_output_root, output_dir / "appworld_task_output")
         raise
 
+    sanitize_lm_call_log(task_output_root / "logs" / "lm_calls.jsonl")
     copy_tree(task_output_root, output_dir / "appworld_task_output")
     native_output = {
         "schema_version": "appworld_native_evaluator_output/v1",
@@ -200,7 +213,8 @@ def run_official_job(config: AppWorldOfficialConfig) -> dict[str, Any]:
             "status": "completed",
             "success": bool(tracker_dict.get("success")) if isinstance(tracker_dict, Mapping) else None,
             "evaluation_pass_count": _tracker_pass_count(tracker_dict),
-            "data_version": data_version,
+            "data_version": compatibility["data_version"],
+            "db_version": compatibility["db_version"],
         }
     )
     _write_json(output_dir / "run_summary.json", summary)
@@ -358,10 +372,22 @@ def resolve_model_id(*, provider: str, model: str) -> str:
 
 
 def resolve_dataset_name(*, task_id: str, source_entry: Mapping[str, Any]) -> str:
+    explicit_dataset = source_entry.get("dataset_name")
     source_ref = resolve_source_ref(task_id=task_id, source_entry=source_entry)
     match = _SOURCE_REF_RE.match(source_ref or "")
     if match:
-        return str(match.group("dataset"))
+        dataset_from_ref = str(match.group("dataset"))
+        task_from_ref = str(match.group("task_id"))
+        if task_from_ref != task_id:
+            raise RuntimeError(
+                f"AppWorld source_ref task mismatch: task_id={task_id}, source_ref={source_ref}"
+            )
+        if explicit_dataset is not None and str(explicit_dataset) != dataset_from_ref:
+            raise RuntimeError(
+                "AppWorld dataset_name/source_ref mismatch: "
+                f"dataset_name={explicit_dataset!r}, source_ref={source_ref!r}"
+            )
+        return dataset_from_ref
     raise RuntimeError(f"could not resolve AppWorld dataset name for task_id={task_id}")
 
 
@@ -387,29 +413,60 @@ def resolve_source_ref(*, task_id: str, source_entry: Mapping[str, Any]) -> str 
     return None
 
 
-def apply_locked_data_compatibility_patch(appworld_root: str) -> str | None:
+def validate_official_runtime_compatibility(appworld_root: str) -> dict[str, str]:
     version_path = Path(appworld_root) / "data" / "version.txt"
-    if not version_path.exists():
-        return None
+    db_version_path = Path(appworld_root) / "data" / "base_dbs" / "version.txt"
+    if not version_path.is_file():
+        raise RuntimeError(f"missing AppWorld data version file: {version_path}")
+    if not db_version_path.is_file():
+        raise RuntimeError(f"missing AppWorld DB version file: {db_version_path}")
     data_version = version_path.read_text(encoding="utf-8").strip()
-    if not data_version:
-        return None
+    db_version = db_version_path.read_text(encoding="utf-8").strip()
+    if not data_version or not db_version:
+        raise RuntimeError("AppWorld data and DB versions must be non-empty")
 
     import appworld.common.constants as constants
-    import appworld.environment as environment_module
-    import appworld.evaluator as evaluator_module
-    import appworld.task as task_module
 
-    if data_version not in constants.COMPATIBLE_DATA_VERSIONS:
-        constants.COMPATIBLE_DATA_VERSIONS.append(data_version)
-    if data_version not in constants.COMPATIBLE_DB_VERSIONS:
-        constants.COMPATIBLE_DB_VERSIONS.append(data_version)
-    if data_version not in task_module.COMPATIBLE_DB_VERSIONS:
-        task_module.COMPATIBLE_DB_VERSIONS.append(data_version)
-    constants.DB_VERSION = data_version
-    environment_module.DB_VERSION = data_version
-    evaluator_module.DB_VERSION = data_version
-    return data_version
+    code_data_version = str(constants.DATA_VERSION)
+    code_db_version = str(constants.DB_VERSION)
+    compatible_data_versions = {str(value) for value in constants.COMPATIBLE_DATA_VERSIONS}
+    compatible_db_versions = {str(value) for value in constants.COMPATIBLE_DB_VERSIONS}
+    errors: list[str] = []
+    if data_version != code_data_version or data_version not in compatible_data_versions:
+        errors.append(
+            f"data={data_version}, code expects={code_data_version}, compatible={sorted(compatible_data_versions)}"
+        )
+    if db_version != code_db_version or db_version not in compatible_db_versions:
+        errors.append(
+            f"db={db_version}, code expects={code_db_version}, compatible={sorted(compatible_db_versions)}"
+        )
+    if data_version != db_version:
+        errors.append(f"data version {data_version} differs from DB version {db_version}")
+    if errors:
+        raise RuntimeError("unsupported AppWorld runtime; no LM request was made: " + "; ".join(errors))
+    return {
+        "data_version": data_version,
+        "db_version": db_version,
+        "code_data_version": code_data_version,
+    }
+
+
+def sanitize_lm_call_log(path: Path) -> None:
+    """Remove credential values while retaining usage and cost accounting."""
+    if not path.is_file():
+        return
+    sanitized: list[str] = []
+    for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not raw_line.strip():
+            continue
+        payload = json.loads(raw_line)
+        request = payload.get("input")
+        if isinstance(request, dict):
+            request.pop("api_key", None)
+        sanitized.append(json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")))
+    temporary = path.with_suffix(path.suffix + ".sanitized.tmp")
+    temporary.write_text("\n".join(sanitized) + ("\n" if sanitized else ""), encoding="utf-8")
+    temporary.replace(path)
 
 
 def copy_tree(source: Path, destination: Path) -> None:

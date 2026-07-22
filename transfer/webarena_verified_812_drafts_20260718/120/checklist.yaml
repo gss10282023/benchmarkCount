@@ -1,0 +1,58 @@
+schema_version: case_checklist_v1
+case_unit_id: '120'
+domain: webarena_verified
+task_id: '120'
+native:
+  user_goal:
+    text: Get the title and rating of every review rated 4 stars or above for Ana Running Short, returned as a list of objects with keys "title" and "rating".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task scores 1.0 iff the sole AgentResponseEvaluator scores 1.0: after evaluator parsing and schema-based normalization, the response matches task type RETRIEVE, status SUCCESS, and exactly the configured two review objects as an unordered collection.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator; that evaluator receives score 1.0 only when comparison produces no failures or evaluator error, and TaskEvalResult requires every configured evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained submitted response parse and normalize to RETRIEVE/SUCCESS with retrieved_data equal to the configured unordered two-review collection?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: The retained response is parseable as a response object, and its normalized task_type—or accepted legacy performed_operation—and status match RETRIEVE and SUCCESS without an evaluator error or compared-structure mismatch.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - derived/task.json::eval[0].expected
+  - text: Under the configured number/string schema and unordered comparison, retrieved_data contains exactly {"title":"It was really hard to find the right siz","rating":4} and {"title":"VERY LIGHTWEIGHT COMFY-GOOD SHOES","rating":5}, with neither missing nor extra items; the resulting sole-evaluator and task scores are 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer.normalize_array
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The submitted response is null, unparseable, not an object, has a missing or mismatching compared task/status field, has a compared-structure mismatch, or causes an evaluator error; the sole evaluator and task then score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: The normalized retrieved_data is missing, null, malformed, or differs from the configured unordered collection by any missing, extra, or field-mismatching review object; the sole evaluator and task then score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - derived/task.json::eval[0].expected.retrieved_data
+  undecided_if:
+  - text: The submitted value cannot be reconstructed because agent_response.json is absent or unreadable and no retained evaluator report records the actual or normalized response. An evidenced null, malformed, or missing submission is failure, not undecided.
+    rationale: Loss of retained evidence prevents determining what the evaluator compared, whereas a preserved invalid submission has a defined native failure outcome.
+stronger:
+  additional_conditions: []

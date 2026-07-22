@@ -1,0 +1,77 @@
+schema_version: case_checklist_v1
+case_unit_id: '779'
+domain: webarena_verified
+task_id: '779'
+native:
+  user_goal:
+    text: Reduce by 15% the prices of all yellow Gwyn Endurance shirt variants in sizes smaller than L in shopping_admin.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0: the AgentResponseEvaluator scores 1.0 for the expected successful MUTATE response, and all three NetworkEventEvaluators score 1.0 for their configured last matching POST save events for product IDs 1559, 1562, and 1565, each with product[price] currency-equivalent to 20.4 and response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs one AgentResponseEvaluator and three NetworkEventEvaluator instances; TaskEvalResult.create assigns success only when every evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response earn 1.0 from the released AgentResponseEvaluator against the configured successful MUTATE response?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: For each product ID 1559, 1562, and 1565, does the last matching POST to the configured catalog save URL contain product[price] currency-equivalent to 20.4 and receive status 302?
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: The parsed and normalized agent response passes the configured AgentResponseEvaluator check for task_type MUTATE and status SUCCESS.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: All three configured network checks pass for the selected last matching save events for IDs 1559, 1562, and 1565; together with the response check, all four evaluator scores equal 1.0.
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: With readable evaluator inputs, failure occurs if the response evaluator or any one of the three network evaluators fails or errors—for example, because the response mismatches, a configured save event is absent, or the selected last event has the wrong URL, method, price, or status—since any non-1 evaluator score makes the task score 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained evidence is undecidable only if agent_response.json or network.har is absent, unreadable, or truncated so the corresponding evaluator-visible input cannot be reconstructed; a present, readable input that fails or errors is not undecided.
+    rationale: Both retained inputs are needed to reconstruct the four official checks, while loss of stored evidence does not reveal the run's actual outcome.
+stronger:
+  additional_conditions:
+  - id: persisted_catalog_state_and_scope
+    text: Beyond native success, require a retained catalog-state diff showing that every yellow Gwyn Endurance shirt variant below size L has a persisted 15% price reduction and that no out-of-scope catalog price changed.
+    rationale: The official intent specifies a scoped catalog-state change, whereas the released evaluator accepts a successful response plus three matching POST/302 events and neither inspects final catalog state nor rejects unrelated price mutations.
+    decisive_artifacts:
+    - artifact: Retained shopping_admin catalog before/after state diff
+      question: Does the diff show an exact persisted 15% reduction for every matching target variant and no price change for any non-target variant?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

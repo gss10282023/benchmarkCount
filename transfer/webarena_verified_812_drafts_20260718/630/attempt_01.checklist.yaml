@@ -1,0 +1,69 @@
+schema_version: case_checklist_v1
+case_unit_id: '630'
+domain: webarena_verified
+task_id: '630'
+native:
+  user_goal:
+    text: Create a post in f/headphones titled "noise-cancelling headphones recommendations?" with body "Hey, looking for good noise-cancelling headphones under $200, any suggestions?"
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both the AgentResponseEvaluator mutation-success check and the NetworkEventEvaluator submission-event check must score 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator and NetworkEventEvaluator, combined by the all-evaluators-must-pass TaskEvalResult rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response pass the released normalized structural comparison for task type MUTATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last POST matching /submit or /submit/headphones have response status 302 and compared form fields submission[forum]=10050, submission[title]="noise-cancelling headphones recommendations?", and submission[body]="Hey, looking for good noise-cancelling headphones under $200, any suggestions?" under evaluator normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks score 1.0: the agent response passes the expected mutation-success comparison, and the HAR''s last eligible submission POST satisfies every configured URL, method, form-field, and 302-status comparison.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The AgentResponseEvaluator mismatch or error produces a score other than 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The NetworkEventEvaluator mismatch or error produces a score other than 1.0, including when no eligible POST exists or the last eligible POST fails any configured comparison.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: A task-level evaluation error produces score 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The exact retained agent response or complete HAR is missing, so one or both official checks cannot be reconstructed from stored evidence.
+    rationale: Both evaluator inputs are required to determine the all-or-nothing native score.
+stronger:
+  additional_conditions:
+  - id: persisted_reddit_post
+    text: Additionally require retained post-run Reddit state to show a post in f/headphones with the requested title and body.
+    rationale: The stated goal requires creating a post, but the native checks inspect only the final response and a matching submission request with a 302 response; they do not verify that the post persists in Reddit state.
+    decisive_artifacts:
+    - artifact: post-run Reddit state export or captured post page
+      question: Does retained post-run state show the created post in f/headphones with exactly the requested title and body?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

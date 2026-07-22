@@ -1,0 +1,100 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "527",
+  "domain": "webarena_verified",
+  "task_id": "527",
+  "native": {
+    "user_goal": {
+      "text": "Star the single most-starred repository in GitLab.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both official checks score 1.0: AgentResponseEvaluator accepts the final mutation-success response, and NetworkEventEvaluator accepts the required GitLab star-toggle event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator over the retained agent response and network trace, then conjunctively composes their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "After the released parsing and normalization rules, does the response structurally match task_type MUTATE, status SUCCESS, and retrieved_data null?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last matching POST to __GITLAB__/umano/AndroidSlidingUpPanel/toggle_star.json present with response status 200 and parsed response_content.star_count equal to 56?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both checks pass: the normalized final response matches the expected MUTATE/SUCCESS/null response, and the last URL-and-method-matching network event matches POST __GITLAB__/umano/AndroidSlidingUpPanel/toggle_star.json with status 200 and star_count 56.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Failure if either official evaluator does not score 1.0, including an invalid or mismatching final response, no matching star-toggle event, a mismatch in its checked fields, or an evaluator error.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored-evidence review is undecided only if agent_response.json or network.har is unavailable, unreadable, or incomplete enough that its official check cannot be reconstructed; a present artifact rejected by the evaluator is failure.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persistent_star_state",
+        "text": "Beyond native success, retained post-run GitLab state must show that the acting user has umano/AndroidSlidingUpPanel starred.",
+        "rationale": "The task asks for a repository to be starred, but the native mutation check only validates a matching POST event and its response content; it does not inspect persistent starred state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run authenticated GitLab state snapshot or API export",
+            "question": "Does the retained state show umano/AndroidSlidingUpPanel starred by the acting user?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

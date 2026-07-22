@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: '590'
+domain: webarena_verified
+task_id: '590'
+native:
+  user_goal:
+    text: Create a milestone in the current GitLab repository titled "product launch", starting 2023-01-16 and due 2023-01-30.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the last matching POST to __GITLAB__/primer/design/-/milestones with the three configured milestone fields and response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in configuration order; TaskEvalResult.create requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response parse and normalize to a structured response accepted as task_type MUTATE and status SUCCESS by AgentResponseEvaluator?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last POST whose normalized URL matches __GITLAB__/primer/design/-/milestones have milestone[title]=product launch, milestone[start_date]=2023-01-16, milestone[due_date]=2023-01-30, and response status 302 under NetworkEventEvaluator comparison?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both evaluator components score 1.0: the final response is accepted as MUTATE/SUCCESS, and the last matching network event satisfies the configured POST URL, milestone form-value, and 302-status checks.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Failure occurs if either component scores 0 or errors: the final response is not accepted as MUTATE/SUCCESS, or no qualifying last POST exists or that event mismatches any configured URL, milestone field, method, or 302 response-status check.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Retained evidence is unavailable, truncated, or unreadable for either agent_response.json or network.har, and no retained official evaluation result determines both component scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: This is evidentiary incompleteness; a readable malformed response or a complete trace with no qualifying event is a native failure, not undecided.
+stronger:
+  additional_conditions:
+  - id: persisted_milestone_state
+    text: Beyond native success, retained post-run GitLab state confirms that primer/design contains a milestone titled "product launch" with start date 2023-01-16 and due date 2023-01-30.
+    rationale: The task asks for a milestone to be created, while the released NetworkEventEvaluator only checks a matching request and 302 response and does not inspect the resulting repository state.
+    decisive_artifacts:
+    - artifact: Post-run GitLab milestone record or repository-state export
+      question: Does the retained post-run state show the requested milestone in primer/design with the exact title, start date, and due date?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::start_urls[0]
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

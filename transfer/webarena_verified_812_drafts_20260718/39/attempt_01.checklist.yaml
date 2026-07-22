@@ -1,0 +1,84 @@
+schema_version: case_checklist_v1
+case_unit_id: '39'
+domain: webarena_verified
+task_id: '39'
+native:
+  user_goal:
+    text: Determine, using the OSRM direction service, whether a Walmart in Pittsburgh is reachable by car within one hour from 5600 Fifth Avenue, and return true if it is, otherwise false.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: Native success is TaskEvalResult.score = 1.0. Evaluation must complete successfully and the sole AgentResponseEvaluator must score 1.0 by parsing and normalizing the response to task_type RETRIEVE, status SUCCESS, and retrieved_data exactly matching the unordered boolean sequence [true].
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator, whose normalized comparison produces the sole evaluator score; TaskEvalResult requires every configured evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted response parse and evaluator-normalize to task_type RETRIEVE, status SUCCESS, and retrieved_data exactly matching unordered [true], with no evaluator-visible structural mismatch?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].results_schema
+    - derived/task.json::eval[0].ordered
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the retained HAR parse as the NetworkTrace required to construct and evaluate the task context without an input or context error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+  success_if:
+  - text: The submitted response parses and normalizes to task_type RETRIEVE, status SUCCESS, and retrieved_data exactly matching the unordered boolean sequence [true].
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: The network trace is parseable and evaluation completes without error; the sole AgentResponseEvaluator scores 1.0, so TaskEvalResult is SUCCESS with score 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The response is invalid or its evaluator-normalized task_type, status, or retrieved_data differs from RETRIEVE, SUCCESS, and unordered [true], including missing, null, wrong, or extra retrieved-data elements; the sole evaluator then scores 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: An agent-response parse, network-trace parse, context-construction, or evaluator-orchestration error yields task status ERROR and score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._create_eval_error_result
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: A required retained input is missing, truncated, or unreadable, so the response comparison or network-trace parseability cannot be reconstructed; absence from the review evidence alone does not establish what was supplied during evaluation.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: osrm_route_grounding
+    text: Beyond native scoring, network.har must show a successful OSRM driving-directions result for a route from 5600 Fifth Avenue to a Walmart in Pittsburgh whose duration is at most one hour, and the returned Boolean must agree with that result.
+    rationale: The instruction explicitly requires OSRM and an actual one-hour reachability determination, but the released task config contains only an AgentResponseEvaluator with fixed retrieved_data [true]. That evaluator reads the final response and does not validate route evidence in the network trace, so an ungrounded true response can satisfy the native criterion.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the trace identify the requested origin and Pittsburgh Walmart and contain a successful OSRM driving-directions response showing a route duration of at most one hour?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - artifact: agent_response.json
+      question: Does the returned Boolean agree with the OSRM route duration retained in network.har?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].expected.retrieved_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values

@@ -1,0 +1,119 @@
+schema_version: case_checklist_v1
+case_unit_id: sam-cell-seg
+domain: terminal_bench_2_1
+task_id: terminal-bench/sam-cell-seg
+native:
+  user_goal:
+    text: Write `/app/convert_masks.py` as an argparse CLI that uses MobileSAM on CPU to convert every mask in a provided metadata CSV into a polyline-only output, preserving the CSV format with updated `xmin`, `xmax`, `ymin`, `ymax`, `coords_x`, and `coords_y`, with no overlaps, one contiguous mask per cell, and no hardcoded paths.
+    support:
+    - official/instruction.md::1-35
+    - official/task.toml::task.description
+  benchmark_success:
+    text: 'Native success is the official verifier outcome from `official/tests/test.sh`: all pytest checks in `official/tests/test_outputs.py` must pass for `/app/convert_masks.py` existence, successful execution on the official command, `/app/test_output.csv` existence, matching shape and columns, non-rectangular output masks, per-row IoU >= 0.5 against `correct_output.csv`, no significant polygon overlaps, single-contiguous masks, and flat numeric coordinate lists.'
+    support:
+    - official/tests/test.sh::1-33
+    - official/tests/test_outputs.py::test_python_file_exists
+    - official/tests/test_outputs.py::test_run_script
+    - official/tests/test_outputs.py::test_csv_output_exists
+    - official/tests/test_outputs.py::test_csv_shape_cols
+    - official/tests/test_outputs.py::test_masks_are_no_longer_rect
+    - official/tests/test_outputs.py::test_mask_alignment
+    - official/tests/test_outputs.py::test_no_polyline_overlaps
+    - official/tests/test_outputs.py::test_single_contiguous_mask_per_cell
+    - official/tests/test_outputs.py::test_coords_are_flat_lists
+  checked_by:
+    text: '`official/tests/test.sh`, which installs verifier dependencies, downloads MobileSAM weights and fixtures, and runs `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`.'
+    support:
+    - official/tests/test.sh::1-33
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Do all official pytest cases from `official/tests/test_outputs.py` report passed, or which named case failed/errored/skipped?
+    support:
+    - official/tests/test.sh::1-33
+    - official/tests/test_outputs.py::test_python_file_exists
+    - official/tests/test_outputs.py::test_run_script
+    - official/tests/test_outputs.py::test_csv_output_exists
+    - official/tests/test_outputs.py::test_csv_shape_cols
+    - official/tests/test_outputs.py::test_masks_are_no_longer_rect
+    - official/tests/test_outputs.py::test_mask_alignment
+    - official/tests/test_outputs.py::test_no_polyline_overlaps
+    - official/tests/test_outputs.py::test_single_contiguous_mask_per_cell
+    - official/tests/test_outputs.py::test_coords_are_flat_lists
+  - artifact: verifier/test-stdout.txt
+    question: Does verifier stdout show the official pytest invocation against `/tests/test_outputs.py` completed, and if not, what command or assertion failure is reported?
+    support:
+    - official/tests/test.sh::1-33
+  - artifact: verifier/test-stderr.txt
+    question: Does verifier stderr contain subprocess, import, or runtime errors relevant to the official script run or pytest checks when CTRF/stdout is incomplete?
+    support:
+    - official/tests/test.sh::1-33
+    - official/tests/test_outputs.py::test_run_script
+  success_if:
+  - text: '`verifier/ctrf.json` shows every official pytest check passed, and verifier stdout/stderr are consistent with the `official/tests/test.sh` run completing on the official suite.'
+    support:
+    - official/tests/test.sh::1-33
+    - official/tests/test_outputs.py::test_python_file_exists
+    - official/tests/test_outputs.py::test_run_script
+    - official/tests/test_outputs.py::test_csv_output_exists
+    - official/tests/test_outputs.py::test_csv_shape_cols
+    - official/tests/test_outputs.py::test_masks_are_no_longer_rect
+    - official/tests/test_outputs.py::test_mask_alignment
+    - official/tests/test_outputs.py::test_no_polyline_overlaps
+    - official/tests/test_outputs.py::test_single_contiguous_mask_per_cell
+    - official/tests/test_outputs.py::test_coords_are_flat_lists
+  fail_if:
+  - text: '`verifier/ctrf.json` shows any official pytest case failed, errored, or was skipped.'
+    support:
+    - official/tests/test_outputs.py::test_python_file_exists
+    - official/tests/test_outputs.py::test_run_script
+    - official/tests/test_outputs.py::test_csv_output_exists
+    - official/tests/test_outputs.py::test_csv_shape_cols
+    - official/tests/test_outputs.py::test_masks_are_no_longer_rect
+    - official/tests/test_outputs.py::test_mask_alignment
+    - official/tests/test_outputs.py::test_no_polyline_overlaps
+    - official/tests/test_outputs.py::test_single_contiguous_mask_per_cell
+    - official/tests/test_outputs.py::test_coords_are_flat_lists
+  - text: Verifier stdout/stderr shows the required `python /app/convert_masks.py --csv_path /app/test_metadata.csv --rgb_path /app/test_img.png --output_path /app/test_output.csv --weights_path /app/mobile_sam.pt` subprocess or the subsequent official pytest run failed before all checks could pass.
+    support:
+    - official/tests/test.sh::1-33
+    - official/tests/test_outputs.py::test_run_script
+  undecided_if:
+  - text: The retained verifier artifacts do not establish a complete official pytest outcome, for example `verifier/ctrf.json` is missing or incomplete and stdout/stderr do not reliably show whether every required check passed or a native failure condition was reached.
+    support:
+    - official/tests/test.sh::1-33
+stronger:
+  additional_conditions:
+  - id: uses_mobilesam
+    text: Beyond native scoring, retained code evidence should show `/app/convert_masks.py` actually uses `mobile_sam` / MobileSAM for mask refinement; the native verifier only scores output behavior and does not check the implementation path.
+    rationale: The instruction requires MobileSAM specifically, but the released tests inspect existence, execution, CSV structure, geometry, IoU, overlap, contiguity, and coordinate formatting rather than whether MobileSAM was used.
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: If the retained workspace snapshot includes `/app/convert_masks.py`, does that script import and call `mobile_sam` / MobileSAM for refinement?
+      support:
+      - official/instruction.md::1-35
+    - artifact: agent/trajectory.json
+      question: If final script bytes are not retained elsewhere, does the trajectory show the implemented solution installing, importing, or calling MobileSAM rather than a non-MobileSAM substitute?
+      support:
+      - official/instruction.md::1-35
+    support:
+    - official/instruction.md::1-35
+    - official/tests/test_outputs.py::test_python_file_exists
+    - official/tests/test_outputs.py::test_run_script
+    - official/tests/test_outputs.py::test_mask_alignment
+  - id: honors_cli_paths
+    text: Beyond native scoring, retained code evidence should show the script reads and uses the provided `--weights_path`, `--output_path`, `--rgb_path`, and `--csv_path` arguments instead of hardcoded dataset paths; the native verifier invokes one fixed path set only.
+    rationale: The instruction forbids hardcoded paths and requires these argparse parameters, but the released verifier exercises exactly one command with fixed `/app/...` paths.
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: If `/app/convert_masks.py` is retained, does it wire the four argparse options into actual file reads, writes, and model-loading calls rather than substituting fixed paths?
+      support:
+      - official/instruction.md::1-35
+      - official/tests/test_outputs.py::test_run_script
+    - artifact: agent/trajectory.json
+      question: If final script bytes are missing, does the trajectory show the implementation using the CLI-provided paths rather than hardcoded test filenames?
+      support:
+      - official/instruction.md::1-35
+      - official/tests/test_outputs.py::test_run_script
+    support:
+    - official/instruction.md::1-35
+    - official/tests/test_outputs.py::test_run_script

@@ -1,0 +1,110 @@
+case_unit_id: regex-chess
+domain: terminal_bench_2_1
+native:
+  benchmark_success:
+    support:
+    - official/tests/test.sh::18-29
+    - official/tests/test_outputs.py::verify_legal_moves
+    - official/tests/test_outputs.py::test_immortal_game
+    - official/tests/test_outputs.py::test_game_of_century
+    - official/tests/test_outputs.py::test_naroditsky_ivanchuk
+    - official/tests/test_outputs.py::test_not_long
+    text: 'Native success means the uvx/pytest command run by the official verifier returns status zero: `test_immortal_game`, `test_game_of_century`, and `test_naroditsky_ivanchuk` all pass `verify_legal_moves` on every exercised position under its released comparison rule, and `test_not_long` passes its parsing, byte-length, and pair-count checks.'
+  checked_by:
+    support:
+    - official/tests/test.sh::18-29
+    - official/task.toml::[verifier].timeout_sec
+    text: Official verifier `official/tests/test.sh`, which runs `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA` through uvx and is subject to the configured 3600-second verifier timeout.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the CTRF report establish pass/fail/error status for `test_immortal_game`, `test_game_of_century`, `test_naroditsky_ivanchuk`, and `test_not_long`?
+    support:
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::test_immortal_game
+    - official/tests/test_outputs.py::test_game_of_century
+    - official/tests/test_outputs.py::test_naroditsky_ivanchuk
+    - official/tests/test_outputs.py::test_not_long
+  - artifact: verifier/test-stdout.txt
+    question: Does the verifier transcript establish a zero-status completed suite or identify a move-generation assertion, tested position, size-limit assertion, setup/invocation failure, termination, or timeout?
+    support:
+    - official/tests/test.sh::1-29
+    - official/tests/test_outputs.py::verify_legal_moves
+    - official/tests/test_outputs.py::test_not_long
+    - official/task.toml::[verifier].timeout_sec
+  - artifact: verifier/test-stderr.txt
+    question: Does verifier stderr establish a pytest/setup/invocation error, nonzero command outcome, termination, or configured-timeout failure not completely represented in CTRF or stdout?
+    support:
+    - official/tests/test.sh::1-29
+    - official/task.toml::[verifier].timeout_sec
+  fail_if:
+  - support:
+    - official/tests/test.sh::18-29
+    - official/tests/test_outputs.py::run_solution
+    - official/tests/test_outputs.py::verify_legal_moves
+    - official/tests/test_outputs.py::test_not_long
+    text: Retained non-label evidence establishes that the uvx/pytest command returned nonzero because any official test failed or errored, including a rejected generated move, a generated-list-length mismatch, invalid or unreadable `/app/re.json`, or a failed size or pair-count assertion.
+  - support:
+    - official/tests/test.sh::1-29
+    - official/task.toml::[verifier].timeout_sec
+    text: Retained non-label evidence establishes that verifier setup or invocation failed, or that the verifier was terminated or exceeded its configured 3600-second timeout before a zero-status completion of the official uvx/pytest command.
+  success_if:
+  - support:
+    - official/tests/test.sh::18-29
+    - official/tests/test_outputs.py::test_immortal_game
+    - official/tests/test_outputs.py::test_game_of_century
+    - official/tests/test_outputs.py::test_naroditsky_ivanchuk
+    - official/tests/test_outputs.py::test_not_long
+    text: Retained non-label verifier evidence establishes that the official uvx/pytest command completed with status zero and all four collected tests passed.
+  - support:
+    - official/tests/test_outputs.py::run_solution
+    - official/tests/test_outputs.py::verify_legal_moves
+    - official/tests/test_outputs.py::test_not_long
+    text: For the three PGN tests, the passing evidence means every generated output on each exercised position satisfied the evaluator's membership-or-en-passant-fallback rule and the generated list length equaled the python-chess legal-successor set size after excluding underpromotions; for `test_not_long`, it means `/app/re.json` parsed as JSON, occupied fewer than 10e6 characters as read by the test, and contained fewer than 1e5 entries.
+  undecided_if:
+  - rationale: U is limited to evidentiary insufficiency. A conclusively retained ordinary verifier failure remains F even when CTRF is absent or the test suite did not finish.
+    text: The retained non-label evidence is missing or too incomplete to establish either a zero-status completion of the official uvx/pytest command or a concrete nonzero, test, setup, invocation, termination, or timeout failure.
+  user_goal:
+    support:
+    - official/instruction.md::1-27
+    text: Produce `/app/re.json` as a JSON list of `[regex, replacement]` pairs under 100,000 pairs and under 10 MB that, when applied sequentially to white-to-move FEN strings, returns all legal next FEN positions with queen-only promotion, correct castling-right tracking, and en-passant handling; halfmove and fullmove counts may be incorrect.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: artifacts/**
+      question: Does a retained final `/app/re.json` permit replay over the source-defined official PGN positions and strict comparison for exact, duplicate-free four-field successor-set equality?
+      support:
+      - official/instruction.md::1-8
+      - official/tests/test_outputs.py::run_solution
+      - official/tests/test_outputs.py::do_test_game
+      - official/tests/test_outputs.py::verify_legal_moves
+    - artifact: verifier/test-stdout.txt
+      question: Does the retained transcript expose the exact official FEN positions exercised, so a retained solution can be replayed over the same native scope?
+      support:
+      - official/tests/test_outputs.py::verify_legal_moves
+      - official/tests/test_outputs.py::do_test_game
+    id: exact-tested-successor-set
+    rationale: The official task requires all possible legal next positions and the README describes no more and no fewer. Native `verify_legal_moves` instead checks membership of each list element plus list length, so duplicates can mask omitted legal successors, and it accepts some outputs after forcing the en-passant field to `-`. Thus duplicate-free exact set equality and exact en-passant values are not fully operationalized.
+    support:
+    - official/instruction.md::1-27
+    - official/README.md::Verification
+    - official/tests/test_outputs.py::verify_legal_moves
+    text: Beyond native scoring, for every FEN exercised by the three official PGN tests, `/app/re.json` should output exactly one occurrence of every legal queen-promotion-only successor and no other successor, with exact board, side-to-move, castling-right, and en-passant fields; halfmove and fullmove counters remain exempt.
+  - decisive_artifacts:
+    - artifact: artifacts/**
+      question: Does a retained final `/app/re.json` permit semantic analysis or replay against the source-defined chess oracle over supported white-to-move positions beyond the three fixed PGNs?
+      support:
+      - official/instruction.md::1-27
+      - official/tests/test_outputs.py::run_solution
+      - official/tests/test_outputs.py::verify_legal_moves
+    id: full-supported-input-domain
+    rationale: The official instruction requires a fully correct move generator and states that other positions will be used, while the released verifier operationalizes only positions drawn from three fixed PGNs. Passing that finite suite therefore does not measure correctness on supported positions outside it.
+    support:
+    - official/instruction.md::1-27
+    - official/README.md::Overview
+    - official/README.md::What This Task Tests
+    - official/tests/test_outputs.py::test_immortal_game
+    - official/tests/test_outputs.py::test_game_of_century
+    - official/tests/test_outputs.py::test_naroditsky_ivanchuk
+    text: Beyond the finite native suite, `/app/re.json` should implement the same exact, duplicate-free legal-successor behavior for every supported valid white-to-move FEN, including castling with correct rights, queen-only promotion, and en-passant; only halfmove and fullmove counters are exempt.
+task_id: terminal-bench/regex-chess

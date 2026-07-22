@@ -1,0 +1,79 @@
+{
+  "case_unit_id": "miniwob.enter-text-2",
+  "excerpts": {
+    "base_validator": {
+      "class_name": "AbstractMiniwobTask",
+      "methods": {
+        "_get_goal": {
+          "content": "    def _get_goal(self) -> str:\n        response = self.page.evaluate(r\"\"\"() => core.getUtterance()\"\"\")\n        if isinstance(response, dict):\n            goal = response[\"utterance\"]\n        else:\n            goal = response\n        return goal",
+          "end_line": 156,
+          "fallback": false,
+          "start_line": 150
+        },
+        "_get_info": {
+          "content": "    def _get_info(self) -> dict:\n        (\n            REWARD_GLOBAL,\n            RAW_REWARD_GLOBAL,\n            REWARD_REASON,\n            DONE_GLOBAL,\n            EPISODE_ID,\n            TASK_READY,\n        ) = self.page.evaluate(\n            r\"\"\"() => [WOB_REWARD_GLOBAL, WOB_RAW_REWARD_GLOBAL, WOB_REWARD_REASON, WOB_DONE_GLOBAL, WOB_EPISODE_ID, WOB_TASK_READY]\"\"\"\n        )\n        info = {\n            \"REWARD_GLOBAL\": REWARD_GLOBAL,\n            \"RAW_REWARD_GLOBAL\": RAW_REWARD_GLOBAL,\n            \"REWARD_REASON\": REWARD_REASON,\n            \"DONE_GLOBAL\": DONE_GLOBAL,\n            \"EPISODE_ID\": EPISODE_ID,\n            \"TASK_READY\": TASK_READY,\n        }\n        return info",
+          "end_line": 177,
+          "fallback": false,
+          "start_line": 158
+        },
+        "validate": {
+          "content": "    def validate(\n        self, page: playwright.sync_api.Page, chat_messages: list[str]\n    ) -> Tuple[float, bool, str, dict]:\n        if page != self.page:\n            return 0, True, \"\", {\"error\": \"invalid page, terminating task\"}\n        if page.url != self.url:\n            return 0, True, \"\", {\"error\": \"invalid url, terminating task\"}\n\n        info = self._get_info()\n        reward = float(info[\"RAW_REWARD_GLOBAL\"] > 0)  # TODO: shouldn't it be 0.5?\n        done = info[\"DONE_GLOBAL\"]\n        msg = \"\"\n        return reward, done, msg, info",
+          "end_line": 191,
+          "fallback": false,
+          "start_line": 179
+        }
+      }
+    },
+    "core_reward_wiring": {
+      "content": "var WOB_REWARD_GLOBAL = 0; // what was reward in previous iteration?\nvar WOB_RAW_REWARD_GLOBAL = 0; // reward without time penalty\nvar WOB_REWARD_REASON = null; // reason for the reward\nvar WOB_DONE_GLOBAL = false; // a done indicator\nvar WOB_EPISODE_ID = 0; // number of episodes done so far\nvar WOB_TASK_READY = true; // override this to show that the task is not ready yet\ncore.EPISODE_MAX_TIME = 10000; // in ms. Set default time to 10s.\n\n\ncore.endEpisode = function(reward, time_proportional, reason) {\n  // stop timer and set to null, so that only one event gets rewarded\n  // for any given episode.\n  if(core.EP_TIMER !== null) {\n    clearTimeout(core.EP_TIMER);\n    core.EP_TIMER = null;\n  } else {\n    // if timer is null, don't reward anything and exit out.\n    return;\n  }\n\n  WOB_RAW_REWARD_GLOBAL = reward;\n  WOB_REWARD_REASON = reason;\n\n  // adjust reward based on time, so acting early is encouraged\n  var ept1 = new Date().getTime(); // get system time\n  if(typeof time_proportional === 'undefined') { time_proportional = false; }\n  if(time_proportional) {\n    var dt = ept1 - core.ept0; // difference in ms since start of ep\n    reward = reward * Math.max(0, 1.0 - dt/core.EPISODE_MAX_TIME);\n  }\n\n  WOB_REWARD_GLOBAL = reward; // add to global, to be accessed from Python\n  WOB_DONE_GLOBAL = true;\n  WOB_EPISODE_ID++;\n  document.getElementById('episode-id').innerHTML = WOB_EPISODE_ID;\n  console.log('reward: ' + WOB_REWARD_GLOBAL + ' (raw: ' + WOB_RAW_REWARD_GLOBAL + ')');\n  core.updateDisplay(reward);\n  core.clearTimer();\n\n  // start a new problem with a new timer. add a slight delay so that the problem\n  // isn't generated immediately, which can lead to accidental clicking.\n  //setTimeout(function(){\n  //  core.startEpisode();\n  //}, 500);\n\n  // With the sync screen, the timeout above is redundant\n  core.startEpisode();\n}",
+      "end_line": 144,
+      "fallback": false,
+      "non_contiguous": true,
+      "segments": [
+        {
+          "end_line": 51,
+          "start_line": 44
+        },
+        {
+          "end_line": 144,
+          "start_line": 106
+        }
+      ],
+      "start_line": 44
+    },
+    "task_class": {
+      "content": "class EnterText2Task(AbstractMiniwobTask):\n    desc = \"Convert given text to upper or lower case.\"\n    subdomain = \"enter-text-2\"",
+      "end_line": 398,
+      "fallback": false,
+      "start_line": 396
+    }
+  },
+  "extraction": {
+    "contains_agent_outcomes": false,
+    "method": "deterministic exact line excerpts from byte-pinned raw_case files"
+  },
+  "schema_version": "miniwob_official_source_excerpts/v1",
+  "source_inventory": {
+    "base_validator": {
+      "byte_count": 6322,
+      "path": "official/python/browsergym/miniwob/base.py",
+      "sha256": "4d7b82b7b63403a9774969f4166ab858243bef381335ae1af3ced345e66552ab"
+    },
+    "core_reward_wiring": {
+      "byte_count": 22274,
+      "path": "official/install/miniwob/html/core/core.js",
+      "sha256": "db8f489ab947a3194b99e718bce5e59ea9aaf0a3c35410d8c9c79e56e6123d14"
+    },
+    "task_class": {
+      "byte_count": 19080,
+      "path": "official/python/browsergym/miniwob/all.py",
+      "sha256": "25c6ed2960494808e12d5a178290289e63f81eee328a0f47b384a66d53531b98"
+    },
+    "task_html": {
+      "byte_count": 1962,
+      "path": "official/install/miniwob/html/miniwob/enter-text-2.html",
+      "sha256": "eb1ba64e22267689c82f10561e4a8e839c0ad134266f2f95efcc939f4e01e4fc"
+    }
+  },
+  "task_id": "miniwob.enter-text-2"
+}

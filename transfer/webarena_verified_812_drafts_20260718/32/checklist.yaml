@@ -1,0 +1,66 @@
+schema_version: case_checklist_v1
+case_unit_id: '32'
+domain: webarena_verified
+task_id: '32'
+native:
+  user_goal:
+    text: Find an available Hilton hotel near Pittsburgh Airport and return only its name and the walking distance to the nearest locally owned supermarket, using the OSRM direction service.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0. Because task 32 has one AgentResponseEvaluator, its score must be 1.0: the normalized response must match RETRIEVE, SUCCESS, and the configured unordered singleton hotel-and-distance result.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator parses the submitted response, normalizes retrieved data with the configured location-name and distance schema, compares it recursively with ordered=false, and supplies the sole score aggregated by TaskEvalResult.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - derived/task.json::eval[0].results_schema
+    - derived/task.json::eval[0].ordered
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted response, under the official parsing and normalization rules, contain task_type RETRIEVE, status SUCCESS, and exactly the unordered singleton result DoubleTree by Hilton Hotel Pittsburgh Airport with distance matching 2km?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: 'The sole AgentResponseEvaluator returns score 1.0 and therefore TaskEvalResult is success with score 1.0: task_type and status match RETRIEVE and SUCCESS, and retrieved_data matches, after schema normalization and unordered comparison, [{"hotel":"DoubleTree by Hilton Hotel Pittsburgh Airport","distance":"2km"}] with no missing or extra result items.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The native claim fails if the sole evaluator or task result has score 0.0 or error, including when the submitted value is unparseable or non-structured, task_type or status is missing or mismatched, retrieved_data is missing or null, or its normalized items differ from the configured singleton result through missing, extra, or mismatched content.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_recursive
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The submitted response was not retained or is truncated, and no retained official evaluator result preserves enough actual or normalized-actual data to resolve the sole evaluator outcome.
+    rationale: This is missing review evidence; a response actually submitted as null, empty, or malformed is an ordinary native failure rather than undecided.
+stronger:
+  additional_conditions:
+  - id: verify_osrm_walking_route
+    text: Beyond native success, retained evidence must show a successful OSRM walking-route request between the reported hotel and the selected supermarket, with a returned route distance supporting the reported value.
+    rationale: The task explicitly requires OSRM, but the sole scoring evaluator compares the agent response and specifies no NetworkEventEvaluator check for OSRM use; a matching answer alone therefore does not establish compliance with that method requirement.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the trace contain a successful OSRM direction-service request for a walking route whose endpoints correspond to the reported hotel and selected supermarket, and whose returned distance supports the reported value?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - artifact: agent_response.json
+      question: What hotel and distance were reported for comparison with the OSRM route retained in network.har?
+      support:
+      - derived/task.json::eval[0].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value

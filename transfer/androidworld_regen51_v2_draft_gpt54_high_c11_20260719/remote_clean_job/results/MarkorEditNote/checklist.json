@@ -1,0 +1,147 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "MarkorEditNote",
+  "domain": "androidworld",
+  "task_id": "MarkorEditNote",
+  "native": {
+    "user_goal": {
+      "text": "Edit the specified Markor note according to the selected branch: add the given text at the top, add the given text at the bottom, or replace the note text.",
+      "support": [
+        "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.template",
+        "derived/canonical_task_semantics.json::goal.branches"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success requires both runner completion (`done=true`) and `MarkorEditNote.is_successful(env)==1.0`; that evaluator reads the target note file, strips CR and edge newlines, reconstructs the branch-specific expected content, and accepts a fuzzy match.",
+      "support": [
+        "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.is_successful",
+        "official/install/android_world/suite_utils.py::_run_task",
+        "official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match"
+      ]
+    },
+    "checked_by": {
+      "text": "Checked by the AndroidWorld runner completion gate in `_run_task` plus `MarkorEditNote.is_successful`, which `cat`s the target file under Markor storage and compares it with the branch-specific expected content via `fuzzy_match_lib.fuzzy_match`.",
+      "support": [
+        "official/install/android_world/suite_utils.py::_run_task",
+        "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.is_successful",
+        "official/install/android_world/env/device_constants.py::MARKOR_DATA"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "Task instance spec",
+        "question": "What are `file_name`, `edit_type`, and the selected edit text field for this run (`header`, `footer`, or `replace_text`)?",
+        "support": [
+          "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.schema",
+          "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.template"
+        ]
+      },
+      {
+        "artifact": "Initialization evidence for the target note",
+        "question": "For `header` or `footer` runs, what original content was written to the target note before agent actions began?",
+        "support": [
+          "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.initialize_task",
+          "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.is_successful"
+        ]
+      },
+      {
+        "artifact": "Post-run target note contents",
+        "question": "What are the final stripped contents of the target file in `/storage/emulated/0/Documents/Markor/{file_name}`?",
+        "support": [
+          "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.is_successful",
+          "official/install/android_world/env/device_constants.py::MARKOR_DATA"
+        ]
+      },
+      {
+        "artifact": "Episode completion evidence",
+        "question": "Did the episode finish with `done=true`, rather than ending unfinished or timing out?",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Retained execution evidence shows `done=true`.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task"
+        ]
+      },
+      {
+        "text": "The final stripped target note contents fuzzy-match the branch-selected expected content under `MarkorEditNote.is_successful`: `header + \"\\n\" + original_content` for `header`, `original_content + \"\\n\" + footer` for `footer`, or `replace_text` for `replace`; for `header` and `footer`, the retained evidence includes the initialized `original_content` needed to reconstruct that expectation.",
+        "support": [
+          "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.is_successful",
+          "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.initialize_task",
+          "official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Retained execution evidence shows `done=false`.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task"
+        ]
+      },
+      {
+        "text": "Retained execution evidence shows `done=true`, the expected content can be reconstructed from the task inputs and any needed initialized `original_content`, and the target note file is missing or its final stripped contents do not fuzzy-match the branch-selected expected content used by `MarkorEditNote.is_successful`.",
+        "support": [
+          "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.is_successful",
+          "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.initialize_task",
+          "official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The retained evidence does not establish the completion gate, or does not preserve the task inputs needed to know the active branch/text, or for a `header`/`footer` run does not preserve the initialized `original_content`, or does not preserve a usable final target-file snapshot/cat output; likewise, an exception/NaN record without underlying trace/file evidence is undecided.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task",
+          "official/install/android_world/suite_utils.py::_create_failed_result",
+          "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.initialize_task",
+          "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.is_successful"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "exact_content_not_fuzzy",
+        "text": "Stronger than native: require the final target note content to equal the branch-selected expected string exactly, not merely pass the evaluator's fuzzy-match threshold.",
+        "rationale": "The task text specifies a concrete edit to the note, but native scoring accepts approximate matches because `MarkorEditNote.is_successful` calls `fuzzy_match_lib.fuzzy_match`, whose threshold is `_MIN_DIFF_SIMILARITY = 0.9`, after stripping the retrieved file contents.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Task instance spec",
+            "question": "What are `edit_type`, `file_name`, and the selected edit text field for this run?",
+            "support": [
+              "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.schema",
+              "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.template"
+            ]
+          },
+          {
+            "artifact": "Initialization evidence for the target note",
+            "question": "For `header` or `footer` runs, what exact original content was written to the target note before agent actions?",
+            "support": [
+              "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.initialize_task"
+            ]
+          },
+          {
+            "artifact": "Exact post-run target note bytes/text",
+            "question": "What exact final content does the target Markor note contain after the run?",
+            "support": [
+              "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.is_successful",
+              "official/install/android_world/env/device_constants.py::MARKOR_DATA"
+            ]
+          }
+        ],
+        "support": [
+          "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.template",
+          "official/install/android_world/task_evals/single/markor.py::MarkorEditNote.is_successful",
+          "official/install/android_world/utils/fuzzy_match_lib.py::_MIN_DIFF_SIMILARITY",
+          "official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match"
+        ]
+      }
+    ]
+  }
+}

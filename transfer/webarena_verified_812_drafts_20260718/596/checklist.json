@@ -1,0 +1,111 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "596",
+  "domain": "webarena_verified",
+  "task_id": "596",
+  "native": {
+    "user_goal": {
+      "text": "Subscribe to the \"books\" forum from the page of that forum's all-time top post.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0, requiring both configured evaluator scores to equal 1.0: AgentResponseEvaluator must parse and normalize the response as task_type MUTATE with status SUCCESS, and NetworkEventEvaluator must accept the last qualifying POST to either configured books subscription endpoint with the configured all-time-top-post Referer, HTTP 200, and response content subscribed=true.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The official WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator and NetworkEventEvaluator; TaskEvalResult.create assigns success only when every evaluator score is 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "After the released response parser and normalizer, does the response match task_type=MUTATE and status=SUCCESS without an evaluation error?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Among evaluation events matching a configured books subscribe/unsubscribe URL, POST method, and configured top-post Referer, does the last such event have HTTP 200 and parsed response content subscribed=true?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff agent_response.json passes AgentResponseEvaluator as MUTATE/SUCCESS and network.har passes NetworkEventEvaluator on the configured endpoint, Referer, status, and subscribed=true checks, so both evaluator scores equal 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either official check fails or errors: the response does not normalize to MUTATE/SUCCESS, or the HAR has no accepted last qualifying event or that event mismatches the configured Referer, endpoint, POST method, HTTP 200 status, or subscribed=true response. Any evaluator score below 1.0 makes the task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only if retention loss or corruption leaves agent_response.json or network.har unavailable enough that the corresponding evaluator input cannot be reconstructed; a retained input that is itself malformed or nonmatching is a native failure.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "final_subscription_state",
+        "text": "Require retained end-of-run Reddit state to show that the authenticated account remains subscribed to the books forum.",
+        "rationale": "The task requests a subscription state, while the released native evaluator checks a selected network event and its immediate subscribed=true response rather than persistent state at run end; a later state change outside its event filter could therefore go undetected.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Reddit account/forum state snapshot",
+            "question": "Does retained end-of-run state for the authenticated account show the books forum as subscribed?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].last_event_only",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+        ]
+      }
+    ]
+  }
+}

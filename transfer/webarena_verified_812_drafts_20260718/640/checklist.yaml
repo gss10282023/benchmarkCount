@@ -1,0 +1,61 @@
+schema_version: case_checklist_v1
+case_unit_id: '640'
+domain: webarena_verified
+task_id: '640'
+native:
+  user_goal:
+    text: Post a notice in f/books titled "book reading Meet up!" with details "virtual meetup for book reading on March 15th".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 iff both configured evaluator scores are 1.0: AgentResponseEvaluator accepts the normalized MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the last matching POST to either Reddit submit URL with response status 302 and the configured forum, title, and body form values.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then TaskEvalResult.create applies the all-evaluators-must-pass composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the stored response pass AgentResponseEvaluator's normalized structural comparison to the configured MUTATE/SUCCESS expectation, with no retrieved result required?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the last POST event matching /submit or /submit/books have response status 302 and form values submission[forum]=10037, submission[title]="book reading Meet up!", and submission[body]="virtual meetup for book reading on March 15th"?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks score 1.0: the agent response passes the MUTATE/SUCCESS comparison and the HAR''s last matching submit POST satisfies every configured URL, method, form-value, and response-status criterion; their all-of composition therefore yields task score 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: With evaluable artifacts, failure is established if the response check mismatches or errors, if no qualifying submit POST exists, if the last matching submit POST mismatches any configured criterion, or if either evaluator errors; any such result makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable if agent_response.json or network.har was not retained, or is too incomplete to apply its corresponding official check.
+    rationale: The two configured evaluator outcomes cannot both be reconstructed without usable retained inputs for the response and network-event checks.
+stronger:
+  additional_conditions:
+  - id: persisted_reddit_post
+    text: A retained post-run Reddit post record or rendered post page confirms that f/books contains a post with the exact requested title and body.
+    rationale: The instruction requires an actual post, while the native network check requires only a matching submission request and HTTP 302; it does not inspect the redirect target, response content, or persisted Reddit state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit post record or rendered post page
+      question: Does it show a post in f/books titled "book reading Meet up!" with body "virtual meetup for book reading on March 15th"?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

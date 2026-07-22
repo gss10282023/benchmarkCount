@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+  echo "neurips-score-claude-login must run as root." >&2
+  exit 2
+fi
+
+claude_bin=/usr/local/bin/claude
+service_home=/srv/neurips-draft/home
+if [[ ! -x $claude_bin ]]; then
+  echo "Claude Code is not installed at $claude_bin; rerun install_runtime.sh." >&2
+  exit 2
+fi
+
+run_as_service() {
+  sudo -H -u draftsvc \
+    env \
+      -u ANTHROPIC_API_KEY \
+      -u ANTHROPIC_AUTH_TOKEN \
+      -u ANTHROPIC_BASE_URL \
+      -u CLAUDE_CODE_USE_BEDROCK \
+      -u CLAUDE_CODE_USE_VERTEX \
+      -u CLAUDE_CODE_USE_FOUNDRY \
+      DISABLE_AUTOUPDATER=1 \
+      PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+      "$@"
+}
+
+if [[ ${1:-} == "--status" && $# -eq 1 ]]; then
+  status_json=$(run_as_service "$claude_bin" auth status --json)
+  printf '%s\n' "$status_json"
+  exec /opt/neurips-draft/venv/bin/python -c '
+import json
+import sys
+
+status = json.load(sys.stdin)
+if status.get("loggedIn") is not True:
+    raise SystemExit("Claude Code is not logged in")
+if status.get("authMethod") != "claude.ai":
+    raise SystemExit("Claude Code must use Claude subscription login auth")
+' <<<"$status_json"
+fi
+
+if [[ $# -ne 0 ]]; then
+  echo "Usage: neurips-score-claude-login [--status]" >&2
+  exit 2
+fi
+
+install -d -m 0700 -o draftsvc -g draftsvc "$service_home/.claude"
+run_as_service "$claude_bin" auth login --claudeai

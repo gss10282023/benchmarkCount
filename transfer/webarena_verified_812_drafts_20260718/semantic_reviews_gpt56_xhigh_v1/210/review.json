@@ -1,0 +1,234 @@
+{
+  "decision": "revise",
+  "checklist_items": [
+    {
+      "id": "identity_and_scope",
+      "status": "pass",
+      "rationale": "The domain, case unit id, and task id all match case 210, and the checklist remains case-specific.",
+      "evidence": [
+        "case_packet.md::Case Metadata",
+        "checklist.yaml::domain",
+        "checklist.yaml::case_unit_id",
+        "checklist.yaml::task_id"
+      ]
+    },
+    {
+      "id": "native_user_goal",
+      "status": "pass",
+      "rationale": "The user goal faithfully preserves the request to find the customer identified by phone number and return the customer's name and email as a list of objects.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::official instruction",
+        "derived/task.json::intent",
+        "checklist.yaml::native.user_goal"
+      ]
+    },
+    {
+      "id": "official_evaluator_semantics",
+      "status": "fail",
+      "rationale": "The expected values, schema, unordered comparison, and sparse omission of error_details are otherwise handled correctly, but fail_if says a missing task_type is failure without accounting for the released performed_operation fallback when task_type is absent.",
+      "evidence": [
+        "checklist.yaml::native.fail_if[0].text",
+        "derived/tag_task.json::eval[0].expected",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+        "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse.task_type"
+      ]
+    },
+    {
+      "id": "evaluator_composition",
+      "status": "pass",
+      "rationale": "The checklist identifies exactly one AgentResponseEvaluator and correctly requires its score to equal 1.0 for the task score to equal 1.0; evaluator errors are treated as failure.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::evaluator sequence",
+        "derived/task.json::eval",
+        "checklist.yaml::native.checked_by",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    {
+      "id": "decisive_post_run_evidence",
+      "status": "pass",
+      "rationale": "Complete agent_response.json is sufficient for the sole response-based configured check. The retained network trace is not needed to compare this case's name/email response values.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::evaluator sequence",
+        "checklist.yaml::native.decisive_artifacts",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+      ]
+    },
+    {
+      "id": "decision_rules",
+      "status": "fail",
+      "rationale": "The failure rule can misclassify a complete, score-valid response that supplies RETRIEVE through the supported performed_operation legacy field while omitting task_type.",
+      "evidence": [
+        "checklist.yaml::native.fail_if[0].text",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+      ]
+    },
+    {
+      "id": "source_support_pointers",
+      "status": "pass",
+      "rationale": "All cited paths, evaluator methods, fields, and expected values appear in the packet; no invented source or evaluator is referenced.",
+      "evidence": [
+        "case_packet.md::Source Inventory",
+        "checklist.yaml::native.benchmark_success.support",
+        "checklist.yaml::stronger.additional_conditions[0].support"
+      ]
+    },
+    {
+      "id": "stronger_conditions",
+      "status": "pass",
+      "rationale": "The additional condition measurably requires the raw retrieved_data representation to be an array, which is stricter than the released coercion of a singleton object or object-encoding string and is supported by the official list-shaped request and response type.",
+      "evidence": [
+        "checklist.yaml::stronger.additional_conditions[0]",
+        "derived/task.json::intent",
+        "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse.retrieved_data",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data"
+      ]
+    },
+    {
+      "id": "minimality_and_no_run_leakage",
+      "status": "fail",
+      "rationale": "The checklist is compact and contains no run leakage, but it does not preserve the decisive legacy task-type alias semantics consistently because fail_if treats literal task_type absence as failure.",
+      "evidence": [
+        "checklist.yaml::native.fail_if[0].text",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+      ]
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "legacy-task-type-semantics",
+      "checklist_item_id": "official_evaluator_semantics",
+      "message": "The native failure rule omits the released performed_operation fallback and therefore rejects some responses the evaluator can score as successful.",
+      "required_change": "State that task_type is selected when present, with performed_operation accepted as the legacy fallback only when task_type is absent.",
+      "evidence": [
+        "checklist.yaml::native.fail_if[0].text",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+      ]
+    },
+    {
+      "id": "legacy-alias-decision-rule",
+      "checklist_item_id": "decision_rules",
+      "message": "The current fail_if rule makes absence of the literal task_type key an unconditional failure, contrary to evaluator behavior.",
+      "required_change": "Rewrite fail_if so failure occurs when the evaluator-selected task-type field—task_type when present, otherwise performed_operation—is missing, invalid, or mismatched.",
+      "evidence": [
+        "checklist.yaml::native.fail_if[0].text",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+      ]
+    },
+    {
+      "id": "preserve-alias-in-native-rules",
+      "checklist_item_id": "minimality_and_no_run_leakage",
+      "message": "A decisive parsing rule is not represented consistently across the native success and failure rules.",
+      "required_change": "Add the legacy alias selection rule concisely to benchmark_success, the artifact question, success_if, and fail_if without adding run-specific material.",
+      "evidence": [
+        "checklist.yaml::native.benchmark_success.text",
+        "checklist.yaml::native.success_if[0].text",
+        "checklist.yaml::native.fail_if[0].text",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+      ]
+    }
+  ],
+  "revised_checklist": {
+    "native": {
+      "user_goal": {
+        "text": "Get the name and email of the customer with phone number 2065555555 and return them as a list of objects with name and email keys.",
+        "support": [
+          "derived/task.json::intent"
+        ]
+      },
+      "benchmark_success": {
+        "text": "TaskEvalResult.score is 1.0 iff the sole AgentResponseEvaluator scores 1.0. Under the released parser and normalizer, the evaluator-visible response must be a mapping whose selected task-type field is task_type when present or legacy performed_operation when task_type is absent, and it must normalize to RETRIEVE; status must normalize to SUCCESS; and retrieved_data must schema-normalize to an unordered singleton collection exactly containing the name Adam Garcia and email gamingpro456@gmail.com object. The sparse expected configuration explicitly checks task_type, status, and retrieved_data, not error_details; other extra top-level response keys are ignored. No comparison assertion or evaluator error may occur.",
+        "support": [
+          "derived/tag_task.json::eval[0]",
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "checked_by": {
+        "text": "The released WebArenaVerifiedEvaluator runs exactly the configured AgentResponseEvaluator. It parses the submitted response, normalizes only the fields explicitly configured in the sparse expected response, applies the results schema and unordered retrieved-data comparison, and assigns task score 1.0 only when the sole evaluator score equals 1.0.",
+        "support": [
+          "derived/tag_task.json::eval[0]",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "decisive_artifacts": [
+        {
+          "artifact": "agent_response.json",
+          "question": "Does the complete retained submitted response, processed under the released parser and normalizer, select task_type or its performed_operation fallback as RETRIEVE, normalize status to SUCCESS, and normalize retrieved_data to the unordered exact singleton Adam Garcia/gamingpro456@gmail.com object without an evaluator-visible mismatch or error?",
+          "support": [
+            "derived/task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+          ]
+        }
+      ],
+      "success_if": [
+        {
+          "text": "The complete submitted response produces no AgentResponseEvaluator assertion or error: its selected task-type field—task_type when present, otherwise performed_operation—normalizes to RETRIEVE, status normalizes to SUCCESS, and retrieved_data schema-normalizes to an unordered exact singleton object with name Adam Garcia and email gamingpro456@gmail.com. The sole evaluator score and task score are therefore 1.0.",
+          "support": [
+            "derived/task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "fail_if": [
+        {
+          "text": "A complete submitted response is native failure if released evaluation yields a non-1.0 score: the response is null, empty, or not evaluator-visible as a mapping; the selected task-type field (task_type when present, otherwise performed_operation) is missing, invalid, or does not normalize to RETRIEVE; status is missing, invalid, or does not normalize to SUCCESS; retrieved_data is missing, null, or normalizes to different, missing, or extra collection elements, object keys, or values; or parsing, normalization, comparison, or evaluation errors occur. Extra unconfigured top-level fields alone, including error_details, are not failure.",
+          "support": [
+            "derived/tag_task.json::eval[0].expected",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_recursive",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "undecided_if": [
+        {
+          "text": "The retained agent_response.json is missing, truncated, unreadable, or provenance-ambiguous, so the response actually supplied to the evaluator cannot be reconstructed.",
+          "rationale": "Without the complete retained submitted response, the sole response-based evaluator outcome cannot be independently reconstructed."
+        }
+      ]
+    },
+    "stronger": {
+      "additional_conditions": [
+        {
+          "id": "literal-retrieved-data-array",
+          "text": "Require the submitted retrieved_data value itself to be a JSON array containing one object with exactly the name and email keys, rather than a singleton object or an object-encoding string accepted through evaluator coercion.",
+          "rationale": "The official instruction and public response type require a list. Native normalization wraps a non-list or non-tuple value into a singleton collection and can subsequently parse a string encoding an object; the added stronger requirement is the raw array shape, while the exact element keys and values remain the native baseline.",
+          "decisive_artifacts": [
+            {
+              "artifact": "agent_response.json",
+              "question": "Before evaluator coercion, is retrieved_data a JSON array whose sole element is an object with exactly the name and email keys?",
+              "support": [
+                "derived/task.json::intent",
+                "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse.retrieved_data",
+                "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data",
+                "official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer._normalize_object"
+              ]
+            }
+          ],
+          "support": [
+            "derived/task.json::intent",
+            "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse.retrieved_data",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data",
+            "official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer._normalize_object"
+          ]
+        }
+      ]
+    }
+  }
+}

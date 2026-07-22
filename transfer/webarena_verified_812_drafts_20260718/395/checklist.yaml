@@ -1,0 +1,67 @@
+schema_version: case_checklist_v1
+case_unit_id: '395'
+domain: webarena_verified
+task_id: '395'
+native:
+  user_goal:
+    text: Fork the PyTorch GAN repository with the most stars.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: TaskEvalResult.score is 1.0 only when both the AgentResponseEvaluator and NetworkEventEvaluator scores are 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks the final response, NetworkEventEvaluator checks the recorded GitLab request and response, and TaskEvalResult.create combines their scores with logical AND.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response pass official parsing, normalization, and structural comparison for task_type MUTATE, status SUCCESS, and retrieved_data normalized to null for this mutate task?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the evaluator-selected last matching event pass comparison as a POST to __GITLAB__/api/v4/projects/86/fork with response status 201 and post data id 86, name PyTorch-GAN, namespace_id 2505, and path PyTorch-GAN?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success only if the final response passes AgentResponseEvaluator and the evaluator-selected last matching HAR event passes NetworkEventEvaluator against every configured request and response criterion.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Failure if either official check scores 0.0 or errors: the response fails its normalized comparison, or the HAR lacks a qualifying event or its selected last event mismatches any configured URL, method, response-status, or post-data criterion.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only if agent_response.json or network.har was not retained or is truncated so that one of the two official comparisons cannot be reconstructed; retained, evaluable evidence that mismatches is failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: persistent_fork_state
+    text: A retained post-run GitLab state record confirms that namespace 2505 contains PyTorch-GAN as a fork explicitly linked to source project 86.
+    rationale: The native evaluator accepts a matching POST with status 201 but does not require response content or inspect persistent GitLab state, while the task intent is to create a fork.
+    decisive_artifacts:
+    - artifact: post-run GitLab project-state record
+      question: Does the retained state show PyTorch-GAN in namespace 2505 with an explicit fork-source link to project 86?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

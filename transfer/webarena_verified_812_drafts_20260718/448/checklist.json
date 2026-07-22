@@ -1,0 +1,131 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "448",
+  "domain": "webarena_verified",
+  "task_id": "448",
+  "native": {
+    "user_goal": {
+      "text": "Set the homepage URL on the user's GitLab profile to https://egg.tart.com.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the last qualifying profile-update event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator checks agent_response.json; NetworkEventEvaluator checks network.har; TaskEvalResult.create requires every evaluator score to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and normalize to task_type MUTATE and status SUCCESS under AgentResponseEvaluator?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last POST event matching the rendered GitLab /-/profile path normalize to the configured URL, response status 302, and post field user[website_url]=https://egg.tart.com?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "AgentResponseEvaluator produces score 1.0 because the final response normalizes and compares without assertions to task_type MUTATE and status SUCCESS.",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "NetworkEventEvaluator produces score 1.0 because the last path-and-method-matching event satisfies all configured normalized fields: POST to the GitLab /-/profile URL, user[website_url]=https://egg.tart.com, and response status 302.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "Both evaluator scores equal 1.0, yielding TaskEvalResult.score 1.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "AgentResponseEvaluator returns failure or error, including when the response is not a comparable object or its normalized task_type/status differs from MUTATE/SUCCESS.",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "NetworkEventEvaluator returns failure or error, including when no qualifying POST exists or the last qualifying /-/profile event fails any configured URL, post-data, or 302-status comparison.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "Either evaluator score is not 1.0, which makes the task score 0.0; an evaluator error also makes the task status ERROR with score 0.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The retained agent_response.json or network.har is absent, unreadable, or demonstrably truncated so an official evaluator input cannot be reconstructed; a present malformed response or a complete trace with no qualifying event is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ],
+        "rationale": "Incomplete retention is non-decisive evidence, whereas evaluator-visible malformed or nonmatching content has explicit failure semantics."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_profile_state",
+        "text": "A retained authenticated post-run GitLab profile-state capture shows the homepage/website URL persisted exactly as https://egg.tart.com.",
+        "rationale": "The official intent requires changing stored profile state, while the released evaluator accepts a success response plus a POST/302 network event and does not read back the resulting profile state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run authenticated GitLab profile-state capture or export",
+            "question": "Does the stored homepage/website URL equal https://egg.tart.com after the run?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,78 @@
+schema_version: case_checklist_v1
+case_unit_id: '465'
+domain: webarena_verified
+task_id: '465'
+native:
+  user_goal:
+    text: Add Tide PODS Spring Meadow Scent HE Turbo Laundry Detergent Pacs, 81 Count to the user's shopping wish list.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both the AgentResponseEvaluator and NetworkEventEvaluator must score 1.0. This requires an evaluator-accepted MUTATE/SUCCESS response and the configured wishlist-add network event for product 71337.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: Replay the released WebArenaVerifiedEvaluator, applying AgentResponseEvaluator to agent_response.json and NetworkEventEvaluator to network.har, then conjunctively compose their scores with TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize to the evaluator-accepted response with task_type MUTATE and status SUCCESS, producing AgentResponseEvaluator score 1.0?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event matching POST __SHOPPING__/wishlist/index/add/ a 302 response whose compared post data has product 71337 and qty absent or null, producing NetworkEventEvaluator score 1.0?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events
+  success_if:
+  - text: AgentResponseEvaluator scores 1.0 because the response's compared structure matches the configured response, including normalized task_type MUTATE and status SUCCESS; retrieved_data content is not compared for this mutation task.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: NetworkEventEvaluator also scores 1.0 because the selected last matching POST event has the configured normalized URL, product 71337, qty absent or null, and response status 302; with both evaluator scores at 1.0, TaskEvalResult.score is 1.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if AgentResponseEvaluator does not score 1.0, including an unparseable or non-object response, a normalized task_type/status mismatch, a compared-structure mismatch, or an evaluator error.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Fail if NetworkEventEvaluator does not score 1.0, including no matching POST event, a mismatch in the selected last event's URL, product, qty, or 302 status, or a trace-evaluation error.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Fail on any recorded task-level evaluation error; TaskEvalResult assigns score 0.0 whenever evaluation errors or either configured evaluator is not at 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The native claim is undecidable from stored evidence if either agent_response.json or network.har was not retained, so one of the two required checks cannot be reconstructed; a retained artifact that the released evaluator rejects is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - derived/task.json::eval
+stronger:
+  additional_conditions:
+  - id: verify_persisted_wishlist_membership
+    text: Beyond native success, retained authenticated post-run wishlist state shows Tide PODS Spring Meadow Scent HE Turbo Laundry Detergent Pacs, 81 Count present in the user's wish list.
+    rationale: The task asks for a resulting wishlist mutation, while the native evaluator checks a self-reported success response and a matching POST/302 event but does not inspect persisted wishlist contents.
+    decisive_artifacts:
+    - artifact: Authenticated post-run wishlist contents snapshot or state export
+      question: After the run, is Tide PODS Spring Meadow Scent HE Turbo Laundry Detergent Pacs, 81 Count present in the user's wish list?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

@@ -4,49 +4,80 @@ domain: androidworld
 task_id: SportsTrackerTotalDistanceForCategoryOverInterval
 native:
   user_goal:
-    text: Answer with the total distance in meters, as a single integer, for the requested activity category in OpenTracks between the given start and end dates.
+    text: Report the total distance in meters for the specified OpenTracks activity category over the requested start-to-end interval, as one rounded integer.
     support:
-    - derived/selected_task_source.json::task_template
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3021
   benchmark_success:
-    text: 'Binary success: 1.0 iff `env.interaction_cache` is non-empty and `proto_utils.check_agent_answer(env.interaction_cache, self.task)` accepts the answer for this task instance; otherwise 0.0.'
+    text: Success requires evidence that the episode finished with `done=true` and that the submitted final answer matches the expected `SUM(total_distance)` for the instantiated task's relevant sports activities under the evaluator's NUMBER_MATCH rule with tolerance 10.
     support:
-    - derived/selected_task_source.json::base_class_name
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3021
   checked_by:
-    text: Released `InformationRetrieval.is_successful` evaluator for this task instance.
+    text: AndroidWorld runner `done` gating plus `InformationRetrieval.is_successful` using `proto_utils.check_agent_answer`.
     support:
-    - derived/selected_task_source.json::base_class_name
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
   decisive_artifacts:
-  - artifact: task instance record (prompt/params)
-    question: What category, start date, and end date defined this run's question?
+  - artifact: Episode trace or retained action log
+    question: Did the run terminate with `done=true`, and what exact final answer text was submitted via the answer action?
     support:
-    - derived/selected_task_source.json::task_template
-  - artifact: final agent answer record (`env.interaction_cache` or equivalent transcript)
-    question: What final answer, if any, was submitted to the evaluator?
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+  - artifact: Instantiated task record or retained setup-state snapshot
+    question: For this run instance, what category/interval task was instantiated, and what `sports_activities.total_distance` values define the evaluator's expected sum?
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
-  - artifact: evaluator result record
-    question: Did the released evaluator score this task instance as success/1.0 or failure/0.0?
-    support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.initialize_task
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::initialize_proto
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3021
   success_if:
-  - text: For the same task instance, a retained evaluator record shows success/1.0, or the retained task instance plus a non-empty captured final answer reproduce success under the released answer checker.
+  - text: The retained trace shows `done=true`, and the submitted final answer parses under the evaluator as a single numeric answer that matches the expected `SUM(total_distance)` for the instantiated task within absolute tolerance 10.
     support:
-    - derived/selected_task_source.json::task_template
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3021
   fail_if:
-  - text: For the same task instance, a retained evaluator record shows failure/0.0, or the retained task instance plus captured final answer reproduce failure under the released answer checker.
+  - text: The retained trace shows the episode ended with `done=false`.
     support:
-    - derived/selected_task_source.json::task_template
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
-  - text: The retained interaction record shows no final answer was captured in `env.interaction_cache`, which the evaluator scores as 0.0.
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: The retained trace shows no answer submission before evaluation, so `interaction_cache` stayed empty.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+  - text: The retained trace shows `done=true`, but the submitted answer is non-numeric, has the wrong arity after evaluator comma-splitting, or its numeric value differs from the expected `SUM(total_distance)` by more than 10.
+    support:
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3021
   undecided_if:
-  - text: The stored evidence cannot link a specific task instance to a captured final answer and either an evaluator verdict or a replayable released-check result.
-    support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
-    rationale: Success depends on both the task instance and the submitted answer; without those retained artifacts plus a verdict or equivalent released-check outcome, native success cannot be verified.
+  - text: Retained evidence does not let the reviewer determine both whether the episode finished with `done=true` and what final answer text, if any, was submitted.
+    rationale: Native scoring depends on the `done` gate and the submitted answer text; if either underlying artifact is missing or unreadable, stored evidence cannot independently establish success or failure.
+  - text: Retained evidence lacks the instantiated task definition or an equivalent retained setup-state snapshot needed to derive the evaluator's expected `SUM(total_distance)` for this run instance.
+    rationale: The evaluator compares the submitted answer against the task instance's expected answer derived from instantiated relevant-state data, so missing evaluator-input state leaves the benchmark claim undecidable from retained evidence alone.
+  - text: Only summary fields such as `is_successful`, `native_label`, or evaluator-result scalars remain, or the run hit an exception/NaN without enough underlying trace/state evidence to establish the criterion independently.
+    rationale: Per this checklist, native success or failure must be decided from retained underlying execution evidence rather than summary outcome metadata.
 stronger:
-  additional_conditions: []
+  additional_conditions:
+  - id: exact_rounded_integer_answer
+    text: Require the submitted answer to equal the exact total distance in meters for the instantiated interval/category, rounded to the nearest integer as stated in the prompt, rather than merely falling within the evaluator's ±10 meter tolerance.
+    rationale: The dispatched goal asks for a single rounded integer in meters, but native scoring accepts any numeric answer within 10 of the expected sum.
+    decisive_artifacts:
+    - artifact: Episode trace or retained action log
+      question: What exact numeric answer text was submitted?
+      support:
+      - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+      - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - artifact: Instantiated task record or retained setup-state snapshot
+      question: What exact integer results from summing the in-scope `total_distance` values for this task instance?
+      support:
+      - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+      - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3021
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3021
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer

@@ -1,0 +1,61 @@
+schema_version: case_checklist_v1
+case_unit_id: '46'
+domain: webarena_verified
+task_id: '46'
+native:
+  user_goal:
+    text: Open the current GitLab project's issues page filtered to the most recent open issues.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: TaskEvalResult.score is 1.0 only when both AgentResponseEvaluator and NetworkEventEvaluator score 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks the retained final response, NetworkEventEvaluator checks the retained HAR, and WebArenaVerifiedEvaluator composes both results.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does AgentResponseEvaluator parse and normalize the response to the configured NAVIGATE task type, SUCCESS status, and null retrieved data, yielding score 1.0 without error?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does NetworkEventEvaluator's last evaluator-classified navigation event normalize to HTTP GET, response status 200, and either configured GitLab issues URL alternative?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks score 1.0: the response matches NAVIGATE/SUCCESS/null under AgentResponseEvaluator normalization, and the selected last navigation event is a 200 GET whose URL matches either __GITLAB__/primer/design/-/issues or __GITLAB__/primer/design/-/issues/?sort=created_date&state=opened under NetworkEventEvaluator normalization.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native failure is established if AgentResponseEvaluator scores 0.0 or errors because the response cannot be parsed or normalized, or its evaluated fields do not match NAVIGATE/SUCCESS/null; either nonpassing evaluator makes the task score 0.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Native failure is established if NetworkEventEvaluator scores 0.0 or errors because no navigation event is found or the selected last navigation event does not match the configured URL alternative, GET method, and 200 status; either nonpassing evaluator makes the task score 0.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only when agent_response.json or network.har is unavailable or incompletely retained so the corresponding evaluator input cannot be reconstructed, unless the available artifact already establishes a failing component; a malformed artifact known to be the actual evaluator input is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+stronger:
+  additional_conditions: []

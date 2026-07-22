@@ -1,0 +1,62 @@
+schema_version: case_checklist_v1
+case_unit_id: '733'
+domain: webarena_verified
+task_id: '733'
+native:
+  user_goal:
+    text: Edit the user's Reddit post about the Star Trek Starfleet Academy series by adding a body line that says "Every watch makes me feel like a kid again".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: AgentResponseEvaluator must accept a successful MUTATE response and NetworkEventEvaluator must accept the last matching Reddit edit POST; both evaluator scores must equal 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator on the agent response and NetworkEventEvaluator on the network trace, then applies the all-evaluators-must-pass composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does AgentResponseEvaluator accept the response, under its parsing and normalization rules, as task_type MUTATE with status SUCCESS and null-equivalent retrieved_data?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: 'Does the last event selected for a POST to __REDDIT__/f/television/135201/-/edit have response status 302 and normalized post fields submission[body] = "Every watch makes me feel like a kid again" and submission[title] = "Star Trek: Starfleet Academy Series, From Alex Kurtzman and Nancy Drew Creator, Ordered at Paramount+"?'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both retained artifacts are evaluable and both configured evaluators score 1.0: the response passes the successful-MUTATE comparison and the last matching edit POST passes the configured URL, method, 302 status, title, and body comparisons.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Fail if either configured evaluator does not score 1.0, or task evaluation errors: the response is not accepted as MUTATE/SUCCESS, or no selected last matching POST satisfies every configured URL, method, 302 status, title, and body check. Any such condition makes TaskEvalResult.score 0.0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only if at least one required evaluator outcome cannot be determined from retained evidence and no determined outcome already forces failure—for example, an artifact is missing, truncated, or unreadable and no retained official TaskEvalResult resolves it. A recorded non-1.0 result or evaluation error is failure despite other missing evidence.
+    rationale: Under the all-of composition, incomplete evidence prevents verification only until an available component establishes failure.
+stronger:
+  additional_conditions:
+  - id: persisted_post_body
+    text: Require retained post-run Reddit state to show the requested sentence as a line in the target post's body.
+    rationale: The native NetworkEventEvaluator checks a matching POST request and its 302 response but does not inspect the resulting Reddit state, while the official goal is to edit the post.
+    decisive_artifacts:
+    - artifact: post-run Reddit post-state snapshot
+      question: 'Does the target post titled "Star Trek: Starfleet Academy Series, From Alex Kurtzman and Nancy Drew Creator, Ordered at Paramount+" show "Every watch makes me feel like a kid again" as a body line after the run?'
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

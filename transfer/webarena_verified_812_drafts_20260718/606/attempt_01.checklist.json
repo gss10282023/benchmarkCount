@@ -1,0 +1,114 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "606",
+  "domain": "webarena_verified",
+  "task_id": "606",
+  "native": {
+    "user_goal": {
+      "text": "Find a forum focused on NYC-related topics and post the question \"is car necessary\" there.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the mutation-success response, and NetworkEventEvaluator accepts the selected submission event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArena-Verified pipeline runs AgentResponseEvaluator on the final agent response and NetworkEventEvaluator on the network trace, then conjunctively composes their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response produce no assertions under the released parsing, normalization, and comparison against task_type MUTATE, status SUCCESS, and retrieved_data null?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last matching POST event have a normalized URL matching /submit or /submit/nyc, response status 302, and parsed form fields submission[forum]=10067 and submission[title]=\"is car necessary\"?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both evaluator scores are 1.0: the final response matches the normalized MUTATE/SUCCESS/null expectation and the selected last matching network event satisfies every configured URL, method, status, and form-field comparison.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "AgentResponseEvaluator scores 0.0 or errors because the retained response cannot be parsed and normalized to the accepted MUTATE/SUCCESS/null mapping or produces a comparison assertion; this alone makes the task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "NetworkEventEvaluator scores 0.0 or errors because no qualifying event exists, the selected last matching POST event fails any configured comparison, or trace processing fails; this alone makes the task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecidable only when no available artifact already proves a counted failure and at least one required artifact is absent, unreadable, or too incomplete to reconstruct its evaluator outcome.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ],
+        "rationale": "One observed evaluator failure decides the conjunctive score, but success cannot be established while an evaluator component remains unobservable."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_nyc_forum_post",
+        "text": "A retained post-run Reddit page or state capture shows a persisted submission titled \"is car necessary\" in the NYC-focused forum.",
+        "rationale": "The task asks for an actually posted question, while the native network check accepts a matching POST and 302 response without verifying persisted forum state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Reddit submission or forum-state capture",
+            "question": "Does the retained view show that the submission titled \"is car necessary\" exists in the NYC-focused forum?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

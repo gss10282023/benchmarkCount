@@ -1,0 +1,86 @@
+schema_version: case_checklist_v1
+case_unit_id: '771'
+domain: webarena_verified
+task_id: '771'
+native:
+  user_goal:
+    text: Approve reviews rated four stars or higher so they are displayed in the store.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: all three configured checks score 1.0—the AgentResponseEvaluator matches the expected MUTATE/SUCCESS response, and the two NetworkEventEvaluator checks match the required last POST/302 save events with status_id "1" for review IDs 352 and 347.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs one AgentResponseEvaluator over the final response and two NetworkEventEvaluator configurations over the network trace, then applies an all-evaluators-must-pass score composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Under the released code-block/JSON parsing and normalization rules, does the response match the expected MUTATE/SUCCESS response structure? Retrieved-data values are not checked for this mutate task.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: For each review endpoint, IDs 352 and 347, does the last event surviving that evaluator's POST/URL filter fully match the configured normalized save URL, parsed status_id "1", HTTP method POST, and response status 302?
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: agent_response.json yields AgentResponseEvaluator score 1.0 by matching task_type MUTATE and status SUCCESS under the released response parsing, normalization, and structural comparison.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: For review ID 352, the last POST event passing the configured URL filter matches the normalized expected event, including status_id "1" and response status 302.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: For review ID 347, the last POST event passing the configured URL filter matches the normalized expected event, including status_id "1" and response status 302.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  fail_if:
+  - text: The response check mismatches or errors, the review-352 network check is missing, mismatched, or errors, or the review-347 network check is missing, mismatched, or errors; any one makes the task score 0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Retention is incomplete or corrupt—agent_response.json or network.har is unavailable, unreadable, or truncated so that one or more of the three configured checks cannot be reconstructed from stored evidence.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: The remaining artifact alone cannot determine the all-of-three native score.
+stronger:
+  additional_conditions:
+  - id: verify_rating_rule_in_persistent_state
+    text: Beyond native success, a retained review-state diff shows that all reviews eligible under the four-stars-or-higher rule are actually approved and displayable, and that the run newly approved no below-threshold review.
+    rationale: The native evaluator observes a MUTATE/SUCCESS declaration and two POST/302 request signatures for fixed review IDs; it does not inspect the resulting approval/display state or exclude additional approvals that violate the stated rating threshold.
+    decisive_artifacts:
+    - artifact: Retained shopping-admin review-state diff with pre-run and post-run values
+      question: Does the diff record each affected review's star rating, approval status, and storefront visibility, showing every eligible review approved/displayable and no review below four stars newly approved?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - derived/task.json::eval[2]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

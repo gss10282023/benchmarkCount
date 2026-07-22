@@ -1,0 +1,147 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "610",
+  "domain": "webarena_verified",
+  "task_id": "610",
+  "native": {
+    "user_goal": {
+      "text": "Create a review post in Reddit f/books titled \"To Kill a Mockingbird by Harper Lee\", then comment \"good book!\" on that newly created post.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 iff all three configured evaluator scores are 1.0: the agent-response comparison passes for MUTATE/SUCCESS, the selected last review-submission POST matches its configured URL/status/form fields, and the selected last comment POST matches its configured URL/referer/status/form field.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator applies one AgentResponseEvaluator to agent_response.json and two independent NetworkEventEvaluator configurations to network.har, then conjunctively composes their scores.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the released parser and normalizer produce a 1.0 AgentResponseEvaluator result for task_type MUTATE and status SUCCESS?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Do the two evaluator-selected last events satisfy the review POST specification and the comment POST specification, including their configured URLs, referer, response statuses, and extracted form values?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Conjunct 1/3: AgentResponseEvaluator parses the retained response and scores 1.0 for normalized task_type MUTATE and status SUCCESS; this non-retrieve task does not compare the retrieved-data value.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "Conjunct 2/3: The last POST surviving the review evaluator's /submit or /submit/books URL filter has response status 302 and extracted form values submission[forum] = \"10037\" and submission[title] = \"To Kill a Mockingbird by Harper Lee\".",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "Conjunct 3/3: The selected last comment POST has URL /f/books/<digits>/-/comment, referer /f/books/<digits>/to-kill-a-mockingbird-by-harper-lee, response status 302, and a dynamic reply_to_submission_<digits>[comment] field whose extracted value is \"good book!\".",
+        "support": [
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field",
+          "official/src/webarena_verified/core/utils/jsonpath_utils.py::extract_jsonpath_value"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure occurs if the agent-response evaluator has any mismatch or error and therefore does not score 1.0, even when both network checks pass.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "Native failure occurs if a complete trace has no review event surviving the configured filter, or its selected last event mismatches the required 302 status, forum, or title.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "Native failure occurs if a complete trace has no comment event satisfying the configured URL/referer filter, or its selected last event mismatches the required 302 status or extracted \"good book!\" value.",
+        "support": [
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored-evidence review is undecided only when agent_response.json or network.har is absent, incomplete, or not attributable to the run, so at least one evaluator-visible input cannot be reconstructed; a visible mismatch in complete artifacts is failure.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "created_post_linkage_and_order",
+        "text": "Beyond native scoring, the trace must establish that the qualifying review submission completed before the qualifying comment and that the comment targets the post created by that submission.",
+        "rationale": "The task says to comment afterward on the created post, but the native evaluators independently match a creation request and a same-slug comment request without comparing their event order or submission identifiers; commenting on a pre-existing duplicate-title post can therefore pass natively.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Does the review-creation response identify the new post, and does a later qualifying comment request target that same post identifier or URL, such as through the creation redirect and comment referer?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/types/tracing.py::NetworkEvent.redirect_url",
+              "official/src/webarena_verified/types/tracing.py::NetworkEvent.referer",
+              "official/src/webarena_verified/types/tracing.py::NetworkEvent.url"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

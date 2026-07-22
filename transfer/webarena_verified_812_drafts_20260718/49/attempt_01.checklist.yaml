@@ -1,0 +1,66 @@
+schema_version: case_checklist_v1
+case_unit_id: '49'
+domain: webarena_verified
+task_id: '49'
+native:
+  user_goal:
+    text: As of June 12, 2023, determine the number of complete shopping orders from the preceding four months and the total spent including shipping and handling, returning only an object with integer order_count and numeric amount.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: The sole AgentResponseEvaluator must score 1.0. After its parsing and schema normalization, the response must match task_type RETRIEVE, status SUCCESS, and an unordered singleton retrieved_data result containing exactly amount 845.49 and order_count 3; that sole evaluator score yields TaskEvalResult score 1.0 and success status.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator extracts or parses the submitted response, normalizes task metadata and retrieved data using the configured schema, and recursively compares structure and normalized values with result-array order disabled; TaskEvalResult then requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted final response parse and normalize to task_type RETRIEVE, status SUCCESS, and exactly one retrieved result object with currency-normalized amount 845.49 and number-normalized order_count 3?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+  success_if:
+  - text: The retained response normalizes to the configured task type, status, and singleton result object without any comparison assertion or evaluator error, so both the AgentResponseEvaluator score and overall task score are 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The submitted response is null, is not parseable as a compared object, has mismatched task_type or status, has missing or empty retrieved data, or its normalized result has missing, extra, or unequal elements, keys, or values. Any resulting failure assertion or evaluator error gives the sole evaluator and overall task a score of 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Post-run evidence is undecided only if retention loss leaves no reliable record of the submitted final response; network.har alone cannot decide this response-only comparison. A retained null, malformed, or mismatching response is failure, not undecided.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+stronger:
+  additional_conditions:
+  - id: raw_integer_order_count
+    text: Require order_count in the submitted result object to be the JSON integer 3, rather than a string or floating-point encoding that merely normalizes to numeric 3.
+    rationale: The instruction explicitly requires an integer, while the released result schema declares order_count as number and native evaluation compares its schema-normalized value, so native scoring does not explicitly enforce integer JSON typing.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Before evaluator normalization, is order_count in the submitted result object represented as the JSON integer 3?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].results_schema.items.properties.order_count
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].results_schema.items.properties.order_count
+    - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer._normalize_object

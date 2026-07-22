@@ -1,0 +1,91 @@
+schema_version: case_checklist_v1
+case_unit_id: '692'
+domain: webarena_verified
+task_id: '692'
+native:
+  user_goal:
+    text: Prepare a coupon request in the shop's contact form with reason "I am a student" and leave it ready for review rather than submitting it.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native score is 1.0 iff all three configured evaluator instances score 1.0: the final response passes the normalized MUTATE/SUCCESS response comparison; the last evaluator-visible POST matching `^http://.*/dummy_bin$` has recorded status -1 and matching form_id, name, email, and comment fields; and no evaluator-visible POST matches `__SHOPPING__/contact/index/post`.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the AgentResponseEvaluator and both NetworkEventEvaluator configurations in order; TaskEvalResult.create assigns 1.0 only when every evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response pass the released normalized comparison to task_type MUTATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last matching dummy-bin POST recorded with status -1 and form_id `contact-form`, name `Emma Lopez`, email `emma.lopez@gmail.com`, and comment `I am a student`, while no POST matches the shopping contact submission endpoint?
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: The evaluator-normalized response matches task_type MUTATE, status SUCCESS, and retrieved_data null without comparison assertions.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: 'Among evaluator-visible HAR events, the last POST whose normalized URL matches `^http://.*/dummy_bin$` has recorded status -1 and matching post fields: form_id `contact-form`, name `Emma Lopez`, email `emma.lopez@gmail.com`, and comment `I am a student`.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+  - text: No evaluator-visible HAR event is a POST whose normalized URL matches `__SHOPPING__/contact/index/post`; in should_not_exist mode, absence passes the third check.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  fail_if:
+  - text: The supplied response is non-object, lacks or mismatches an expected normalized field, has a disallowed normalized structure, or causes the AgentResponseEvaluator to error.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: A complete trace has no matching dummy-bin POST, or its last matching POST differs in recorded status or any required post field.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Any evaluator-visible POST matches `__SHOPPING__/contact/index/post`; should_not_exist fails on its presence regardless of the event's response status.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Any configured evaluator or task-level evaluation errors, because the official composition assigns score 0.0 rather than success.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Retained evidence is undecidable only if agent_response.json or network.har is missing or retention-truncated, or HAR ordering/content is incomplete, so what the evaluator received cannot be reconstructed. A supplied malformed response or a complete trace with no qualifying event is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: final_form_state_ready_for_review
+    text: Beyond native success, an end-of-run browser-state capture shows the shopping contact form still open and populated with name `Emma Lopez`, email `emma.lopez@gmail.com`, and reason `I am a student`, without a submission-success state.
+    rationale: The intent requires a review-ready final form, while the released evaluator checks only a trace-wide dummy-bin POST and absence of a contact-submission POST. Those events do not establish that the populated form remains available at run end.
+    decisive_artifacts:
+    - artifact: End-of-run browser-state capture
+      question: At run end, is the shop contact form visibly present with the required name, email, and reason populated and no submitted-success state?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+      - derived/task.json::eval[2]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

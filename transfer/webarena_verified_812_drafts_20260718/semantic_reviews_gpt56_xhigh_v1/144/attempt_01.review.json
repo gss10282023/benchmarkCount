@@ -1,0 +1,235 @@
+{
+  "decision": "revise",
+  "checklist_items": [
+    {
+      "id": "identity_and_scope",
+      "status": "pass",
+      "rationale": "The domain, case unit, and task identifiers all match case 144, and the checklist remains case-specific.",
+      "evidence": [
+        "case_packet.md::Case Metadata",
+        "checklist.yaml::case_unit_id",
+        "checklist.yaml::domain",
+        "checklist.yaml::task_id"
+      ]
+    },
+    {
+      "id": "native_user_goal",
+      "status": "pass",
+      "rationale": "The user goal faithfully preserves the requested food-shopping total, date interval, and exclusion of shipping and handling fees.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary.official instruction",
+        "derived/task.json::intent",
+        "checklist.yaml::native.user_goal"
+      ]
+    },
+    {
+      "id": "official_evaluator_semantics",
+      "status": "pass",
+      "rationale": "The checklist correctly identifies the three explicitly configured expected fields, numeric array schema, expected singleton zero, and unordered comparison. It correctly omits the materialized but non-explicit error_details default.",
+      "evidence": [
+        "derived/tag_task.json::eval[0].expected",
+        "derived/task.json::eval[0].results_schema",
+        "derived/task.json::eval[0].ordered",
+        "checklist.yaml::native.benchmark_success",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+      ]
+    },
+    {
+      "id": "evaluator_composition",
+      "status": "pass",
+      "rationale": "It states that exactly one AgentResponseEvaluator is configured and that task success requires its score to equal 1.0; evaluator mismatches and errors are treated as failure.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary.evaluator sequence",
+        "derived/task.json::eval",
+        "checklist.yaml::native.checked_by",
+        "checklist.yaml::native.fail_if",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    {
+      "id": "decisive_post_run_evidence",
+      "status": "fail",
+      "rationale": "The checklist incorrectly makes network.har decisive. This case has only an AgentResponseEvaluator, whose configured comparison uses the submitted response and does not inspect network events; complete agent_response.json is the minimal sufficient retained evidence.",
+      "evidence": [
+        "derived/task.json::eval",
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+      ]
+    },
+    {
+      "id": "decision_rules",
+      "status": "fail",
+      "rationale": "The rules make HAR usability a success prerequisite and allow HAR retention loss to produce undecided, even though the configured response-only check remains reconstructible from a complete agent_response.json. Only loss or integrity failure of decisive response evidence should be undecided.",
+      "evidence": [
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.fail_if[2]",
+        "checklist.yaml::native.undecided_if[0]",
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+      ]
+    },
+    {
+      "id": "source_support_pointers",
+      "status": "pass",
+      "rationale": "The cited paths, fields, sections, classes, and methods are all represented in the packet and support the associated statements.",
+      "evidence": [
+        "case_packet.md::Source Inventory",
+        "checklist.yaml::native.user_goal.support",
+        "checklist.yaml::native.benchmark_success.support",
+        "checklist.yaml::native.decisive_artifacts"
+      ]
+    },
+    {
+      "id": "stronger_conditions",
+      "status": "pass",
+      "rationale": "The empty stronger list is appropriate because the packet does not establish a separate case-specific condition that should be imposed beyond native scoring.",
+      "evidence": [
+        "checklist.yaml::stronger.additional_conditions",
+        "case_packet.md::Benchmark Task Summary.official instruction",
+        "derived/task.json::eval[0]"
+      ]
+    },
+    {
+      "id": "minimality_and_no_run_leakage",
+      "status": "fail",
+      "rationale": "Although the checklist has the expected shape and contains no run leakage, its HAR artifact and HAR-dependent rules are unnecessary for reconstructing this sole response evaluator and therefore violate the required minimality.",
+      "evidence": [
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.undecided_if[0]",
+        "derived/task.json::eval"
+      ]
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "nondecisive_network_har",
+      "checklist_item_id": "decisive_post_run_evidence",
+      "message": "network.har is listed as decisive even though no NetworkEventEvaluator is configured and the AgentResponseEvaluator obtains its actual value solely from agent_response_raw.",
+      "required_change": "Remove network.har from decisive_artifacts and retain complete agent_response.json as the minimal sufficient post-run artifact.",
+      "evidence": [
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "derived/task.json::eval",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+      ]
+    },
+    {
+      "id": "har_dependent_decisions",
+      "checklist_item_id": "decision_rules",
+      "message": "Native success and undecided classification improperly depend on HAR availability, so a lost HAR can obscure a result that remains reconstructible from the complete response.",
+      "required_change": "Remove HAR usability from success_if, fail_if, and undecided_if; reserve undecided for loss, corruption, truncation, or provenance failure of the response evidence when no retained evaluator result resolves the score.",
+      "evidence": [
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.fail_if[2]",
+        "checklist.yaml::native.undecided_if[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+      ]
+    },
+    {
+      "id": "remove_nonminimal_har_material",
+      "checklist_item_id": "minimality_and_no_run_leakage",
+      "message": "The additional HAR artifact and repeated HAR gates make the checklist nonminimal for this response-only case.",
+      "required_change": "Delete the HAR artifact and all HAR-dependent decision language while preserving the response parsing, normalization, comparison, and composition rules.",
+      "evidence": [
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.undecided_if[0]",
+        "case_packet.md::Benchmark Task Summary.evaluator sequence"
+      ]
+    }
+  ],
+  "revised_checklist": {
+    "native": {
+      "user_goal": {
+        "text": "Return how much was spent on food shopping from January 15 to January 31, 2023, excluding shipping and handling fees.",
+        "support": [
+          "derived/task.json::intent"
+        ]
+      },
+      "benchmark_success": {
+        "text": "The sole AgentResponseEvaluator scores 1.0, and therefore TaskEvalResult.score is 1.0, when the submitted response passes released extraction and normalization and its explicitly configured fields match task_type RETRIEVE, status SUCCESS, and retrieved_data containing exactly the numeric value 0 under unordered comparison. The defaulted error_details field is not compared because it was omitted from the sparse expected configuration.",
+        "support": [
+          "derived/tag_task.json::eval[0].expected",
+          "derived/task.json::eval[0].results_schema",
+          "derived/task.json::eval[0].ordered",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "checked_by": {
+        "text": "Exactly one AgentResponseEvaluator, followed by TaskEvalResult composition requiring every configured evaluator score—here the single score—to equal 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "decisive_artifacts": [
+        {
+          "artifact": "agent_response.json",
+          "question": "Does the complete retained submission pass released extraction and normalization, with the explicitly configured task_type and status matching RETRIEVE and SUCCESS and normalized retrieved_data matching exactly the unordered numeric singleton [0]?",
+          "support": [
+            "derived/tag_task.json::eval[0].expected",
+            "derived/task.json::eval[0].results_schema",
+            "derived/task.json::eval[0].ordered",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+          ]
+        }
+      ],
+      "success_if": [
+        {
+          "text": "The complete retained response, under the released extraction, normalization, and comparison behavior, gives the sole AgentResponseEvaluator score 1.0: task_type matches RETRIEVE, status matches SUCCESS, and retrieved_data matches exactly the unordered numeric singleton [0]. Consequently TaskEvalResult.score is 1.0.",
+          "support": [
+            "derived/task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "fail_if": [
+        {
+          "text": "A complete submitted response does not extract to the required structured value, or its normalized task_type or status is missing or differs from RETRIEVE or SUCCESS.",
+          "support": [
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects"
+          ]
+        },
+        {
+          "text": "Normalized retrieved_data is missing, null, empty, or does not match exactly the unordered numeric singleton [0], including any missing, differing, or extra value.",
+          "support": [
+            "derived/task.json::eval[0].expected.retrieved_data",
+            "derived/task.json::eval[0].results_schema",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered"
+          ]
+        },
+        {
+          "text": "Any evaluator-visible mismatch or evaluator processing error produces a sole evaluator score other than 1.0 and therefore TaskEvalResult.score 0.0.",
+          "support": [
+            "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "undecided_if": [
+        {
+          "text": "The retained agent response was lost, truncated, corrupted, or lacks reliable provenance after the run, and no retained official evaluator result establishes what the original submission scored.",
+          "rationale": "Loss or integrity failure of the sole decisive post-run artifact prevents reconstruction; a complete but invalid or mismatching response is failure instead."
+        }
+      ]
+    },
+    "stronger": {
+      "additional_conditions": []
+    }
+  }
+}

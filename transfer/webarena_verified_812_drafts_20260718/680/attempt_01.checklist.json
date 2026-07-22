@@ -1,0 +1,108 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "680",
+  "domain": "webarena_verified",
+  "task_id": "680",
+  "native": {
+    "user_goal": {
+      "text": "Open the shopping-admin list of orders that are on hold.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both official checks score 1.0: AgentResponseEvaluator accepts the normalized final response as NAVIGATE/SUCCESS, and NetworkEventEvaluator accepts its selected last navigation event as the specified successful GET for the on-hold sales-order grid.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator parses, normalizes, and structurally compares agent_response.json; NetworkEventEvaluator selects and compares an event from network.har; TaskEvalResult.create requires every evaluator score to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and normalize to exactly the evaluator-expected task_type NAVIGATE, status SUCCESS, and retrieved_data null?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the event selected by the released NAVIGATE/GET logic—the last evaluation event classified as a navigation—normalize to a GET of __SHOPPING_ADMIN__/mui/index/render/ with status 200, referer __SHOPPING_ADMIN__/sales/order/, and query values filters[placeholder]=true, filters[status]=holded, keywordUpdated=false, namespace=sales_order_grid, and search empty, after ignoring parameters matching ^paging, ^sorting, or isAjax?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Replaying the complete retained response and HAR yields AgentResponseEvaluator.score=1.0 and NetworkEventEvaluator.score=1.0; consequently TaskEvalResult.score=1.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Either evaluator produces a score other than 1.0 or an error—including a response comparison failure, no selected navigation event, or a selected event that does not match every expected field—so TaskEvalResult.score is 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The retained evidence is insufficient to reconstruct one or both evaluator inputs, and no retained official TaskEvalResult resolves their scores; a recorded evaluator error or zero score is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "visible_on_hold_order_list",
+        "text": "Beyond native success, the final retained browser state must show the rendered shopping-admin orders list with the On Hold filter active, rather than only a grid-render endpoint response or another page.",
+        "rationale": "The user asks to go to the on-hold orders list, while the released checks compare a self-reported response and request metadata from one selected network event; they do not verify the visible final orders grid.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Final browser screenshot or accessibility-tree snapshot with current URL",
+            "question": "Does the final rendered state visibly show the shopping-admin orders list with the On Hold filter active and the filtered list displayed?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

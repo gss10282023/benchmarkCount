@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '573'
+domain: webarena_verified
+task_id: '573'
+native:
+  user_goal:
+    text: Update the user's OneStopShopping address to 987 Sycamore Circle, Philadelphia, PA 19102.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task succeeds only when both configured checks score 1.0: the AgentResponseEvaluator and the NetworkEventEvaluator.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the two task-configured evaluators in order, and TaskEvalResult.create assigns score 1.0 only if every evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After official parsing and normalization, does the response pass the configured MUTATE/SUCCESS comparison, including the evaluator's retrieved_data and error_details key behavior?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event matching POST and the normalized path /customer/address/formPost/id/26/ a 302 response with firstname Emma, lastname Lopez, street[0] 987 Sycamore Circle, city Philadelphia, postcode 19102, and country_id US?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks score 1.0: the response normalizes to task_type MUTATE, status SUCCESS, and retrieved_data null without an error_details-induced mismatch; and the last matching address-update POST has the configured six form values and response status 302.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: With complete artifacts, either evaluator scores below 1.0 or errors—for example, the response is absent, unparsable, or mismatched, or no qualifying address POST exists or its last qualifying event mismatches any configured field; any such result makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Either retained artifact is missing, truncated, or corrupted such that the official comparisons cannot be reconstructed; a complete response or HAR that shows a mismatch is failure, not undecided.
+    rationale: Both independent evaluator inputs are necessary to determine the conjunction that defines the native task score.
+stronger:
+  additional_conditions:
+  - id: persisted_full_address_including_state
+    text: Beyond native scoring, verify that the saved customer-address record actually persists 987 Sycamore Circle, Philadelphia, PA 19102, US.
+    rationale: The user requests a stored address update including PA, but the native check only observes a self-reported success and a 302 POST whose expected form fields omit state/region; it does not inspect the post-run saved address.
+    decisive_artifacts:
+    - artifact: Authenticated post-run OneStopShopping customer-address snapshot or export
+      question: Does the saved address record show 987 Sycamore Circle, Philadelphia, Pennsylvania/PA 19102, US?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.post_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

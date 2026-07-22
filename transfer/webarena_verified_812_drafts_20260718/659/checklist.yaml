@@ -1,0 +1,91 @@
+schema_version: case_checklist_v1
+case_unit_id: '659'
+domain: webarena_verified
+task_id: '659'
+native:
+  user_goal:
+    text: Create an issue in the user's empathy-prompts GitLab repository titled "Integrating LLMs for better prompts", assign it to Roshanjossey (inviting that user if needed), and set its due date to the beginning of Q2 2033.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if all three configured checks score 1.0: the final-response check, the Roshanjossey invitation-event check, and the issue-creation-event check.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator applies one AgentResponseEvaluator and two NetworkEventEvaluators to agent_response.json and network.har, then conjunctively aggregates their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: 'Does the final response normalize to the evaluator''s three-field comparison object: task_type MUTATE, status SUCCESS, and retrieved_data null?'
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: 'Do the last path-and-method-matching events satisfy both required checks: POST /api/v4/projects/183/invitations with user_id 2264 and status 201, and POST /byteblaze/empathy-prompts/-/issues with title "Integrating LLMs for better prompts", assignee ID 2264, due date 2033-04-01, and status 302?'
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+  success_if:
+  - text: The final-response evaluator scores 1.0 because the response normalizes to task_type MUTATE, status SUCCESS, and retrieved_data null with the accepted compared-object structure.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: The invitation evaluator scores 1.0 because the last matching POST to /api/v4/projects/183/invitations has user_id 2264 and response status 201.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: The issue evaluator scores 1.0 because the last matching POST to /byteblaze/empathy-prompts/-/issues has title "Integrating LLMs for better prompts", assignee ID 2264, due date 2033-04-01, and response status 302; all three component scores are therefore 1.0.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: A complete response fails the native claim if it does not normalize to the accepted MUTATE/SUCCESS/null comparison object or the AgentResponseEvaluator errors.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: A complete HAR fails the native claim if no invitation POST matches, or if the last matching invitation POST lacks user_id 2264 or response status 201.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: A complete HAR fails the native claim if no issue-creation POST matches, or if the last matching issue POST lacks any required title, assignee, due-date, or status value.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Any evaluator or task-orchestration error, or any component score other than 1.0, makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable if agent_response.json or network.har is absent, truncated, or unreadable and no retained official evaluation result supplies the missing component decision.
+    rationale: Without both evaluator inputs or their retained component results, the evidence cannot establish whether all three conjunctive checks passed or failed.
+stronger:
+  additional_conditions:
+  - id: durable_issue_state
+    text: Beyond native request-event scoring, the retained creation response and post-run GitLab state must establish that the mutation produced an issue in byteblaze/empathy-prompts with the specified title, Roshanjossey as assignee, and due date 2033-04-01.
+    rationale: The task asks for a created and assigned issue, while the released evaluator accepts a matching form submission and HTTP 302 without checking response content or durable issue state.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Which checked issue-creation POST received the 302 response, and does its response metadata identify the resulting issue for linkage to post-run state?
+      support:
+      - derived/task.json::eval[2]
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent.redirect_url
+    - artifact: Post-run GitLab issue detail or API snapshot
+      question: Does the corresponding issue exist in byteblaze/empathy-prompts with title "Integrating LLMs for better prompts", assignee Roshanjossey, and due date 2033-04-01?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[2].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[2].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

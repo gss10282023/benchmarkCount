@@ -1,0 +1,60 @@
+schema_version: case_checklist_v1
+case_unit_id: '369'
+domain: webarena_verified
+task_id: '369'
+native:
+  user_goal:
+    text: Open the Map description page for Carnegie Music Hall.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts an evaluator-normalized NAVIGATE/SUCCESS response, and NetworkEventEvaluator accepts the last navigation event as a GET with response status 200 at __MAP__/way/154257484/.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order, then applies the all-evaluators-must-score-1.0 composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response normalize under AgentResponseEvaluator to task_type NAVIGATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among evaluator-visible non-static events, is the last navigation event a GET to __MAP__/way/154257484/ with response status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: Both artifacts are evaluable, AgentResponseEvaluator scores 1.0 on the normalized NAVIGATE/SUCCESS response, and NetworkEventEvaluator scores 1.0 on the last navigation event matching the target URL, GET method, and 200 status; consequently every configured evaluator scores 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: AgentResponseEvaluator does not score 1.0 because the retained response cannot be evaluated or does not normalize to the accepted NAVIGATE/SUCCESS response; under the all-of composition, this makes the task score 0.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: NetworkEventEvaluator does not score 1.0 because no navigation event exists, its last navigation event does not match __MAP__/way/154257484/ with GET and status 200, or evaluation errors; under the all-of composition, this makes the task score 0.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retained evidence omits or incompletely captures agent_response.json or network.har, so one of the two official scores cannot be reconstructed; a retained evaluable mismatch or evaluator error is failure.
+    rationale: The native result conjoins two checks driven by separate retained inputs, so incomplete storage is non-decisive evidence about the run's result.
+stronger:
+  additional_conditions: []

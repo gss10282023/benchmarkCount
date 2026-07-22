@@ -1,0 +1,68 @@
+schema_version: case_checklist_v1
+case_unit_id: multi-source-data-merger
+domain: terminal_bench_2_1
+task_id: terminal-bench/multi-source-data-merger
+native:
+  user_goal:
+    text: Merge the three official user-data sources into `/app/merged_users.parquet` using the instructed field mappings and source-priority rules, and write `/app/conflicts.json` in the specified conflict-report format.
+    support:
+    - official/instruction.md::1-62
+  benchmark_success:
+    text: 'Native success means the official verifier''s three pytest checks all pass: the two output files exist, `merged_users.parquet` satisfies the exact row/id/value assertions, and `conflicts.json` satisfies the exact conflict-report assertions in `official/tests/test_outputs.py`.'
+    support:
+    - official/tests/test.sh::18-30
+    - official/tests/test_outputs.py::11-56
+  checked_by:
+    text: '`official/tests/test.sh` runs `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`; the native verdict is the resulting pass/fail of that test file.'
+    support:
+    - official/tests/test.sh::18-30
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the retained CTRF report show pass/fail status for `test_output_files_exist`, `test_merged_data_exact_values`, and `test_conflict_report_values`?
+    support:
+    - case_packet.md::113-124
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::11-56
+  - artifact: verifier/test-stdout.txt
+    question: If CTRF is missing or incomplete, does the retained pytest stdout establish whether any of the three official tests passed or failed?
+    support:
+    - case_packet.md::113-124
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::11-56
+  - artifact: artifacts/**
+    question: Do retained copies of `/app/merged_users.parquet` and `/app/conflicts.json`, if present, establish or refute the exact assertions made by the three official tests?
+    support:
+    - case_packet.md::113-124
+    - official/tests/test_outputs.py::11-56
+  success_if:
+  - text: 'Retained non-label evidence establishes that all three official tests pass: `/app/merged_users.parquet` and `/app/conflicts.json` exist; the parquet has exactly 4 rows with `user_id` set `{101,102,103,104}`, user 101 values `John Doe` / `john@a.com` / `2024-01-15`, and user 104 values `Alice Brown` / `alice@c.com` / `2024-04-01`; and `conflicts.json` has `total_conflicts >= 1`, `len(conflicts) == total_conflicts`, at least one conflict for user 101, and any user-101 email conflict shows `values.source_a == "john@a.com"` and `selected == "john@a.com"`.'
+    support:
+    - official/tests/test_outputs.py::11-56
+    - case_packet.md::113-124
+  fail_if:
+  - text: 'Retained non-label evidence establishes failure of any one of the three official checks: either an output file is missing, the parquet violates any asserted row/id/value condition, or the conflict report violates any asserted `total_conflicts`, list-length, user-101-conflict, or user-101-email-conflict condition; equivalently, retained pytest results show any of the three named tests failed.'
+    support:
+    - official/tests/test_outputs.py::11-56
+    - official/tests/test.sh::18-30
+    - case_packet.md::113-124
+  undecided_if:
+  - text: Retained artifacts do not establish pass/fail status for all three official tests, and retained copies of the output files are absent or insufficient to evaluate the tested assertions independently.
+    support:
+    - case_packet.md::113-124
+    - official/tests/test_outputs.py::11-56
+stronger:
+  additional_conditions:
+  - id: instruction_schema_types
+    text: 'Beyond native success, retained `merged_users.parquet` should satisfy the instruction-level output schema: required columns `user_id`, `name`, `email`, and `created_date` are present, every `user_id` is stored as an integer, every `created_date` value is in `YYYY-MM-DD`, and `status` appears only as the optional field named in the instruction.'
+    rationale: The instruction makes these schema, type, and date-format requirements explicit, but the released tests only check row count, the `user_id` set, and a few exact field values; they do not fully operationalize the full column/type/date-format requirement.
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: Do retained copies of `/app/merged_users.parquet`, if present, show the required columns and the full-column integer/date-format properties required by the instruction?
+      support:
+      - case_packet.md::113-124
+      - official/instruction.md::22-28
+      - official/instruction.md::55-62
+    support:
+    - official/instruction.md::22-28
+    - official/instruction.md::55-62
+    - official/tests/test_outputs.py::17-35

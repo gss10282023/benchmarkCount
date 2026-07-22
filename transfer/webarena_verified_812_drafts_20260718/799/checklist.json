@@ -1,0 +1,106 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "799",
+  "domain": "webarena_verified",
+  "task_id": "799",
+  "native": {
+    "user_goal": {
+      "text": "Create a new GitLab group named \"n-lab\" with patou, egpast, westurner, and jontutcher as members.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 iff all three configured checks score 1.0: the AgentResponseEvaluator check and both NetworkEventEvaluator checks.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArena-Verified evaluator runs one AgentResponseEvaluator against the final response and two NetworkEventEvaluator instances against the network trace, then composes their scores conjunctively.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the final response parse, normalize, and compare without assertions against the configured MUTATE/SUCCESS response?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Do the last method/URL-matching events fully match both configured normalized POST checks: group creation at /groups with name and path n-lab and status 302, and invitations at /api/v4/groups/<numeric-id>/invitations with user_id 400,443,561,586 under string_list normalization and status 201?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "All three checks score 1.0: the response matches MUTATE/SUCCESS under AgentResponseEvaluator rules; the last matching group-creation POST fully matches its configured normalized event; and the last matching invitation POST fully matches its configured normalized event.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Failure is established if any configured check would score 0.0 or error—for example, the response mismatches, or either required last method/URL-matching network event is absent or fails its full normalized comparison—because one nonpassing component makes the overall score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecidable only when agent_response.json or network.har is missing, unreadable, or incomplete enough to prevent evaluation of all three checks, unless the available evidence already establishes a component failure.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_persisted_group_membership",
+        "text": "A retained post-run GitLab state snapshot or API export shows that group \"n-lab\" exists and includes patou, egpast, westurner, and jontutcher as members.",
+        "rationale": "The official task requires the resulting group and memberships, but the released evaluator checks only the final response and matching network events/statuses; it does not inspect persisted GitLab state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run GitLab group-state snapshot or API export",
+            "question": "Does the retained state show that \"n-lab\" exists and its membership includes all four specified usernames?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/types/eval.py::TaskEvalContext"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/types/eval.py::TaskEvalContext"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,77 @@
+schema_version: case_checklist_v1
+case_unit_id: '241'
+domain: webarena_verified
+task_id: '241'
+native:
+  user_goal:
+    text: Navigate the shopping site to the product page for the most expensive skin-care product.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both the AgentResponseEvaluator and NetworkEventEvaluator must score 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the two configured evaluators, and TaskEvalResult.create applies the all-evaluators-must-pass composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response yield AgentResponseEvaluator score 1.0 by normalizing to task_type NAVIGATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last recognized navigation event yield NetworkEventEvaluator score 1.0 by matching, under evaluator normalization, a GET to __SHOPPING__/professional-medi-spa-scar-stretch-mark-reduction-system.html with response status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: 'AgentResponseEvaluator scores 1.0: the final response''s evaluator-visible normalized content matches NAVIGATE, SUCCESS, and null retrieved_data without an evaluator error.'
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: 'NetworkEventEvaluator also scores 1.0: the HAR''s last recognized navigation event matches the configured normalized GET URL and HTTP 200 response without an evaluator error.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  fail_if:
+  - text: AgentResponseEvaluator does not score 1.0 because the response is absent, invalid, mismatched after normalization, or causes an evaluator error.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: NetworkEventEvaluator does not score 1.0 because no recognized navigation event exists, the last such event mismatches the configured normalized GET URL or HTTP 200 response, or evaluation errors.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: A task-level evaluation error is failure because TaskEvalResult assigns it score 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: No official TaskEvalResult is retained and either agent_response.json or network.har is absent from the evidence package, so both evaluator outcomes cannot be reconstructed.
+    rationale: The remaining artifact alone cannot determine the required conjunction of the response and network-event checks.
+stronger:
+  additional_conditions:
+  - id: semantic_maximum_price
+    text: Beyond native success, retained shopping content establishes that the navigated product is a skin-care item and that no other skin-care product has a higher displayed price.
+    rationale: The official intent asks for the most expensive skin-care product, while the released network check accepts a fixed last-navigation URL, GET method, and HTTP 200 response without comparing product category or prices.
+    decisive_artifacts:
+    - artifact: network.har response bodies for the target page and complete skin-care listings
+      question: Do the retained contents identify the target as skin care and show that no listed skin-care product has a higher displayed price?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

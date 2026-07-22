@@ -4,39 +4,80 @@ domain: androidworld
 task_id: SportsTrackerTotalDurationForCategoryThisWeek
 native:
   user_goal:
-    text: Report the total duration of this week's {category} activities in the OpenTracks app, in minutes as a single integer.
+    text: Report the total duration in minutes of this week’s target-category OpenTracks activities, with the week starting Monday, as a single integer.
     support:
-    - derived/selected_task_source.json::task_template
+    - derived/canonical_task_semantics.json::goal.prompt
   benchmark_success:
-    text: Native success is when the released InformationRetrieval evaluator finds a non-empty recorded answer in `env.interaction_cache` and `proto_utils.check_agent_answer(env.interaction_cache, self.task)` returns true for this instantiated task; otherwise it returns 0.0.
+    text: 'Native success requires both: the episode is retained as finished with done=true, and the submitted final answer matches the evaluator’s expected answer, computed as the SUM of resolved relevant `duration` values under NUMBER_MATCH.'
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - derived/canonical_task_semantics.json::goal.proto_binding.task_definition.success_criteria.expectations[0].field_transformation
   checked_by:
-    text: '`android_world.task_evals.information_retrieval.information_retrieval.InformationRetrieval.is_successful`'
+    text: Runner done-gate plus InformationRetrieval.is_successful, which evaluates the retained submitted answer via proto_utils.check_agent_answer.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
   decisive_artifacts:
-  - artifact: evaluator result record for this task instance
-    question: Did the released InformationRetrieval evaluator record success (1.0) or failure (0.0) for the run?
+  - artifact: episode trace or action log
+    question: Does retained run evidence show whether the episode finished with done=true, and what final answer text was submitted?
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
-  - artifact: recorded interaction_cache / submitted answer text
-    question: Was a non-empty answer recorded in `env.interaction_cache`, and what exact answer text was submitted?
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+  - artifact: resolved task proto or equivalent retained initialized OpenTracks activities snapshot
+    question: What resolved target-category sports activities and `duration` values define the evaluator-visible expected SUM for the Monday-start week?
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - derived/canonical_task_semantics.json::goal.proto_binding.task_definition.relevant_state.state.sports_activity_app.sports_activities
+    - derived/canonical_task_semantics.json::goal.proto_binding.task_definition.relevant_state.exclusion_conditions
+    - derived/canonical_task_semantics.json::goal.proto_binding.task_definition.success_criteria.expectations[0].field_transformation
+    - official/install/android_world/task_evals/information_retrieval/activity_app_utils.py::setup_task_state
   success_if:
-  - text: The retained evaluator result for this case records 1.0 / success, with a non-empty recorded answer in `interaction_cache`.
+  - text: Retained run evidence shows the episode finished with done=true.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: The retained submitted final answer text is present and numerically equals the SUM of the resolved relevant `duration` values under the evaluator’s NUMBER_MATCH rule.
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - derived/canonical_task_semantics.json::goal.proto_binding.task_definition.success_criteria.expectations[0].field_transformation
+    - derived/canonical_task_semantics.json::goal.proto_binding.task_definition.relevant_state.state.sports_activity_app.sports_activities
   fail_if:
-  - text: The recorded `interaction_cache` is empty; the native evaluator returns 0.0.
+  - text: Retained run evidence shows the episode finished with done=false.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
-  - text: The retained evaluator result for this case records 0.0 / failure, including answer mismatch or answer-check parse failure.
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: With done=true, retained evidence shows no submitted final answer text.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+  - text: With done=true, the retained submitted answer is not numerically equal to the expected SUM of resolved relevant `duration` values, or is not parseable as a number under the evaluator rule.
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::_cast_answers_to_type
+    - derived/canonical_task_semantics.json::goal.proto_binding.task_definition.success_criteria.expectations[0].field_transformation
   undecided_if:
-  - text: Stored evidence lacks a trustworthy evaluator result for this case, and the submitted-answer record is missing or cannot be linked to the task instance.
-    rationale: Without either the official score or the recorded answer tied to the run, native success or failure cannot be verified from retained artifacts alone.
+  - text: The retained record does not let the reviewer determine the done gate or the submitted final answer text, and no other retained evidence independently establishes native success or failure.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+  - text: The retained record lacks usable resolved task-state evidence to compute the expected SUM of `duration`, and no retained evidence independently shows done=false, missing answer, or an explicit numeric mismatch.
+    support:
+    - derived/canonical_task_semantics.json::goal.proto_binding.task_definition.relevant_state.state.sports_activity_app.sports_activities
+    - derived/canonical_task_semantics.json::goal.proto_binding.task_definition.success_criteria.expectations[0].field_transformation
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
 stronger:
-  additional_conditions: []
+  additional_conditions:
+  - id: strict_integer_output_format
+    text: Require the submitted answer text to be a plain integer string in minutes, not merely a numerically equivalent value such as `60.0`.
+    rationale: The dispatched goal says to express the answer as a single integer, but native evaluation uses NUMBER_MATCH with float-style parsing/equality, so non-integer numeric formatting can still satisfy the released evaluator.
+    decisive_artifacts:
+    - artifact: episode trace or action log
+      question: What exact final answer text was submitted?
+      support:
+      - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+      - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    support:
+    - derived/canonical_task_semantics.json::goal.prompt
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::_cast_answers_to_type
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer

@@ -1,0 +1,73 @@
+schema_version: case_checklist_v1
+case_unit_id: '340'
+domain: webarena_verified
+task_id: '340'
+native:
+  user_goal:
+    text: Navigate to the current GitLab project’s list of opened issues labeled as bugs.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if all three configured evaluators score 1.0: the agent response is accepted as NAVIGATE/SUCCESS, the last navigation is a successful GET matching the project issues URL pattern, and the last matching GraphQL POST is successful and has the required opened-bug-list referer.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs one AgentResponseEvaluator and two NetworkEventEvaluator configurations; TaskEvalResult requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does AgentResponseEvaluator accept the response, after its parsing and normalization, as task_type NAVIGATE with status SUCCESS?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Is the last navigation event a GET with response status 200 whose normalized URL matches ^__GITLAB__/primer/design/-/issues/.*$, with all query parameters ignored for this check?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last matching POST to __GITLAB__/api/graphql return 200 and carry referer __GITLAB__/primer/design/-/issues/?state=opened&label_name%5B%5D=type%3A%20bug%20%F0%9F%90%9E, modulo ignored page, sort, and scope query parameters?
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'All three checks score 1.0: the response is accepted as NAVIGATE/SUCCESS; the last navigation is the matching 200 GET to the project issues path; and the last matching GraphQL POST is 200 with the required opened-bug-list referer.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native failure occurs if any configured check does not score 1.0, including a response mismatch/error, a missing or mismatching last navigation event, or a missing or mismatching last GraphQL POST/referer event.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Review is undecided only when the retained agent_response.json or network.har is unavailable, unreadable, or truncated so that a configured check cannot be reconstructed; a complete artifact showing a mismatch or no matching event is failure.
+    rationale: This distinguishes loss of post-run evidence from evaluator-visible mismatches and absent events, which the released evaluator scores as failure.
+stronger:
+  additional_conditions:
+  - id: final_filtered_view
+    text: 'Beyond native scoring, the retained final browser state must show the primer/design issues list with the Open state and type: bug 🐞 label filter still active.'
+    rationale: 'The task asks to go to that filtered list, while the released evaluator checks network history: its navigation check ignores every GET query parameter and its second check validates a GraphQL request and referer, without inspecting the final rendered browser state.'
+    decisive_artifacts:
+    - artifact: Final browser-state capture containing the page URL and a screenshot or accessibility snapshot
+      question: 'At run completion, is the browser still on the primer/design issues list with both the Open state and type: bug 🐞 filter visibly active?'
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - derived/task.json::eval[2]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].ignored_query_params_patterns
+    - derived/task.json::eval[2].expected.headers.referer
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

@@ -1,0 +1,102 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "796",
+  "domain": "webarena_verified",
+  "task_id": "796",
+  "native": {
+    "user_goal": {
+      "text": "Change the delivery address of the user's oldest order in 2023 to 155 5th Street, San Francisco, CA.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult scores 1.0 only if both configured checks score 1.0: AgentResponseEvaluator accepts a response normalizing to task_type MUTATE, status ACTION_NOT_ALLOWED_ERROR, and retrieved_data null; and NetworkEventEvaluator accepts the last matching GET for __SHOPPING__/sales/order/history/ with response status 200.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs AgentResponseEvaluator on the final response and NetworkEventEvaluator on the network trace, then TaskEvalResult requires every evaluator score to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the final response parse and normalize to the compared structure task_type=MUTATE, status=ACTION_NOT_ALLOWED_ERROR, and retrieved_data=null without a structural mismatch?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last eligible event matching the normalized shopping order-history URL use GET and have response status 200, so the NetworkEventEvaluator finds a complete match?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff AgentResponseEvaluator scores 1.0 for the MUTATE/ACTION_NOT_ALLOWED_ERROR/null response and NetworkEventEvaluator scores 1.0 for the selected GET order-history event with status 200, making all evaluator scores 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Failure if either evaluator scores below 1.0 or errors: the response fails its normalized structural comparison, or the HAR lacks a qualifying event, the selected last match differs from the expected URL/method/status, or an evaluator input cannot be evaluated.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Evidence review is undecided only when the retained response or HAR is absent, truncated, or replaced by non-equivalent evidence and no retained evaluator result establishes both scores; a recorded non-1.0 result from missing or malformed evaluator input is failure.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_requested_address_change",
+        "text": "Beyond native scoring, require retained post-run shopping state to show that the oldest order placed in 2023 has delivery address 155 5th Street, San Francisco, CA.",
+        "rationale": "The stated task requires an address mutation, but the released checks accept an ACTION_NOT_ALLOWED_ERROR plus an order-history GET and inspect neither the requested address nor the resulting order state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run shopping order-state snapshot or export",
+            "question": "Does it enumerate the 2023 orders sufficiently to identify the earliest one and show that order's delivery address as 155 5th Street, San Francisco, CA?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::instantiation_dict"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0].expected",
+          "derived/task.json::eval[1].expected"
+        ]
+      }
+    ]
+  }
+}

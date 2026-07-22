@@ -1,0 +1,66 @@
+schema_version: case_checklist_v1
+case_unit_id: '538'
+domain: webarena_verified
+task_id: '538'
+native:
+  user_goal:
+    text: 'Modify order #299 so its address is 456 Oak Avenue, Apartment 5B, New York, NY 10001.'
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response against the expected MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the last matching address-save POST with the configured address fields and HTTP 302 response.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in configuration order; TaskEvalResult.create requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response pass AgentResponseEvaluator's released normalization and comparison against the expected task_type MUTATE and status SUCCESS response, with retrieved_data not value-checked for this mutate task and no response-comparison error?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among evaluation events, is the last POST whose URL path matches /sales/order/addressSave/address_id/598/ a 302 response with city=New York, country_id=US, postcode=10001, region=New York, region_id=43, street[0]=456 Oak Avenue, and street[1]=Apartment 5B after form_key is ignored?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both retained artifacts pass their respective released evaluators: the response passes AgentResponseEvaluator and the HAR''s last matching POST passes NetworkEventEvaluator; consequently both evaluator scores and TaskEvalResult.score are 1.0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Fail if either configured evaluator does not score 1.0: the response is rejected or errors under AgentResponseEvaluator, or the HAR lacks a matching last POST or that event has a differing required field or response status; any evaluator error also makes TaskEvalResult.score 0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored evidence is undecidable if agent_response.json or network.har is absent, unreadable, or incomplete enough that its configured evaluator outcome cannot be reconstructed.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+stronger:
+  additional_conditions:
+  - id: persisted_order_address
+    text: 'Beyond native scoring, a retained post-run order-state record must show that order #299''s edited address is 456 Oak Avenue, Apartment 5B, New York, NY 10001.'
+    rationale: The official intent claims a persisted order modification, while the released native evaluator checks a final response and a matching POST/302 network event but never reads the order's post-run stored state.
+    decisive_artifacts:
+    - artifact: 'Post-run shopping-admin order #299 address-state capture'
+      question: 'Does a screenshot, DOM capture, or exported order record taken after the run show the target address on order #299?'
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

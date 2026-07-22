@@ -1,0 +1,62 @@
+schema_version: case_checklist_v1
+case_unit_id: '773'
+domain: webarena_verified
+task_id: '773'
+native:
+  user_goal:
+    text: Delete every shopping-admin review that is both pending and negative.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when all three configured evaluators score 1.0: the agent response passes the MUTATE/SUCCESS comparison with no retrieved data, and the two network checks pass for POST/302 deletion events targeting review IDs 351 and 353.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs one AgentResponseEvaluator and two NetworkEventEvaluator instances; TaskEvalResult.create applies the all-evaluators-must-score-1.0 composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: When parsed and normalized, does the response match task_type MUTATE, status SUCCESS, and retrieved_data null without a key or value mismatch under AgentResponseEvaluator?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: For each configured deletion endpoint—review/product/delete/id/351/ and review/product/delete/id/353/—does the selected last matching POST event normalize to the expected URL and have response status 302?
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+  success_if:
+  - text: 'All three checks pass: the response comparison passes, the selected event for review 351 passes its POST/302 comparison, and the selected event for review 353 passes its POST/302 comparison.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Any configured check fails or errors—such as a malformed or nonmatching response, no accepted event for either deletion endpoint, or a selected endpoint event whose response is not 302—making at least one evaluator score differ from 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: A retention loss or truncation leaves agent_response.json or network.har unavailable or too incomplete to reconstruct one or more comparisons.
+    rationale: Missing retained evidence does not establish whether the artifacts supplied to the native evaluator passed or failed.
+stronger:
+  additional_conditions:
+  - id: post_run_no_pending_negative_reviews
+    text: Beyond native event-based scoring, retained post-run shopping-admin state shows that no review classified as both pending and negative remains.
+    rationale: The instruction requires deletion of all pending negative reviews, while the released evaluator checks only two POST/302 endpoint events plus the response declaration and does not inspect final review state.
+    decisive_artifacts:
+    - artifact: post-run shopping-admin review-state snapshot
+      question: Does the final review collection show zero reviews classified by the application as both pending and negative?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - derived/task.json::eval[2]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

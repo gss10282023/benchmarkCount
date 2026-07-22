@@ -1,0 +1,64 @@
+schema_version: case_checklist_v1
+case_unit_id: '483'
+domain: webarena_verified
+task_id: '483'
+native:
+  user_goal:
+    text: Invite Koushik to the repository containing the user's dotfile configurations as a Guest.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both the AgentResponseEvaluator and NetworkEventEvaluator must score 1.0. The response must satisfy the released MUTATE/SUCCESS comparison, and the selected last matching POST event must target project 193''s members endpoint with user_id 1912, access_level 10, and response status 201.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator applies AgentResponseEvaluator to the retained response and NetworkEventEvaluator to the retained HAR, then conjunctively aggregates their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response satisfy AgentResponseEvaluator's normalized comparison for task_type MUTATE and status SUCCESS, including its non-retrieve handling of retrieved_data?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event matching POST __GITLAB__/api/v4/projects/193/members a 201 response whose compared post data has user_id 1912 and access_level 10?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks pass: agent_response.json receives AgentResponseEvaluator score 1.0, and network.har receives NetworkEventEvaluator score 1.0 for the configured last matching POST event; consequently the aggregate task score is 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: With complete artifacts, failure occurs if either evaluator fails or errors—for example, the response does not satisfy the MUTATE/SUCCESS comparison, or the required POST event is absent or its selected last match has different compared data or status—because the aggregate score then equals 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored-evidence review is undecided only if agent_response.json or network.har is missing, unreadable, or incomplete enough that one conjunctive check cannot be reconstructed; rejection of complete evidence is failure, not undecided.
+    rationale: Both retained inputs are necessary to reconstruct the two evaluator scores that determine native success.
+stronger:
+  additional_conditions:
+  - id: confirm_persisted_guest_membership
+    text: In addition to native success, a retained post-run GitLab membership readback must show project 193 contains Koushik/user 1912 with Guest access level 10.
+    rationale: The task asks for the resulting invitation, while the native NetworkEventEvaluator verifies only a matching request/response event and does not inspect post-run project membership state.
+    decisive_artifacts:
+    - artifact: Post-run GitLab project-membership API readback or state snapshot
+      question: After the run, does project 193 list Koushik/user 1912 with Guest access level 10?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

@@ -1,0 +1,81 @@
+schema_version: case_checklist_v1
+case_unit_id: MarkorChangeNoteContent
+domain: androidworld
+task_id: MarkorChangeNoteContent
+native:
+  user_goal:
+    text: Rename the existing Markor note from `original_name` to `new_name` and replace its content with `updated_content`.
+    support:
+    - derived/canonical_task_semantics.json::goal.template
+    - official/install/android_world/task_evals/task_eval.py::TaskEval.goal
+  benchmark_success:
+    text: 'The benchmark counts success only if the retained run reached `done=true` and the evaluator-visible Markor state satisfies all native checks: `original_name` is absent, `new_name` is present, and the content of `new_name` matches `updated_content` under `check_file_content`''s comparison rule.'
+    support:
+    - derived/canonical_task_semantics.json::evaluator.runner_score_semantics.done_gate
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/markor.py::MarkorChangeNoteContent.is_successful
+    - official/install/android_world/utils/file_utils.py::check_file_content
+  checked_by:
+    text: The runner completion gate plus `MarkorChangeNoteContent.is_successful`, using post-run files under Markor storage and the retained text of `new_name`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/markor.py::MarkorChangeNoteContent.is_successful
+    - official/install/android_world/env/device_constants.py::MARKOR_DATA
+  decisive_artifacts:
+  - artifact: Retained episode record or trace with the run completion state
+    question: Does the retained run evidence show `done=true` or `done=false` for this episode?
+    support:
+    - derived/canonical_task_semantics.json::evaluator.runner_score_semantics.done_gate
+    - official/install/android_world/suite_utils.py::_run_task
+  - artifact: Post-run snapshot or listing of the Markor data directory
+    question: After the run, is `original_name` absent and is `new_name` present in Markor storage?
+    support:
+    - official/install/android_world/task_evals/single/markor.py::MarkorChangeNoteContent.is_successful
+    - official/install/android_world/env/device_constants.py::MARKOR_DATA
+  - artifact: Retained text contents of `MARKOR_DATA/new_name`
+    question: Does the retained text of `new_name` match `updated_content` under the evaluator's `check_file_content` comparison rule?
+    support:
+    - official/install/android_world/task_evals/single/markor.py::MarkorChangeNoteContent.is_successful
+    - official/install/android_world/utils/file_utils.py::check_file_content
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  success_if:
+  - text: Retained evidence shows `done=true`, `original_name` is absent, `new_name` is present, and the retained text of `new_name` matches `updated_content` under the evaluator's file-content comparison.
+    support:
+    - derived/canonical_task_semantics.json::evaluator.runner_score_semantics.done_gate
+    - official/install/android_world/task_evals/single/markor.py::MarkorChangeNoteContent.is_successful
+    - official/install/android_world/utils/file_utils.py::check_file_content
+  fail_if:
+  - text: Retained run evidence shows `done=false`.
+    support:
+    - derived/canonical_task_semantics.json::evaluator.runner_score_semantics.done_gate
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: Post-run Markor storage shows `original_name` still exists or `new_name` is missing.
+    support:
+    - official/install/android_world/task_evals/single/markor.py::MarkorChangeNoteContent.is_successful
+    - official/install/android_world/env/device_constants.py::MARKOR_DATA
+  - text: The retained text of `new_name` is available and does not match `updated_content` under the evaluator's `check_file_content` rule.
+    support:
+    - official/install/android_world/task_evals/single/markor.py::MarkorChangeNoteContent.is_successful
+    - official/install/android_world/utils/file_utils.py::check_file_content
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  undecided_if:
+  - text: The retained evidence does not let a reviewer reconstruct the native decision because completion-gate evidence and the required post-run Markor existence/content evidence are missing, unusable, or ambiguous.
+    rationale: Native success depends on both the runner `done` gate and evaluator-visible filesystem/content state. If those underlying artifacts are not retained, neither success nor failure is established from stored evidence alone.
+  - text: Only summary outcome metadata is retained, such as `is_successful`, a native label/score, or exception/NaN summaries, without the underlying completion trace or Markor file evidence needed for the gate and evaluator checks.
+    rationale: The checklist is locked to decisive underlying evidence rather than scalar summaries; summary results alone do not establish whether the native runner gate and file-state checks actually held.
+stronger:
+  additional_conditions:
+  - id: exact_updated_content_not_fuzzy
+    text: Beyond native success, the retained normalized text of `new_name` should equal `updated_content` exactly, not merely satisfy the evaluator's fuzzy content match.
+    rationale: The dispatched runtime goal says to update the note content to the quoted `updated_content`, while the native evaluator delegates to `check_file_content` and `fuzzy_match`, which can accept near-matches above the similarity threshold instead of exact content equality.
+    decisive_artifacts:
+    - artifact: Retained text contents of `MARKOR_DATA/new_name`
+      question: After ordinary newline normalization, does the retained text equal `updated_content` exactly?
+      support:
+      - derived/canonical_task_semantics.json::goal.template
+      - official/install/android_world/env/device_constants.py::MARKOR_DATA
+    support:
+    - derived/canonical_task_semantics.json::goal.template
+    - official/install/android_world/task_evals/single/markor.py::MarkorChangeNoteContent.is_successful
+    - official/install/android_world/utils/file_utils.py::check_file_content
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match

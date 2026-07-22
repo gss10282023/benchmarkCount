@@ -1,0 +1,63 @@
+schema_version: case_checklist_v1
+case_unit_id: '710'
+domain: webarena_verified
+task_id: '710'
+native:
+  user_goal:
+    text: Show the shopping-admin shipping report for August 5, 2022 through March 1, 2023.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success requires both official checks to score 1.0: AgentResponseEvaluator on the agent response and NetworkEventEvaluator on the network trace; TaskEvalResult otherwise scores 0.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator and composes their scores with an all-must-pass rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does AgentResponseEvaluator parse and normalize the response without error and produce no comparison assertions against the configured NAVIGATE/SUCCESS response? For this non-retrieve task, retrieved_data is not value-compared.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the evaluator-recognized last navigation event normalize to a 200 GET at __SHOPPING_ADMIN__/reports/report_sales/shipping/filter with report_type=created_at_order, from=08/5/2022, and to=03/1/2023, after configured decoding, ignored-parameter filtering, and date normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalized_url
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: AgentResponseEvaluator scores 1.0 on agent_response.json and NetworkEventEvaluator scores 1.0 on network.har, including the configured final-navigation URL, query, GET-method, and 200-status comparison.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Failure occurs if either official check does not score 1.0—including a response mismatch or evaluation error, a missing or mismatched final navigation event, a malformed trace, or a task-level evaluation error.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  undecided_if:
+  - text: Undecided only when retention or provenance loss prevents reconstructing the actual agent response or complete network trace, so both official checks cannot be replayed.
+    rationale: This is limited to evidence loss or ambiguity. If retained bytes are known to be the submitted artifacts, any parse or evaluation error is a native failure.
+stronger:
+  additional_conditions:
+  - id: visible_final_report
+    text: Beyond native success, retained final-browser evidence shows the shipping report visibly displayed for August 5, 2022 through March 1, 2023.
+    rationale: The native evaluator accepts the configured response plus a matching 200 GET and does not inspect response content or rendered browser state; therefore it does not directly verify the instruction's visible “Show” outcome.
+    decisive_artifacts:
+    - artifact: final browser-state capture
+      question: Does a final full-page screenshot or equivalent DOM/accessibility snapshot visibly identify the shipping report and requested date range as the displayed result?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.response_content
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

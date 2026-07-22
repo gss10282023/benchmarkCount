@@ -1,0 +1,79 @@
+schema_version: case_checklist_v1
+case_unit_id: '339'
+domain: webarena_verified
+task_id: '339'
+native:
+  user_goal:
+    text: Go to the list of all opened issues that report bugs for the current GitLab project.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success requires all three configured checks to score 1.0: the navigation-success response check, the final issues-page navigation check, and the GraphQL request check for the opened-and-bug-filtered issues page.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs one AgentResponseEvaluator followed by two NetworkEventEvaluator instances; TaskEvalResult conjunctively aggregates their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the evaluator-normalized response match task_type NAVIGATE, status SUCCESS, and retrieved_data null, without a response-evaluator error?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: 'Does the trace satisfy both event checks: a final 200 GET navigation matching the configured project issues URL with query parameters ignored, and the selected last 200 POST to /api/graphql whose referer is the issues URL with state=opened and label_name[]=bug, aside from ignored page, sort, and scope parameters?'
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+  success_if:
+  - text: 'Required conjunct 1 of 3: the response parses and normalizes to the configured NAVIGATE/SUCCESS response with retrieved_data null.'
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: 'Required conjunct 2 of 3: the last navigation event is a 200 GET whose normalized URL matches ^__GITLAB__/a11yproject/a11yproject.com/-/issues/.*$, with all query parameters ignored for this check.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+  - text: 'Required conjunct 3 of 3: under last-event-only selection, the selected POST /api/graphql event returns 200 and its normalized referer matches the project issues URL with state=opened and label_name[]=bug after ignoring page, sort, and scope parameters.'
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  fail_if:
+  - text: Native failure if the submitted response is unparseable, causes an evaluator error, or normalizes differently from the configured NAVIGATE/SUCCESS response.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - text: Native failure if the evaluator-visible trace lacks the required final issues-page navigation event or that event has the wrong normalized URL, method, or response status.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Native failure if the selected GraphQL event is absent or does not match the required POST URL, filtered-issues referer, and 200 response status; any one failed or errored evaluator makes the task score 0.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: If no retained artifact already proves a failing conjunct and either the submitted response or the complete network trace is unavailable or truncated, leaving at least one evaluator check unreconstructable, the stored evidence is undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+stronger:
+  additional_conditions:
+  - id: visible_final_filtered_list
+    text: Beyond native success, retained final-page evidence must show the current project's Issues list with both the Opened and bug-label filters active.
+    rationale: The task asks to reach the filtered list, while the released checks validate the response and request signatures without checking rendered page state, GraphQL post data, or response content; therefore native success alone does not establish that the intended list was visibly loaded.
+    decisive_artifacts:
+    - artifact: Final-page screenshot or DOM/accessibility snapshot
+      question: Does the final page visibly identify the a11yproject/a11yproject.com Issues list and show both the Opened and bug filters active?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::start_urls
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - derived/task.json::eval[2].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data

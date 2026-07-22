@@ -1,0 +1,79 @@
+schema_version: case_checklist_v1
+case_unit_id: '780'
+domain: webarena_verified
+task_id: '780'
+native:
+  user_goal:
+    text: Increase the price of every white Ingrid Running variant in size L and above by $17.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when all three configured evaluators score 1.0: the agent response passes the MUTATE/SUCCESS comparison, and the last matching network event for each of product IDs 1264 and 1267 passes its POST, URL, price-101.0, and response-302 comparison.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator applies one AgentResponseEvaluator and two NetworkEventEvaluators, then composes their scores with TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response pass the official normalized comparison against the configured MUTATE and SUCCESS response expectation?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: For each of IDs 1264 and 1267, does the last POST matching the configured product-save URL contain product[price] normalized as 101.0 and receive response status 302?
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: agent_response.json yields a 1.0 AgentResponseEvaluator score under the configured MUTATE/SUCCESS comparison.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: For product ID 1264, the last POST matching the configured save URL has product[price] normalized to 101.0 and response status 302, yielding a 1.0 NetworkEventEvaluator score.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+  - text: For product ID 1267, the last POST matching the configured save URL has product[price] normalized to 101.0 and response status 302, yielding a 1.0 NetworkEventEvaluator score.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+  fail_if:
+  - text: A complete agent_response.json produces a comparison failure or evaluator error instead of a 1.0 AgentResponseEvaluator score.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: For either ID 1264 or 1267, no POST matches the configured method and save URL, the selected last matching POST fails the price or response-status comparison, or its evaluator errors; any such component score makes the task score 0.0.
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained agent_response.json or network.har was lost or truncated after the run, so an evaluator input cannot be reconstructed; a retained input that is malformed or lacks a required match is failure, not undecided.
+    rationale: The native verdict cannot be reconstructed without both retained evaluator inputs, while complete inputs remain subject to the benchmark's ordinary failure and error rules.
+stronger:
+  additional_conditions:
+  - id: verify_persistent_catalog_state
+    text: A retained before/after catalog-state diff shows that every white Ingrid Running variant in size L and above increased by exactly $17 and retained the new price; evaluator-targeted IDs 1264 and 1267 are $101.00 post-run.
+    rationale: The native evaluator checks the reported outcome and matching POST/302 events but never reads post-run catalog state, so it establishes qualifying requests rather than the persisted mutation stated by the task.
+    decisive_artifacts:
+    - artifact: Retained before/after shopping-catalog state diff
+      question: Does the diff identify every white Ingrid Running variant in size L and above, show each price increased by exactly $17, and show IDs 1264 and 1267 at $101.00 after the run?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - derived/task.json::eval[2]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

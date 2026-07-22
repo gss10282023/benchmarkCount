@@ -1,0 +1,79 @@
+schema_version: case_checklist_v1
+case_unit_id: '591'
+domain: webarena_verified
+task_id: '591'
+native:
+  user_goal:
+    text: Create a milestone in the current GitLab repository titled "code review" for the upcoming practice of collective code review, starting January 16, 2023 and ending February 4, 2023 (20 days inclusive).
+    support:
+    - derived/task.json::intent
+    - derived/task.json::instantiation_dict
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if both configured checks score 1.0: AgentResponseEvaluator accepts the response as a successful MUTATE task, and NetworkEventEvaluator accepts the last matching POST to the GitLab milestone endpoint with the required title, start date, due date, and 302 response.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator over the retained agent response and NetworkEventEvaluator over the retained network trace, then applies an all-evaluators-must-score-1.0 composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Under the released parser, normalizer, and structural comparison, is the response accepted with task_type MUTATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last POST whose normalized URL matches __GITLAB__/primer/design/-/milestones followed by status 302 and does its form data contain milestone[title]="code review", milestone[start_date]="2023-01-16", and milestone[due_date]="2023-02-04" under the released comparison rules?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both official components score 1.0: the agent response is accepted as MUTATE/SUCCESS, and the last URL-and-method-matching network event satisfies the configured endpoint, POST fields, and 302-response comparison.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The agent-response component does not score 1.0 because the retained response is invalid, has an evaluator-visible structural mismatch, or is not accepted as MUTATE/SUCCESS.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: The network component does not score 1.0 because no matching POST endpoint event exists or the last such event fails the required title, start-date, due-date, URL, method, or 302-status comparison.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Any evaluator or orchestration error evidenced by a retained evaluation result is benchmark-counted failure with task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecided only when agent_response.json or network.har is absent, unreadable, or too incomplete to reconstruct both official checks, and no retained official evaluation result resolves the missing component; an evidenced mismatch or evaluator error is failure, not undecided.
+    rationale: Both retained inputs are needed for an evidence-only replay of the two-component native decision unless an official result already records their outcomes.
+stronger:
+  additional_conditions:
+  - id: persisted_milestone_state
+    text: Beyond native trace acceptance, require retained post-run GitLab state to show a persisted milestone in primer/design titled "code review" with start date 2023-01-16 and due date 2023-02-04.
+    rationale: The official task requires creating a milestone, but the released checks accept a self-reported success plus a matching POST/302 trace and do not inspect the repository's persisted milestone state.
+    decisive_artifacts:
+    - artifact: Post-run GitLab milestone state snapshot or API export for primer/design
+      question: Does the persisted repository state contain a milestone titled "code review" with start_date 2023-01-16 and due_date 2023-02-04?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::start_urls[0]
+      - derived/task.json::eval[1]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

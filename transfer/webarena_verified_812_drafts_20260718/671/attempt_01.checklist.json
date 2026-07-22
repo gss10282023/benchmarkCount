@@ -1,0 +1,128 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "671",
+  "domain": "webarena_verified",
+  "task_id": "671",
+  "native": {
+    "user_goal": {
+      "text": "Create a post in the game-related Reddit forum reporting the OneStopShop review titles rated 2 stars or less for Sony Computer Entertainment VR, titled \"real user feedback on Sony Computer Entertainment VR\", with the titles as Markdown bullets in source order.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured evaluator scores are 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the last matching Reddit submit POST with the configured form values and a 302 response.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator over agent_response.json and NetworkEventEvaluator over network.har, then applies the TaskEvalResult all-of score rule.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the stored response parse and normalize to an accepted object with task_type MUTATE and status SUCCESS under the released comparison, with retrieved_data not value-checked for this MUTATE task?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching POST and ^__REDDIT__/submit.*$ normalize to response_status 302, forum 10048, the configured title, and these four CRLF-separated body lines in order: - \"Disappointing. Didn't last long before it stopped powering on and needed to be sent in for repair.\"; - \"didn't last a year without issues\"; - \"Received used items!!\"; - \"Received used items!!\"?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "AgentResponseEvaluator assigns 1.0 because agent_response.json is accepted as task_type MUTATE and status SUCCESS under its parse, normalization, and structural-comparison rules.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "NetworkEventEvaluator assigns 1.0 because the last matching submit POST has response status 302 and its forum, title, and four-line body match the configured values under evaluator normalization.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "Both evaluator scores are 1.0, so the all-of composition sets TaskEvalResult.score to 1.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "AgentResponseEvaluator does not assign 1.0 because the response is absent, invalid, not accepted as MUTATE/SUCCESS, or causes an evaluator error.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "NetworkEventEvaluator does not assign 1.0 because no qualifying submit POST exists, the last qualifying POST differs in response status or a configured form value, or evaluation errors.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Either evaluator score is not 1.0; the all-of composition therefore sets the task score to 0.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored-evidence review is undecided only if agent_response.json or network.har is unavailable, corrupt, or truncated so that a component score cannot be reconstructed and no retained official result establishes both scores; an artifact actually supplied to the evaluator as missing or invalid is failure, not undecided.",
+        "rationale": "Loss of retained review evidence does not establish what evaluator-visible inputs or component scores existed during the run."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_reddit_post",
+        "text": "Beyond native success, retained post-run Reddit state must show that the requested post persists in forum 10048 with the configured title and all four configured review lines in order.",
+        "rationale": "The official intent requires creating a post, while NetworkEventEvaluator checks only a matching request and 302 response; native success does not directly inspect persisted Reddit state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Retained post-run Reddit post page or state snapshot",
+            "question": "Is the post present in forum 10048 with title \"real user feedback on Sony Computer Entertainment VR\" and the four configured body lines, including the duplicated final line, in order?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.post_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

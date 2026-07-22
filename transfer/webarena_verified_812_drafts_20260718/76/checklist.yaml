@@ -1,0 +1,69 @@
+schema_version: case_checklist_v1
+case_unit_id: '76'
+domain: webarena_verified
+task_id: '76'
+native:
+  user_goal:
+    text: Identify and report the minimum-total-travel-time visit order for Princeton University, Yale University, and Harvard University, beginning at Princeton University and using the OSRM directions service.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task succeeds exactly when the sole AgentResponseEvaluator scores 1.0: the evaluator-normalized response matches task type RETRIEVE and status SUCCESS, and retrieved_data matches the ordered location-name array ["Princeton University", "Yale University", "Harvard University"]. The sole evaluator score of 1.0 yields TaskEvalResult.score 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator, with its result composed into TaskEvalResult by the WebArena-Verified evaluator.
+    support:
+    - derived/task.json::eval[0].evaluator
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the preserved final response, after the released parser and location-name normalization, match RETRIEVE, SUCCESS, and the ordered array ["Princeton University", "Yale University", "Harvard University"] without any comparison assertion or evaluator error?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: The evaluator-parsed response has no structural or normalized-value mismatch for task_type RETRIEVE and status SUCCESS, and its retrieved_data matches exactly, in order and after location-name normalization, ["Princeton University", "Yale University", "Harvard University"]; therefore the sole evaluator and task scores are both 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_ordered
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The preserved response is not evaluator-parsable as the compared response object, has a missing or mismatching task_type/status, or causes an evaluator parsing or normalization error; the evaluator and task score are then 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: The normalized retrieved_data is missing, null, differently ordered, or contains any missing, extra, or mismatching location relative to ["Princeton University", "Yale University", "Harvard University"].
+    support:
+    - derived/task.json::eval[0].expected.retrieved_data
+    - derived/task.json::eval[0].ordered
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_ordered
+  undecided_if:
+  - text: The retained evidence omits or truncates the final agent response so that the released response comparison cannot be applied.
+    rationale: This is insufficient stored evidence; a preserved empty, invalid, or mismatching response is instead a native failure.
+stronger:
+  additional_conditions:
+  - id: osrm-evidence
+    text: The retained network trace shows successful OSRM directions-service request/response evidence covering all three locations and travel-time data sufficient to support the reported minimum-time ordering from Princeton University.
+    rationale: The official instruction expressly requires OSRM-based minimization, but the task config contains only AgentResponseEvaluator and that evaluator reads only agent_response_raw. Native scoring can therefore accept the listed order without evidence that OSRM was used.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Do retained requests and responses show successful OSRM directions queries covering Princeton University, Yale University, and Harvard University, with travel-time evidence supporting the reported ordering from Princeton?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].evaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value

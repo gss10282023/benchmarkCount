@@ -1,0 +1,83 @@
+schema_version: case_checklist_v1
+case_unit_id: '553'
+domain: webarena_verified
+task_id: '553'
+native:
+  user_goal:
+    text: Using GitLab’s Web IDE, create `news/urls.json` in the `gimmiethat.space` repository as a JSON object whose `urls` array contains the full URLs of the five most recent posts from the “news related forums” forum, newest to oldest, and commit it to the default branch.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is `TaskEvalResult.score == 1.0`: both configured evaluators must score 1.0—the final response must pass the MUTATE/SUCCESS response check, and the HAR must pass the last-matching GitLab commit-event check.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released `WebArenaVerifiedEvaluator` applies `AgentResponseEvaluator` to the final response and `NetworkEventEvaluator` to the network trace, then composes their scores with the all-evaluators-must-pass rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse without evaluator error and produce no structural comparison assertion, with `task_type` normalized to `MUTATE` and `status` to `SUCCESS` under the non-retrieve response rule?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last evaluation event matching `POST __GITLAB__/api/v4/projects/byteblaze%2Fgimmiethat.space/repository/commits` have status 201 and, after the evaluator’s JSONPath/schema normalization, `branch=main`, `actions[0].action=create`, `actions[0].file_path=news/urls.json`, `actions[0].content` equal to the configured five-URL JSON object in configured order, and `actions[1].action` resolving to null?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field
+    - official/src/webarena_verified/core/utils/jsonpath_utils.py::extract_jsonpath_value
+  success_if:
+  - text: 'Success iff both component scores are 1.0: the retained response matches the evaluator-visible MUTATE/SUCCESS structure, and the selected last commit POST matches every configured URL, method, status, and normalized post-data comparison.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Given complete readable artifacts, native failure occurs if either component is not 1.0: the response is malformed, mismatched, or errors; or no URL-and-method-matching commit event exists, the selected last event fails the configured status/post-data comparison, or the network check errors.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when `agent_response.json` or `network.har` is absent, corrupt, or known incomplete so one or both official checks cannot be replayed; a complete artifact showing no match or a mismatch is failure.
+    rationale: Evidence review cannot distinguish pass from fail when a required retained evaluator input is unavailable or incomplete.
+stronger:
+  additional_conditions:
+  - id: final_repository_state
+    text: A retained post-run GitLab repository or commit-tree snapshot shows `news/urls.json` on the repository’s default branch with the required five-URL JSON object in newest-to-oldest order.
+    rationale: The task requires a committed repository result, while the native network check inspects only retained request/response fields and never reads the repository state after the run.
+    decisive_artifacts:
+    - artifact: post-run GitLab repository snapshot or commit/tree record
+      question: Does the default branch of `byteblaze/gimmiethat.space` contain `news/urls.json` with a `urls` array exactly matching the configured five full Reddit URLs in the required order?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - id: web_ide_method
+    text: Retained browser or request evidence identifies the evaluated commit as originating from GitLab’s Web IDE.
+    rationale: The instruction explicitly requires Web IDE use, but the native event configuration has no IDE-route or IDE-origin header criterion.
+    decisive_artifacts:
+    - artifact: network.har or retained browser trace
+      question: Does the evaluated commit request carry a Web-IDE-specific Referer or equivalent retained context linking it to a GitLab Web IDE session?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.headers
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data

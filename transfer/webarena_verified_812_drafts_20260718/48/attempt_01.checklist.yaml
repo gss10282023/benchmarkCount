@@ -1,0 +1,64 @@
+schema_version: case_checklist_v1
+case_unit_id: '48'
+domain: webarena_verified
+task_id: '48'
+native:
+  user_goal:
+    text: As of June 12, 2023, determine the number of complete orders over the past three days and the total spent including shipping and handling, returning only an object with integer `order_count` and numeric `amount`.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is `TaskEvalResult.score == 1.0`: the sole AgentResponseEvaluator must score 1.0 after official parsing and schema normalization, with compared `task_type` equal to `RETRIEVE`, `status` equal to `SUCCESS`, and unordered `retrieved_data` equal to `[{"amount":0,"order_count":0}]`.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs the task's sole AgentResponseEvaluator; TaskEvalResult.create assigns 1.0 only when every configured evaluator score is 1.0.
+    support:
+    - derived/task.json::eval[0].evaluator
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the exact evaluator input, using `transformed_response` when present, parse and normalize to compared fields `RETRIEVE`, `SUCCESS`, and the singleton retrieved-data array `[{"amount":0,"order_count":0}]` without structural or value mismatches?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: 'The retained evaluator input produces no AgentResponseEvaluator assertion or error: its compared fields normalize to `RETRIEVE`, `SUCCESS`, and `[{"amount":0,"order_count":0}]`; consequently both evaluator and task scores are 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: A complete retained evaluator input causes any parsing, normalization, or comparison assertion or evaluator error—including a wrong or missing compared task type or status, null or missing retrieved data, or any missing, extra, or unequal retrieved-data element, object key, or normalized value—so the evaluator and task scores are 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Neither the exact final evaluator input nor a retained official evaluation result is available and complete enough to reconstruct the comparison.
+    rationale: Loss or truncation of retained evidence is not itself proof that the submitted response was missing or malformed.
+stronger:
+  additional_conditions:
+  - id: requested_raw_output_contract
+    text: Beyond native success, the retained original answer has no explanatory prose or code fence, and its requested data object contains only `order_count` and `amount`, with `order_count` encoded as a JSON integer and `amount` as a JSON number.
+    rationale: The task explicitly requires an object-only, typed answer, but the released evaluator can extract JSON from fenced text and judges schema-normalized protocol data whose `order_count` schema is `number`, not `integer`; native success therefore does not directly enforce the requested raw presentation.
+    decisive_artifacts:
+    - artifact: agent_response.json or retained TransformedAgentResponse.original_response
+      question: What exact pre-parsing, pre-transformation answer was emitted, and does it satisfy the task's object-only, no-prose, and raw numeric-type requirements?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+      - official/src/webarena_verified/types/eval.py::TransformedAgentResponse.original_response
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].results_schema.items.properties.order_count
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer.normalize_array

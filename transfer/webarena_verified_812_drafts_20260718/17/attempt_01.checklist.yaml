@@ -1,0 +1,97 @@
+schema_version: case_checklist_v1
+case_unit_id: '17'
+domain: webarena_verified
+task_id: '17'
+native:
+  user_goal:
+    text: Use the OSRM direction service to obtain walking and driving times from AMC Waterfront to Carnegie Mellon University, returning only mode/duration objects with durations in HH:MM:SS format.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: The case succeeds iff the sole AgentResponseEvaluator scores 1.0, making TaskEvalResult.score 1.0, after parsing and schema-normalizing the response and matching task_type RETRIEVE, status SUCCESS, and the unordered exact route-duration objects (driving, 13min) and (walking, 1hr 35min).
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator; EvaluatorResult.create assigns its score, and TaskEvalResult.create requires every configured evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the evaluator-parsed response normalize to RETRIEVE/SUCCESS with exactly the unordered driving-13min and walking-1hr 35min objects?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the HAR parseable as the required NetworkTrace and, if environment-URL fallback is needed, sufficient for evaluator setup to complete without error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+  success_if:
+  - text: The evaluation inputs are usable, and the parsed response has task_type (or the supported legacy alias) normalizing to RETRIEVE and status normalizing to SUCCESS.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+  - text: 'After schema normalization, retrieved_data is exactly the unordered two-element multiset {mode: driving, duration: 13min} and {mode: walking, duration: 1hr 35min}, with no missing or extra elements or object keys; the sole evaluator and overall task scores are both 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The evaluator receives an unusable response or trace, or parsing, context construction, configuration validation, normalization, or evaluator orchestration errors; such errors yield an overall score of 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: The parsed response is not a structured object or its normalized task_type/status differs from RETRIEVE/SUCCESS, producing a nonempty assertion set and evaluator score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: retrieved_data is missing, null, malformed, or differs after normalization in any mode, duration, object key, element count, or duplicate count; the resulting evaluator score and task score are 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Retained evidence is undecidable only if artifact loss, truncation, or run-association ambiguity prevents reconstructing what response and trace reached the evaluator and no complete official TaskEvalResult is retained; an explicitly null or malformed evaluator input is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult
+stronger:
+  additional_conditions:
+  - id: literal-hhmmss
+    text: Beyond native normalized matching, the raw duration strings must be exactly 00:13:00 for driving and 01:35:00 for walking.
+    rationale: The task explicitly requires HH:MM:SS, while the released expectation uses 13min and 1hr 35min and compares values only after duration-schema normalization.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Are the two raw retrieved_data duration strings exactly 00:13:00 and 01:35:00 for driving and walking respectively?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].expected.retrieved_data
+      - derived/task.json::eval[0].results_schema
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected.retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+  - id: osrm-use-evidence
+    text: Beyond native response scoring, network.har must show successful OSRM direction-service retrievals for both driving and walking between AMC Waterfront and Carnegie Mellon University that support the returned durations.
+    rationale: The task explicitly mandates OSRM, but the only configured evaluator reads agent_response_raw; no NetworkEventEvaluator verifies which service produced the values.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the trace contain successful OSRM direction requests and responses supporting both reported route modes and durations for the requested endpoints?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value

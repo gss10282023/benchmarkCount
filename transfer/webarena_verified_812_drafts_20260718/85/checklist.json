@@ -1,0 +1,129 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "85",
+  "domain": "webarena_verified",
+  "task_id": "85",
+  "native": {
+    "user_goal": {
+      "text": "Use the OSRM direction service to obtain the estimated driving time from La Quinta Inn near the airport to Carnegie Mellon University, and return only the value as an HH:MM:SS string.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0: the sole configured AgentResponseEvaluator scores 1.0 after the response normalizes to task_type RETRIEVE, status SUCCESS, and an unordered retrieved_data collection exactly matching the duration-normalized expected value [\"30min\"].",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released AgentResponseEvaluator, with its sole evaluator score composed into the task score by TaskEvalResult.create.",
+      "support": [
+        "derived/task.json::eval[0].evaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the exact submitted response, under the released parsing and normalization rules, yield RETRIEVE, SUCCESS, and retrieved_data exactly matching the single expected duration \"30min\" under unordered duration comparison?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "agent_response.json produces no AgentResponseEvaluator assertion or error: its normalized task type is RETRIEVE, status is SUCCESS, and normalized retrieved data exactly matches the one-item expected duration [\"30min\"] under unordered comparison; therefore both the evaluator score and TaskEvalResult.score are 1.0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "If the retained file is the exact submission and evaluator parsing or normalization produces any mismatch or error—including an invalid or non-object response, wrong or missing task type/status, or missing, extra, or nonmatching retrieved duration—the sole evaluator is not 1.0 and TaskEvalResult.score is 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecidable only when the exact submitted agent response is not retained or its contents cannot be recovered; network.har alone cannot determine the value compared by AgentResponseEvaluator.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "derived/task.json::eval[0].evaluator"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_osrm_use",
+        "text": "Beyond native success, network.har must show a successful OSRM directions request for the specified origin and destination whose returned duration supports the submitted value.",
+        "rationale": "The official instruction explicitly requires OSRM, but the only configured evaluator is AgentResponseEvaluator and it reads the agent response rather than validating a network event; native success therefore does not establish that OSRM was used.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Does the trace contain a successful OSRM directions request for the La Quinta Inn near the airport-to-Carnegie Mellon University route, with a returned duration?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+            ]
+          },
+          {
+            "artifact": "agent_response.json",
+            "question": "Does the submitted duration agree with the duration supported by that OSRM response?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[0].expected.retrieved_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0].evaluator",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+        ]
+      },
+      {
+        "id": "exact_hhmmss_presentation",
+        "text": "Beyond native success, the retrieved result within the response envelope must consist of exactly one raw HH:MM:SS string, with no additional retrieved value or explanatory text.",
+        "rationale": "The task explicitly requires HH:MM:SS only, while the evaluator compares duration-normalized data against the raw expected value \"30min\"; native success therefore does not establish the requested exact raw presentation.",
+        "decisive_artifacts": [
+          {
+            "artifact": "agent_response.json",
+            "question": "Does retrieved_data carry exactly one raw string matching ^[0-9]{2}:[0-5][0-9]:[0-5][0-9]$ and no explanatory text or additional value?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[0].results_schema",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0].expected.retrieved_data",
+          "derived/task.json::eval[0].results_schema",
+          "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data"
+        ]
+      }
+    ]
+  }
+}

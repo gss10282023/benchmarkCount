@@ -1,0 +1,80 @@
+schema_version: case_checklist_v1
+case_unit_id: '623'
+domain: webarena_verified
+task_id: '623'
+native:
+  user_goal:
+    text: Ask for advice in the relations forum by creating a post titled "gift for birthday" with body "Please help".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response as a successful MUTATE, and NetworkEventEvaluator accepts the last qualifying Reddit submission POST.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then conjunctively composes their scores in TaskEvalResult.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After released parsing and normalization, does the response compare without assertions or error to task_type MUTATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among non-static events, is the last POST matching /submit or /submit/relationship_advice a 302 response whose compared form fields are submission[forum]=10075, submission[title]="gift for birthday", and submission[body]="Please help" under released normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'agent_response.json yields AgentResponseEvaluator score 1.0: the released parser, normalizer, and structural comparison accept MUTATE, SUCCESS, and null retrieved_data without evaluator error.'
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - text: 'network.har yields NetworkEventEvaluator score 1.0: the last URL/method-filtered candidate matches the configured endpoint alternative, POST method, 302 response, forum ID, title, and body.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+  - text: Both evaluator scores equal 1.0, so TaskEvalResult.score equals 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: AgentResponseEvaluator reports any mismatch or error, including a non-object or unparseable response, missing or wrong MUTATE/SUCCESS values, or another normalized structural mismatch.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: NetworkEventEvaluator reports failure or error because no endpoint/method candidate exists or because the last matching candidate fails any configured URL, POST, response-status, forum, title, or body comparison; an earlier valid candidate does not override a later invalid one.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Either evaluator score being other than 1.0 makes TaskEvalResult.score 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: One or both required run artifacts are absent from the retained evidence, so the corresponding official evaluator outcome cannot be reconstructed from stored evidence alone.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    rationale: This is limited to a retention gap; a null, malformed, or missing input actually supplied to the released evaluator follows its ordinary failure or error semantics.
+stronger:
+  additional_conditions:
+  - id: persisted-post-state
+    text: Beyond native success, retained post-run Reddit state shows that the submission produced a new relationship_advice post titled "gift for birthday" with body "Please help", rather than only a matching request/302 and success self-report.
+    rationale: The user intent requires a created forum post, while the released native checks inspect only the agent response and network-event fields and do not verify persisted Reddit post state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit post record or captured post page with creation metadata
+      question: Does it show a post created during the run in relationship_advice with the exact title "gift for birthday" and body "Please help"?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

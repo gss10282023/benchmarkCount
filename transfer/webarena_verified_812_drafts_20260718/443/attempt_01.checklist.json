@@ -1,0 +1,110 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "443",
+  "domain": "webarena_verified",
+  "task_id": "443",
+  "native": {
+    "user_goal": {
+      "text": "Using GitLab's simple online file editor, update and commit the current project's website code on a new branch with no merge request so the browser-tab title is \"Not an interesting site\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured evaluator scores are 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the configured last matching GitLab update event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released AgentResponseEvaluator evaluates agent_response.json, the released NetworkEventEvaluator evaluates network.har, and TaskEvalResult.create composes their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the final response pass the released parse, normalization, and structural comparison against the expected MUTATE/SUCCESS response, including mutate-task retrieved-data handling?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last POST event matching the GitLab update path for byteblaze/gimmiethat.space/main/index.html return 302 and have _method=put, original_branch=main, file_path=index.html, branch_name matching ^(?!main$).+$, and content matching the configured full-document regex containing <title>Not an interesting site</title>?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both conditions hold: agent_response.json earns AgentResponseEvaluator score 1.0, and the selected last matching event in network.har earns NetworkEventEvaluator score 1.0; consequently all configured evaluator scores equal 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The submitted final response is absent, malformed, mismatches the released MUTATE/SUCCESS comparison, or causes response evaluation to error; this prevents AgentResponseEvaluator from scoring 1.0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "The submitted network trace is absent or malformed, has no matching GitLab POST event, or its selected last matching event fails any configured URL, method, status, or POST-data criterion; this prevents NetworkEventEvaluator from scoring 1.0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "A retained evaluator input was lost or truncated after the run and no retained official evaluation result establishes its score; an absent or malformed input actually supplied for evaluation is failure, not undecided.",
+        "rationale": "Native success requires both evaluator outcomes, so post-run evidence loss can leave a score unknown even though evaluator-visible absence or error would score zero."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "durable_new_branch_without_merge_request",
+        "text": "Beyond native scoring, retained GitLab state must show that the run created a previously absent non-main branch, committed the requested title in the website code on that branch, and left the branch with no merge request.",
+        "rationale": "The task requires a new committed branch and no merge request, while the released checks accept a self-reported success plus a 302 POST whose branch_name merely differs from main; they do not inspect durable branch, commit, or merge-request state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Retained GitLab project state/activity export covering branches, commits, file contents, and merge requests",
+            "question": "Does it establish creation of a previously absent non-main branch, a commit on that branch whose website code contains <title>Not an interesting site</title>, and no merge request sourced from that branch?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0].expected",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

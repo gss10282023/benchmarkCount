@@ -1,0 +1,62 @@
+schema_version: case_checklist_v1
+case_unit_id: '176'
+domain: webarena_verified
+task_id: '176'
+native:
+  user_goal:
+    text: Determine whether the most recently updated GitLab issue whose title contains "theme editor" is closed, returning true if closed and false if open.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task succeeds only when its sole AgentResponseEvaluator scores 1.0: the extracted response normalizes to task_type RETRIEVE, status SUCCESS, and an unordered boolean retrieved_data sequence equal to [false]; TaskEvalResult then has score 1.0.'
+    support:
+    - derived/tag_task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator extracts and parses agent_response_raw, normalizes its fields under the task schema, and structurally compares them; TaskEvalResult requires every configured evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted response parse to a mapping whose evaluator-normalized task_type and status match RETRIEVE and SUCCESS, and whose unordered boolean retrieved_data contains exactly one false value?
+    support:
+    - derived/tag_task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: 'The retained submitted response yields no evaluator assertion or error: task_type and status normalize to RETRIEVE and SUCCESS, and retrieved_data normalizes to exactly one boolean false value under unordered comparison.'
+    support:
+    - derived/tag_task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  fail_if:
+  - text: The retained response is present but is not a parseable mapping, or its task_type or status is missing or does not normalize to RETRIEVE or SUCCESS.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+  - text: The retrieved_data field is missing, null, invalid as boolean data, or normalizes to anything other than exactly one false value; any evaluator or orchestration error likewise makes TaskEvalResult.score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained record omits or truncates agent_response.json so that what was submitted cannot be reconstructed; a retained null, empty, or invalid response is instead a native failure.
+    rationale: This distinguishes missing review evidence from an actually submitted response that the released evaluator would reject.
+stronger:
+  additional_conditions:
+  - id: public_response_schema_conformance
+    text: Beyond native scoring, require the raw submitted response to validate as FinalAgentResponse, with retrieved_data encoded as an array containing the JSON boolean false rather than as scalar false.
+    rationale: The public response model requires retrieved_data to be a list or null, but the released evaluator's non-strict normalization wraps a scalar into a one-element tuple, so native scoring can accept scalar retrieved_data=false.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Is the raw submission a FinalAgentResponse-compatible JSON object whose retrieved_data value is the array [false], not scalar false?
+      support:
+      - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    support:
+    - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data

@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: '588'
+domain: webarena_verified
+task_id: '588'
+native:
+  user_goal:
+    text: Submit a 1-star review for the recently purchased “Foundation For Mattress With Frame Set” using nickname “ShoppingEmma,” summary “Very bad,” and review text “I hated it.”
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured components score 1.0: AgentResponseEvaluator accepts the final response as a successful MUTATE task, and NetworkEventEvaluator accepts the last matching review POST with the configured URL, form values, and 302 response.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks the retained final response; NetworkEventEvaluator checks the retained network trace; TaskEvalResult.create requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the exact submitted response pass the released parser, normalizer, and comparator for task_type MUTATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last event selected by the POST/URL filter fully match POST __SHOPPING__/review/product/post/id/14854/ with response status 302 and post_data nickname=ShoppingEmma, title=Very bad, detail=I hated it, and ratings[4]=16 under the released normalization rule?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success if agent_response.json earns 1.0 from AgentResponseEvaluator and network.har earns 1.0 from NetworkEventEvaluator, making every configured evaluator score 1.0 and TaskEvalResult.score 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if the exact submitted response is available and AgentResponseEvaluator rejects it or errors, including when it does not pass the configured successful-MUTATE comparison.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Fail if the complete submitted network trace is available and NetworkEventEvaluator rejects it or errors, including when no qualifying review POST exists or the last selected POST mismatches any configured URL, method, form value, or 302 status.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  undecided_if:
+  - text: Undecided if stored evidence does not preserve the exact submitted response or the complete network trace, so one or both evaluator-visible inputs cannot be reconstructed.
+    rationale: A missing or truncated retained copy does not establish whether the original evaluator input passed or failed.
+stronger:
+  additional_conditions:
+  - id: persisted_review_state
+    text: Beyond native scoring, retained post-run shopping state must show the specified review persisted on “Foundation For Mattress With Frame Set” with 1 star, nickname “ShoppingEmma,” summary “Very bad,” and text “I hated it.”
+    rationale: The task asks to rate the product, while the released evaluator verifies a self-reported success response and a matching POST/302 event but does not inspect post-run review state; this condition closes that persistence gap.
+    decisive_artifacts:
+    - artifact: Post-run product-review page snapshot or shopping-state export
+      question: Does post-run state show the exact specified 1-star review on “Foundation For Mattress With Frame Set”?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

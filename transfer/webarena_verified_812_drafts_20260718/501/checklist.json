@@ -1,0 +1,110 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "501",
+  "domain": "webarena_verified",
+  "task_id": "501",
+  "native": {
+    "user_goal": {
+      "text": "Mark every Taurus Elements Shell product as out of stock.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0: both configured checks must score 1.0—the AgentResponseEvaluator must accept the MUTATE/SUCCESS response, and the NetworkEventEvaluator must accept the configured product-save event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then composes their results with TaskEvalResult.create.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and normalize to a structured response that passes the expected task_type MUTATE and status SUCCESS comparison?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching POST and the configured product-350 save URL have response status 302 and parsed form value product[quantity_and_stock_status][is_in_stock] = 0?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both artifacts pass their released comparisons: the agent response passes AgentResponseEvaluator, and the HAR's last matching POST to /catalog/product/save/id/350/type/configurable/store/0/set/<digits>/back/edit has the required stock value and 302 response. Thus both evaluator scores are 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The agent-response check fails or errors, including when the response is not an accepted structured value or its task_type/status do not normalize to MUTATE/SUCCESS; because every evaluator must score 1.0, this makes the native task score 0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "The network-event check fails or errors, including when no configured POST/URL event exists or the selected last such event mismatches the required stock form value or 302 response; because every evaluator must score 1.0, this makes the native task score 0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecidable only if agent_response.json or network.har was not retained, or is incomplete enough that the evaluator-visible comparison cannot be reconstructed; an intact artifact showing a mismatch or evaluation error is failure, not undecided.",
+        "rationale": "The native claim composes two evaluator checks fed by separate run artifacts, so both inputs must remain reviewable to verify it independently."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_complete_post_run_stock_state",
+        "text": "Beyond native request-trace acceptance, a retained post-run catalog snapshot must show every product named Taurus Elements Shell with stock status set to out of stock.",
+        "rationale": "The task asks for a universal persisted-state change, while the released evaluator checks only one product-350 save POST containing is_in_stock = 0 and a 302 response; it does not inspect final catalog state or other same-named records.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run shopping-admin catalog export or equivalent complete product-record snapshot",
+            "question": "Does the post-run snapshot show that every catalog record named Taurus Elements Shell is out of stock?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::instantiation_dict.product"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,83 @@
+schema_version: case_checklist_v1
+case_unit_id: '647'
+domain: webarena_verified
+task_id: '647'
+native:
+  user_goal:
+    text: Create a Reddit post in the technology forum titled "What could open-source LLMs help the technology field?"
+    support:
+    - derived/task.json::intent
+    - derived/task.json::sites[0]
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: AgentResponseEvaluator and NetworkEventEvaluator must both score 1.0. The former must accept the normalized MUTATE/SUCCESS response structure; the latter must accept the configured Reddit submission event.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator checks the final agent response, the released NetworkEventEvaluator checks evaluation events parsed from the network trace, and TaskEvalResult.create conjunctively combines their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize to the accepted structure with task_type MUTATE, status SUCCESS, and evaluator-produced retrieved_data null for this non-retrieve task?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the selected last matching POST to __REDDIT__/submit or __REDDIT__/submit/technology return 302 and carry submission[forum] = 10082 and the configured title, with all configured fields equal after evaluator normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff agent_response.json passes AgentResponseEvaluator and network.har passes NetworkEventEvaluator for the configured last matching submission event; both component scores are then 1.0 and TaskEvalResult.score is 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Failure if the response supplied to AgentResponseEvaluator is absent, invalid, or does not normalize to the accepted MUTATE/SUCCESS structure; its 0.0 score or evaluator error makes the overall score 0.0 even if the network check passes.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Failure if no matching POST event exists, or the selected last matching POST fails any configured URL, method, response-status, or form-data comparison; its 0.0 score or evaluator error makes the overall score 0.0 even if the response check passes.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecided only when agent_response.json or network.har is missing, unreadable, or incomplete enough that neither both component passes nor any component failure can be established; an incomplete HAR, for example, may not establish which matching POST was last.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    rationale: Overall success is conjunctive, so a proven component failure remains decisive even when the other artifact is unavailable.
+stronger:
+  additional_conditions:
+  - id: persisted_post_state
+    text: Beyond native success, retained post-run Reddit state must show a persisted post in the technology forum with the exact requested title.
+    rationale: The official intent requires creation of a post, while the native checks accept a normalized success response plus a matching POST/302 network event and do not inspect response content or post-run site state.
+    decisive_artifacts:
+    - artifact: post-run Reddit post-state capture
+      question: Does a retained DOM, API, or equivalent state capture identify a persisted post in the technology forum titled exactly "What could open-source LLMs help the technology field?"
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

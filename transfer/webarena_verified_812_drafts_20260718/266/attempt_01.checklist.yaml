@@ -1,0 +1,78 @@
+schema_version: case_checklist_v1
+case_unit_id: '266'
+domain: webarena_verified
+task_id: '266'
+native:
+  user_goal:
+    text: Identify the closest national park to the largest city in Maine and return only a list of objects containing its integer relation_id and driving distance with a km or m unit, using official-place coordinates from the provided wiki and OSRM directions.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if both configured checks score 1.0: AgentResponseEvaluator accepts a response normalized to task_type RETRIEVE, status SUCCESS, and the unordered one-item retrieved_data [{"relation_id":2176999,"distance":"290km"}]; and NetworkEventEvaluator accepts the last matching GET event whose URL matches ^.*/route/v1/.*/-68.2177005,44.3494709;-70.2545299,43.6599147.*$, after ignoring all query parameters, with response status 200.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator over agent_response.json and NetworkEventEvaluator over network.har, then TaskEvalResult.create applies the all-evaluator-scores-equal-1.0 composition.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: When parsed by the released evaluator, does the response complete normalization and comparison without error and match RETRIEVE, SUCCESS, and exactly the unordered one-object retrieved_data value with relation_id 2176999 and a distance normalizing to 290km?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - artifact: network.har
+    question: Among non-static evaluation events, does the selected last matching GET event satisfy the configured route URL pattern and have HTTP response status 200, with all query parameters ignored?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events
+  success_if:
+  - text: 'Both checks pass: the response matches the configured normalized response, including the exact one-item result set, and the HAR''s selected last matching GET route event matches the configured URL and has status 200; consequently both evaluator scores and TaskEvalResult.score are 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Fail if either evaluator returns 0.0 or errors: the response is invalid or differs after schema normalization and structural comparison, or the HAR has no qualifying GET route event or its selected last match does not have response status 200. Any such component makes TaskEvalResult.score 0.0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only if a required retained artifact is absent, truncated, or cannot be tied to this run, so one of the two official evaluator outcomes cannot be reconstructed. A complete artifact that records an invalid response, an empty or no-match trace, or evaluator-error-causing data is failure, not undecided.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    rationale: This separates loss of review evidence from a benchmark-counted negative result visible in complete run evidence.
+stronger:
+  additional_conditions:
+  - id: required_source_grounding
+    text: Beyond native scoring, network.har must show official wiki place-page evidence whose coordinates match both route endpoints and a request to the provided OSRM service whose retained route response distance is consistent with the distance reported in agent_response.json.
+    rationale: The instruction requires wiki-derived endpoint coordinates and OSRM-derived driving distance, but native scoring checks a fixed response plus only a wildcard-prefix route URL, GET method, and status 200; it requires neither wiki events nor OSRM response content.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the HAR show official wiki place-page evidence for both endpoint coordinates and a response from the provided OSRM service whose route distance is consistent with the reported 290km?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent.response_content
+    - artifact: agent_response.json
+      question: What driving distance does the retained response report for comparison with the OSRM route response?
+      support:
+      - derived/task.json::eval[0].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data

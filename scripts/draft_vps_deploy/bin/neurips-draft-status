@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -u
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: neurips-draft-status JOB_ID" >&2
+  exit 2
+fi
+
+job_id=$1
+if [[ ! $job_id =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$ ]]; then
+  echo "Invalid JOB_ID." >&2
+  exit 2
+fi
+
+unit=neurips-draft-$job_id.service
+summary=/srv/neurips-draft/jobs/$job_id/results/_batch_summary.json
+
+if systemctl is-active --quiet "$unit"; then
+  echo "job_status=running"
+elif [[ -f $summary ]]; then
+  echo "job_status=finished"
+else
+  echo "job_status=not_running_or_failed_before_summary"
+fi
+
+if [[ -f $summary ]]; then
+  /opt/neurips-draft/venv/bin/python - "$summary" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as handle:
+    value = json.load(handle)
+for key in (
+    "total_cases",
+    "completed_cases",
+    "success_cases",
+    "skipped_cases",
+    "failed_cases",
+    "not_run_case_count",
+    "warning_count",
+):
+    if key in value:
+        print(f"{key}={value[key]}")
+PY
+fi
+
+journalctl --unit "$unit" --no-pager --lines 30 2>/dev/null || true

@@ -1,0 +1,62 @@
+schema_version: case_checklist_v1
+case_unit_id: '29'
+domain: webarena_verified
+task_id: '29'
+native:
+  user_goal:
+    text: In the DIY forum, identify the username and title of the most recent post, count its comments that are both from someone other than the author and more downvoted than upvoted, and return a list of objects with keys "username", "post_title", and "count".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The sole AgentResponseEvaluator must score 1.0: after official parsing and schema normalization, the response must have task type RETRIEVE, status SUCCESS, and retrieved_data equal under unordered-array comparison to [{"username":"ziostraccette","post_title":"How can I bring an HDMI cable from my pc downstairs to my TV upstairs?","count":0}]. The resulting TaskEvalResult must therefore have score 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator, and TaskEvalResult.create requires every configured evaluator score to equal 1.0; this case has one evaluator.
+    support:
+    - derived/task.json::eval[0].evaluator
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: What final response was supplied, and do its evaluator-recognized task type, status, and retrieved_data normalize and compare to the official values under the configured unordered rule?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Can the retained trace be parsed as the NetworkTrace supplied for this run so that construction and validation of the official evaluation context complete without an orchestration error?
+    support:
+    - case_packet.md::9-20
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: The retained response parses and normalizes to task type RETRIEVE, status SUCCESS, and exactly the singleton retrieved-data object with username "ziostraccette", post title "How can I bring an HDMI cable from my pc downstairs to my TV upstairs?", and numeric count 0; array order is ignored.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: Evaluation of the retained inputs completes without error, the sole AgentResponseEvaluator score is 1.0, and consequently TaskEvalResult score is 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The supplied response is invalid for comparison or any compared value differs after normalization, including a wrong or missing task type/status, missing or null retrieved_data, a missing or extra array item, or a mismatch in the singleton object's username, post_title, count, or schema-visible keys.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator
+  - text: The retained run evidence establishes a response/trace parsing failure or an evaluator/orchestration error; such an error produces evaluator or task score 0.0 rather than native success.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained artifacts are missing, unreadable, or mutually inconsistent such that the inputs actually supplied to evaluation cannot be established and no retained official TaskEvalResult resolves the ambiguity.
+    rationale: This is loss or ambiguity of review evidence; a response or trace known to have been null, malformed, or rejected during the run is instead a native failure.
+stronger:
+  additional_conditions: []

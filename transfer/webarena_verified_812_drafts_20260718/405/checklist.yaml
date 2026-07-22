@@ -1,0 +1,66 @@
+schema_version: case_checklist_v1
+case_unit_id: '405'
+domain: webarena_verified
+task_id: '405'
+native:
+  user_goal:
+    text: Upvote the newest post in the DIY forum.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success requires both evaluator scores to equal 1.0: AgentResponseEvaluator must accept the final response as the configured MUTATE/SUCCESS response, and NetworkEventEvaluator must accept the last matching Reddit vote event as POST __REDDIT__/sv/119019.json with post_data.choice="1" and response status 200.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: Apply AgentResponseEvaluator to agent_response.json and NetworkEventEvaluator to network.har, then compose their scores with TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response produce AgentResponseEvaluator score 1.0 under the released parse, normalization, and structural comparison against the configured MUTATE/SUCCESS expectation?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the complete trace's last event selected among matching target-path POSTs pass the normalized comparison for __REDDIT__/sv/119019.json, post_data.choice="1", and HTTP status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff agent_response.json yields AgentResponseEvaluator score 1.0 for the accepted MUTATE/SUCCESS response and network.har yields NetworkEventEvaluator score 1.0 because the last matching POST to __REDDIT__/sv/119019.json has choice="1" and HTTP 200; together these produce TaskEvalResult.score=1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: With complete evaluator inputs, fail if AgentResponseEvaluator is not 1.0 or NetworkEventEvaluator is not 1.0, including an unaccepted final response, no matching target POST, a failing last matching POST comparison, or an evaluator error; any such component makes the overall score 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when agent_response.json or network.har is absent or demonstrably incomplete or truncated, preventing reconstruction of the full final response or network trace; complete inputs that do not pass are failures.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+stronger:
+  additional_conditions:
+  - id: verify_newest_diy_target
+    text: Retained page or site-state evidence must establish that post 119019, the accepted vote-request target, was the newest post in the DIY forum when the vote was made.
+    rationale: The official intent selects the target by forum membership and recency, while the native network evaluator matches a fixed post ID, choice, method, and response status without verifying those relational target properties.
+    decisive_artifacts:
+    - artifact: Retained browser trace or DOM/site-state snapshot of the DIY forum around the vote
+      question: Does the retained forum state identify post 119019 as belonging to DIY and as the newest post when it was selected?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

@@ -1,0 +1,72 @@
+schema_version: case_checklist_v1
+case_unit_id: '730'
+domain: webarena_verified
+task_id: '730'
+native:
+  user_goal:
+    text: Dislike every submission authored by Hrekires in the news forum.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: TaskEvalResult.score is 1.0 only when the AgentResponseEvaluator and all ten NetworkEventEvaluator instances each score 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator checks the final response, ten NetworkEventEvaluator instances check the retained network trace, and TaskEvalResult.create conjunctively aggregates their scores.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize so the evaluator's MUTATE, SUCCESS, and null retrieved-data comparison passes?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: For each submission ID 129816, 129808, 129794, 129783, 129594, 129508, 43839, 43781, 43572, and 43558, does the selected last matching /sv/<ID>.json event match POST choice=-1 with response status 200?
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: agent_response.json passes the AgentResponseEvaluator's normalized MUTATE/SUCCESS response comparison.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: 'network.har passes all ten configured checks: for every specified /sv/<ID>.json endpoint, the last matching POST event compares as choice=-1 and response status 200.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  fail_if:
+  - text: The AgentResponseEvaluator fails or errors because the retained response is invalid or does not pass its expected normalized MUTATE/SUCCESS comparison.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Any one of the ten NetworkEventEvaluator checks fails or errors, including when no matching endpoint event exists or its selected last matching event does not match POST choice=-1 and response status 200.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retention set omits agent_response.json or network.har, so one or more native checks cannot be reconstructed, and no official TaskEvalResult computed from those run inputs is retained.
+    rationale: This is evidence loss rather than a demonstrated evaluator mismatch; a present invalid artifact or a recorded evaluator error is native failure.
+stronger:
+  additional_conditions:
+  - id: verify_complete_post_run_dislike_state
+    text: Beyond native scoring, retained authenticated post-run Reddit state must show that every submission authored by Hrekires in news is disliked by the acting user.
+    rationale: The task requires all such submissions to be disliked, while the native evaluator accepts ten configured successful POST events and a success response without querying final site state for completeness or durable vote state.
+    decisive_artifacts:
+    - artifact: Authenticated post-run Reddit state export covering forum news and author Hrekires
+      question: Does the complete set of Hrekires-authored submissions in news show the acting user's dislike selected on every submission?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::instantiation_dict
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

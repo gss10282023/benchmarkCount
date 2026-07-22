@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: '248'
+domain: webarena_verified
+task_id: '248'
+native:
+  user_goal:
+    text: Get the coordinates of Carnegie Mellon Café and return only an object with "latitude" and "longitude" in decimal degrees, without additional details.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: The official evaluation completes without error and its sole configured AgentResponseEvaluator scores 1.0, making all configured evaluator scores 1.0 and TaskEvalResult.score 1.0. After evaluator parsing and schema normalization, the response must have task_type RETRIEVE, status SUCCESS, and an unordered retrieved_data collection matching the single coordinate with latitude 40.4424191 and longitude -79.9397388.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator constructs the evaluation context from the final response and HAR, runs AgentResponseEvaluator, and derives the binary task score through EvaluatorResult.create and TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the exact final response parse and normalize to task_type RETRIEVE, status SUCCESS, and exactly one coordinate with latitude 40.4424191 and longitude -79.9397388, without a structural or value mismatch?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the retained HAR readable as a NetworkTrace so the official evaluation context can be constructed without a trace or environment-configuration error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: The retained response and HAR are usable by the official evaluator, evaluation completes without error, and AgentResponseEvaluator produces no comparison assertions for the required task type, status, and single normalized coordinate. Its score is therefore 1.0 and, because it is the only configured evaluator, all evaluator scores and TaskEvalResult.score are 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native failure occurs if evaluation has an input, evaluator, or orchestration error, or if AgentResponseEvaluator finds any mismatch—such as a non-object response, missing or mismatched task_type/status, or retrieved_data that does not normalize to exactly the single required coordinate. The sole evaluator then does not score 1.0, or the task is marked error, so TaskEvalResult.score is 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._create_eval_error_result
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only if agent_response.json or network.har is absent or unreadable, preventing reconstruction of the evaluator-visible inputs. A retained null, empty, malformed, or mismatching response, or a recorded evaluation error, is failure rather than undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+stronger:
+  additional_conditions:
+  - id: literal_no_extra_output
+    text: Beyond native scoring, the raw final response must be valid JSON with no surrounding prose or Markdown, and its sole coordinate payload object must contain only the keys "latitude" and "longitude".
+    rationale: The task explicitly requests only the coordinate object without additional details, and the public response contract calls for valid JSON, but the native parser can extract JSON from a fenced response and discard surrounding content before comparison.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Is the raw response valid JSON without surrounding prose or Markdown, and does its single coordinate payload contain exactly the latitude and longitude keys?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict

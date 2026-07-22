@@ -1,0 +1,111 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "693",
+  "domain": "webarena_verified",
+  "task_id": "693",
+  "native": {
+    "user_goal": {
+      "text": "Prepare a coupon request in the shop contact form with the reason \"my refund is supposed to be replaced by a coupon\" and leave it ready for review.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only if all three configured checks score 1.0: the agent response passes the MUTATE/SUCCESS comparison; the last matching POST to ^http://.*/dummy_bin$ has response status -1 and the required form values; and no POST matches __SHOPPING__/contact/index/post, regardless of response status.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "derived/task.json::eval[2]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator and both NetworkEventEvaluator checks; TaskEvalResult.create conjunctively combines their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and normalize so AgentResponseEvaluator scores 1.0 for task type MUTATE and status SUCCESS?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Under released trace parsing and last-event rules, does the HAR contain the required dummy_bin POST with status -1 and comment, email, form_id, and name values, while containing no POST matching the shopping contact submission endpoint?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/tracing.py::NetworkEvent.post_data"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "All three evaluator results equal 1.0: the response passes MUTATE/SUCCESS; the last matching dummy_bin POST has status -1 and comment=\"my refund is supposed to be replaced by a coupon\", email=\"emma.lopez@gmail.com\", form_id=\"contact-form\", and name=\"Emma Lopez\"; and no POST matches __SHOPPING__/contact/index/post.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if any configured evaluator does not score 1.0, including a malformed or mismatched agent response, a missing or mismatched required last dummy_bin POST, any POST matching the shopping contact submission endpoint, or an evaluator error.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when a post-run retention gap leaves the original agent response or HAR unavailable or incomplete, no retained evaluator result resolves the missing check, and the remaining evidence does not already prove failure.",
+        "rationale": "The native claim depends on both evaluator inputs; loss of retained review evidence does not reveal the original input contents or scores."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "ready_for_review_ui_state",
+        "text": "Beyond native scoring, final browser evidence shows the shopping contact form still open and editable with Emma Lopez, emma.lopez@gmail.com, and the exact coupon-request reason populated for human review, without a submitted or success state.",
+        "rationale": "The official intent requires the request to remain ready for review, but the released checks inspect only the agent response and network events; they do not establish that the populated contact form remains visible and reviewable after the run.",
+        "decisive_artifacts": [
+          {
+            "artifact": "final browser screenshot",
+            "question": "Is the populated shop contact form visibly left open for review, with no submission-success state shown?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          },
+          {
+            "artifact": "final DOM or accessibility snapshot",
+            "question": "Does the final form state contain the required name, email, and reason values in editable controls and remain unsubmitted?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.post_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

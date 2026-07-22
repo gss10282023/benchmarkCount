@@ -1,0 +1,57 @@
+schema_version: case_checklist_v1
+case_unit_id: '179'
+domain: webarena_verified
+task_id: '179'
+native:
+  user_goal:
+    text: Determine whether the user's most recently created GitLab issue whose title contains “feature” is closed, returning true if closed and false if open.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0: the sole AgentResponseEvaluator must score 1.0 after the final response normalizes to task_type RETRIEVE, status SUCCESS, and retrieved_data exactly [true] under unordered array comparison.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs AgentResponseEvaluator and assigns task success only when every configured evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After the evaluator's JSON extraction and schema-based normalization, does the retained final response match RETRIEVE, SUCCESS, and retrieved_data exactly [true]?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+  - artifact: network.har
+    question: Can the retained HAR be parsed as the NetworkTrace supplied to the official evaluator without causing input or context construction to fail?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+  success_if:
+  - text: The required run inputs parse and evaluation completes without error; AgentResponseEvaluator produces no comparison assertions because normalized task_type is RETRIEVE, status is SUCCESS, and retrieved_data contains exactly one boolean true. Its score, and therefore the sole-evaluator task score, is 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The final response is empty or non-object after parsing, cannot be normalized, or mismatches an evaluated field—including wrong or missing task_type/status, or missing, null, false, or extra retrieved_data—causing an evaluator error or failure assertion and score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: A present required input cannot be parsed or evaluation otherwise ends in an orchestration error, yielding task status error and score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._create_eval_error_result
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: A required retained artifact is absent or truncated, so the response supplied to evaluation or whether evaluator setup completed cannot be reconstructed.
+    rationale: Loss of post-run evidence does not establish either a match or a benchmark-counted mismatch; a present malformed or null input is instead covered by the failure rules.
+stronger:
+  additional_conditions: []

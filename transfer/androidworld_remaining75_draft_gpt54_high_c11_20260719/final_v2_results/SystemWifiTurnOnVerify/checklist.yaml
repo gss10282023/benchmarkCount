@@ -1,0 +1,73 @@
+schema_version: case_checklist_v1
+case_unit_id: SystemWifiTurnOnVerify
+domain: androidworld
+task_id: SystemWifiTurnOnVerify
+native:
+  user_goal:
+    text: Turn Wi-Fi on.
+    support:
+    - official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.template
+    - official/install/android_world/task_evals/single/system.py::SystemWifiTurnOnVerify.generate_random_params
+    - official/install/android_world/task_evals/task_eval.py::TaskEval.goal
+  benchmark_success:
+    text: Native success requires retained evidence that the episode finished with `done=true` and that the final evaluator-visible `global wifi_on` value was `1` or `2`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful
+  checked_by:
+    text: AndroidWorld runner completion gating in `_run_task` plus `_SystemWifiToggle.is_successful`, which reads `settings get global wifi_on`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful
+  decisive_artifacts:
+  - artifact: Retained episode trace or runner record with the episode completion gate (`done`).
+    question: Does retained execution evidence show `done=true`, or independently establish `done=false`?
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - artifact: Retained final evaluator command output or equivalent device-state record for `settings get global wifi_on`.
+    question: 'What final `wifi_on` value was observed: `1` or `2` (on), or something else?'
+    support:
+    - official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful
+  success_if:
+  - text: Success if retained evidence shows `done=true` and the final `wifi_on` value is `1` or `2`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful
+  fail_if:
+  - text: Fail if retained evidence establishes `done=false`, because the runner gates native success to `0.0` when the episode does not finish.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: Fail if retained evidence shows the final `wifi_on` value is not `1` or `2`, because `_SystemWifiToggle.is_successful` then returns failure regardless of completion state.
+    support:
+    - official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful
+  undecided_if:
+  - text: Undecided if no usable retained evidence shows the final `wifi_on` value and retained evidence does not otherwise establish failure via `done=false`.
+    support:
+    - official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    rationale: The native decision depends on evaluator-visible final Wi-Fi state unless the runner completion gate already proves failure.
+  - text: Undecided if retained evidence shows a final `wifi_on` value of `1` or `2` but lacks decisive retained evidence for whether the episode finished with `done=true`.
+    support:
+    - official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    rationale: A final on-state is insufficient for native success without the runner's completion gate.
+stronger:
+  additional_conditions:
+  - id: require_actual_off_to_on_change
+    text: To match the task prompt rather than the native verification criterion, require retained setup and post-run state evidence showing Wi-Fi was not on before agent actions began and was on (`wifi_on` `1` or `2`) after the run.
+    rationale: The dispatched goal is "Turn wifi on.", but `SystemWifiTurnOnVerify.initialize_task()` turns Wi-Fi on before the episode and `_SystemWifiToggle.is_successful` checks only the post-run `wifi_on` value, so native success can be awarded without any off-to-on change during the run.
+    decisive_artifacts:
+    - artifact: Retained pre-run device-state record for `settings get global wifi_on`.
+      question: Was Wi-Fi not on immediately before the agent began acting?
+      support:
+      - official/install/android_world/task_evals/single/system.py::SystemWifiTurnOnVerify.initialize_task
+      - official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful
+    - artifact: Retained post-run device-state record for `settings get global wifi_on`.
+      question: Was Wi-Fi on (`1` or `2`) after the run?
+      support:
+      - official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful
+    support:
+    - official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.template
+    - official/install/android_world/task_evals/task_eval.py::TaskEval.goal
+    - official/install/android_world/task_evals/single/system.py::SystemWifiTurnOnVerify.initialize_task
+    - official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful

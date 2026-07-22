@@ -1,0 +1,95 @@
+schema_version: case_checklist_v1
+case_unit_id: MarkorCreateNote
+domain: androidworld
+task_id: MarkorCreateNote
+native:
+  user_goal:
+    text: Create a new note in Markor using the instance's specified file name and specified text.
+    support:
+    - official/install/android_world/task_evals/single/markor.py::MarkorCreateNote
+    - official/install/android_world/task_evals/task_eval.py::TaskEval.goal
+  benchmark_success:
+    text: Native success is recorded only if the run ends with `done=true` and `MarkorCreateNote.is_successful` returns 1.0; for this task that evaluator delegates to `CreateFile.is_successful`, which requires the expected file to exist in `MARKOR_DATA` and its contents to pass the evaluator's fuzzy-match comparison against the expected text.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/markor.py::MarkorCreateNote.is_successful
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+    - official/install/android_world/env/device_constants.py::MARKOR_DATA
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  checked_by:
+    text: Runner `done` gating in `suite_utils._run_task`, plus `MarkorCreateNote -> CreateFile` checks over file existence and file contents in Markor storage.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/markor.py::MarkorCreateNote.is_successful
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+    - official/install/android_world/env/device_constants.py::MARKOR_DATA
+  decisive_artifacts:
+  - artifact: Retained dispatched task goal or equivalent retained params for this instance
+    question: What are the expected `file_name` and expected note `text` for this run?
+    support:
+    - official/install/android_world/task_evals/single/markor.py::MarkorCreateNote
+    - official/install/android_world/task_evals/task_eval.py::TaskEval.goal
+  - artifact: Retained terminal run trace or equivalent underlying runner evidence
+    question: Did the episode end with `done=true` or `done=false`?
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - artifact: Retained post-run snapshot/listing of `MARKOR_DATA` and the expected file's contents
+    question: Does `MARKOR_DATA/<file_name>` exist after the run, and if so do its normalized contents pass the evaluator's fuzzy-match comparison to the expected `text`?
+    support:
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+    - official/install/android_world/env/device_constants.py::MARKOR_DATA
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  success_if:
+  - text: The retained goal/params identify the expected `file_name` and `text`; retained runner evidence shows terminal `done=true`; and retained post-run Markor storage evidence shows `MARKOR_DATA/<file_name>` exists and its normalized contents pass the evaluator's fuzzy-match comparison to the expected `text`.
+    support:
+    - official/install/android_world/task_evals/task_eval.py::TaskEval.goal
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+    - official/install/android_world/env/device_constants.py::MARKOR_DATA
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  fail_if:
+  - text: Retained runner evidence shows terminal `done=false`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: Retained goal/params identify the expected `file_name`, and retained post-run Markor storage evidence decisively shows `MARKOR_DATA/<file_name>` does not exist.
+    support:
+    - official/install/android_world/task_evals/task_eval.py::TaskEval.goal
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+    - official/install/android_world/env/device_constants.py::MARKOR_DATA
+  - text: Retained goal/params identify the expected `text`, the expected file exists, and retained file contents decisively fail the evaluator's fuzzy-match comparison to that expected `text`.
+    support:
+    - official/install/android_world/task_evals/task_eval.py::TaskEval.goal
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  undecided_if:
+  - text: Retained evidence is compatible with evaluator success on file existence/content, but no retained underlying runner evidence establishes whether the episode ended with `done=true` or `done=false`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+    rationale: Native success requires both the runner `done` gate and the file/content check, so missing `done` evidence prevents a native S/F decision when file evidence alone does not negate success.
+  - text: The retained evidence does not reliably establish the expected `file_name` or `text`, or does not reliably establish post-run file existence/content in `MARKOR_DATA`.
+    support:
+    - official/install/android_world/task_evals/task_eval.py::TaskEval.goal
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+    - official/install/android_world/env/device_constants.py::MARKOR_DATA
+    rationale: Without the instance-specific expected values and usable post-run Markor file evidence, the evaluator-visible comparison cannot be reconstructed from retained artifacts.
+stronger:
+  additional_conditions:
+  - id: exact_text_match_after_native_normalization
+    text: Beyond the native benchmark, require the retained note text for the expected file to equal the expected `text` exactly after the evaluator's own CR-removal and outer-whitespace trimming, not merely pass the native fuzzy-match check.
+    rationale: The official task asks for a note with the specified text, but the released evaluator accepts approximate matches via `fuzzy_match` after normalizing the retrieved file contents. This is a concrete, reviewable gap between task intent and native acceptance.
+    decisive_artifacts:
+    - artifact: Retained dispatched task goal or equivalent retained params for this instance
+      question: What exact `text` was required for this run?
+      support:
+      - official/install/android_world/task_evals/single/markor.py::MarkorCreateNote
+      - official/install/android_world/task_evals/task_eval.py::TaskEval.goal
+    - artifact: Retained contents of the expected post-run Markor file
+      question: After CR removal and outer-whitespace trimming, does the retained file text equal the expected `text` exactly?
+      support:
+      - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+      - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+    support:
+    - official/install/android_world/task_evals/single/markor.py::MarkorCreateNote
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match

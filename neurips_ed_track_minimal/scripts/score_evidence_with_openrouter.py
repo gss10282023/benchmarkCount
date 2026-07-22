@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Any
 
 import requests
-import yaml
 from jsonschema import Draft202012Validator
 
 
@@ -76,8 +75,15 @@ def resolve_openrouter_api_key() -> tuple[str | None, str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--checklist", type=Path, required=True, help="Path to locked checklist YAML")
-    parser.add_argument("--evidence-dir", type=Path, required=True, help="Directory with stored run artifacts")
+    parser.add_argument(
+        "--checklist", type=Path, required=True, help="Path to locked checklist YAML"
+    )
+    parser.add_argument(
+        "--evidence-dir",
+        type=Path,
+        required=True,
+        help="Directory with stored run artifacts",
+    )
     parser.add_argument(
         "--native-label-path",
         type=Path,
@@ -92,12 +98,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model",
-        default="deepseek/deepseek-v4-pro",
-        help="OpenRouter model id (default: deepseek/deepseek-v4-pro)",
+        default="openai/gpt-5.4",
+        help="OpenRouter model id (default: openai/gpt-5.4)",
     )
     parser.add_argument(
         "--reasoning-effort",
-        default="high",
+        default="xhigh",
         choices=["minimal", "low", "medium", "high", "xhigh"],
         help="Reasoning effort for the Responses API",
     )
@@ -146,7 +152,9 @@ def sidecar_paths_for_output(out_prefix: Path) -> dict[str, Path]:
     return {
         "api_response": out_prefix.with_suffix(".openrouter.api_response.json"),
         "llm_call": out_prefix.with_suffix(".openrouter.llm_call.json"),
-        "reasoning_summary": out_prefix.with_suffix(".openrouter.reasoning_summary.txt"),
+        "reasoning_summary": out_prefix.with_suffix(
+            ".openrouter.reasoning_summary.txt"
+        ),
     }
 
 
@@ -169,13 +177,19 @@ def collect_evidence_files(evidence_dir: Path) -> list[tuple[str, str]]:
         except shared.CodexScoreError as exc:
             raise OpenRouterScoreError(str(exc)) from exc
         candidate_relpaths.append("index.json")
-        for key in ("released_evaluator_artifacts", "primary_artifacts", "run_status_artifacts"):
+        for key in (
+            "released_evaluator_artifacts",
+            "primary_artifacts",
+            "run_status_artifacts",
+        ):
             values = index_payload.get(key)
             if isinstance(values, list):
                 for value in values:
                     if isinstance(value, str) and value.strip():
                         candidate_relpaths.append(value.strip())
-        candidate_relpaths.extend(["raw_run.json", "artifact_manifest.json", "environment.json"])
+        candidate_relpaths.extend(
+            ["raw_run.json", "artifact_manifest.json", "environment.json"]
+        )
     else:
         for path in sorted(evidence_dir.rglob("*")):
             if path.is_file():
@@ -202,7 +216,9 @@ def collect_evidence_files(evidence_dir: Path) -> list[tuple[str, str]]:
         except UnicodeDecodeError:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
-            raise OpenRouterScoreError(f"Failed to read evidence file {path}: {exc}") from exc
+            raise OpenRouterScoreError(
+                f"Failed to read evidence file {path}: {exc}"
+            ) from exc
         files.append((f"evidence/{rel}", text))
     return files
 
@@ -224,7 +240,9 @@ def build_direct_prompt(base_prompt: str) -> str:
     )
 
 
-def build_input_payload(*, checklist_text: str, evidence_files: list[tuple[str, str]]) -> str:
+def build_input_payload(
+    *, checklist_text: str, evidence_files: list[tuple[str, str]]
+) -> str:
     sections = [
         "Locked checklist:",
         "<<<FILE: checklist.yaml>>>",
@@ -306,7 +324,9 @@ def call_openrouter(
     try:
         return response.json()
     except json.JSONDecodeError as exc:
-        raise OpenRouterScoreError(f"OpenRouter returned non-JSON content: {exc}") from exc
+        raise OpenRouterScoreError(
+            f"OpenRouter returned non-JSON content: {exc}"
+        ) from exc
 
 
 def extract_json_text(api_response: dict[str, Any]) -> dict[str, Any]:
@@ -319,7 +339,9 @@ def extract_json_text(api_response: dict[str, Any]) -> dict[str, Any]:
         if item.get("type") != "message":
             continue
         for content in item.get("content", []):
-            if content.get("type") == "output_text" and isinstance(content.get("text"), str):
+            if content.get("type") == "output_text" and isinstance(
+                content.get("text"), str
+            ):
                 candidates.append(content["text"])
 
     for candidate in candidates:
@@ -330,7 +352,9 @@ def extract_json_text(api_response: dict[str, Any]) -> dict[str, Any]:
         if isinstance(parsed, dict):
             return parsed
 
-    raise OpenRouterScoreError("Could not parse structured JSON from the OpenRouter response.")
+    raise OpenRouterScoreError(
+        "Could not parse structured JSON from the OpenRouter response."
+    )
 
 
 def extract_reasoning_summary_text(api_response: dict[str, Any]) -> str:
@@ -434,6 +458,18 @@ def build_llm_call_record(
 
 def main() -> int:
     args = parse_args()
+    formal_write = shared.enforce_formal_score_write_gate(
+        out_prefix=args.out_prefix,
+        checklist_path=args.checklist,
+        evidence_dir=args.evidence_dir,
+        prompt_path=PROMPT_PATH,
+        schema_path=SCHEMA_PATH,
+    )
+    if formal_write:
+        raise OpenRouterScoreError(
+            "direct OpenRouter scoring cannot write the formal AgentDojo namespace; "
+            "use the join-authorized batch scorer so every output binds its score-session receipt"
+        )
     api_key, api_key_env = resolve_openrouter_api_key()
     if not api_key:
         print(
@@ -446,7 +482,9 @@ def main() -> int:
     shared.ensure_exists(args.checklist, "Checklist")
     shared.ensure_exists(args.evidence_dir, "Evidence directory")
     if not args.evidence_dir.is_dir():
-        raise OpenRouterScoreError(f"Evidence path is not a directory: {args.evidence_dir}")
+        raise OpenRouterScoreError(
+            f"Evidence path is not a directory: {args.evidence_dir}"
+        )
     if args.native_label_path is not None:
         shared.ensure_exists(args.native_label_path, "Native label file")
     if args.max_attempts < 1:
@@ -459,7 +497,9 @@ def main() -> int:
     raw_run = shared.load_optional_raw_run(args.evidence_dir.resolve())
     released_evaluator_label = shared.resolve_released_evaluator_label(
         evidence_dir=args.evidence_dir.resolve(),
-        native_label_path=args.native_label_path.resolve() if args.native_label_path else None,
+        native_label_path=args.native_label_path.resolve()
+        if args.native_label_path
+        else None,
     )
     out_prefix = shared.resolve_out_prefix(
         requested_out_prefix=args.out_prefix,
@@ -486,7 +526,9 @@ def main() -> int:
         checklist_text = shared.load_text(checklist_dst)
         evidence_files = collect_evidence_files(evidence_dst)
         direct_prompt = build_direct_prompt(prompt_text)
-        input_text = build_input_payload(checklist_text=checklist_text, evidence_files=evidence_files)
+        input_text = build_input_payload(
+            checklist_text=checklist_text, evidence_files=evidence_files
+        )
         retry_note = ""
         final_score: dict[str, Any] | None = None
         final_api_response: dict[str, Any] | None = None
@@ -554,7 +596,9 @@ def main() -> int:
                 **model_score,
             }
 
-            errors = sorted(validator.iter_errors(score), key=lambda e: list(e.absolute_path))
+            errors = sorted(
+                validator.iter_errors(score), key=lambda e: list(e.absolute_path)
+            )
             if errors:
                 lines = ["OpenRouter output failed schema validation:"]
                 for err in errors:
@@ -566,7 +610,9 @@ def main() -> int:
                 continue
 
             try:
-                shared.validate_score_guardrails(score, checklist, workspace_root=workspace_root)
+                shared.validate_score_guardrails(
+                    score, checklist, workspace_root=workspace_root
+                )
             except shared.CodexScoreError as exc:
                 if attempt == args.max_attempts:
                     raise OpenRouterScoreError(str(exc)) from exc
@@ -577,7 +623,9 @@ def main() -> int:
             break
 
         if final_score is None or final_api_response is None:
-            raise OpenRouterScoreError("OpenRouter scoring did not produce a valid output.")
+            raise OpenRouterScoreError(
+                "OpenRouter scoring did not produce a valid output."
+            )
 
         shared.write_json(sidecars["api_response"], final_api_response)
         reasoning_summary_text = extract_reasoning_summary_text(final_api_response)

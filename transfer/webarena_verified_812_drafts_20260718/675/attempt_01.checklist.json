@@ -1,0 +1,115 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "675",
+  "domain": "webarena_verified",
+  "task_id": "675",
+  "native": {
+    "user_goal": {
+      "text": "Create a post in the game-related discussion forum titled \"real user feedback on HORI 3D Surround Gaming Neckset\" whose body is a Markdown bullet list, in OneStopShop display order, of the review titles for that product rated 2 stars or less.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only if both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the last POST matching the normalized Reddit submit URL as a 302 submission to forum 10048 with the configured title and four-bullet body.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator; TaskEvalResult.create conjunctively aggregates their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained final response parse and normalize under AgentResponseEvaluator to task_type MUTATE and status SUCCESS?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching a POST to the normalized Reddit submit URL have response status 302 and required form fields submission[forum]=\"10048\", submission[title]=\"real user feedback on HORI 3D Surround Gaming Neckset\", and submission[body]=\"- \\\"Not worth it for PC users\\\"\\r\\n- \\\"I really wanted to like this.\\\"\\r\\n- \\\"I wish this was better...\\\"\\r\\n- \\\"I wish this was better...\\\"\" under the official normalization/comparison rule?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both evaluator checks score 1.0: agent_response.json is accepted as MUTATE/SUCCESS, and the last matching Reddit-submit POST in network.har is accepted with status 302, forum 10048, the required title, and the four ordered Markdown bullets \"Not worth it for PC users\", \"I really wanted to like this.\", \"I wish this was better...\", and \"I wish this was better...\".",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure occurs if AgentResponseEvaluator does not score 1.0, including when the evaluated response is invalid or its normalized task type/status does not match MUTATE/SUCCESS, even if the network check passes.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "Native failure occurs if NetworkEventEvaluator does not score 1.0, including when a complete trace has no matching submit POST or the last matching POST has a mismatched status or required form value, even if the response check passes.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored-evidence review is undecided if agent_response.json or network.har is missing, truncated, or unreadable such that one evaluator input cannot be reconstructed; a complete trace showing no qualifying event is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_forum_post",
+        "text": "Retained post-run Reddit state shows that a new post was actually persisted in the game-related forum with the required title and four ordered review-title bullets.",
+        "rationale": "The official task asks to create a forum post, while the native evaluator inspects only the final response and a matching HAR request with a 302 response; it does not inspect persisted forum state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Reddit post record, state export, or rendered post snapshot",
+            "question": "Does retained post-run state show a newly persisted post in forum 10048 with the required title and the four required bullets in order?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

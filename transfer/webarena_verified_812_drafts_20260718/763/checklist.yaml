@@ -1,0 +1,74 @@
+schema_version: case_checklist_v1
+case_unit_id: '763'
+domain: webarena_verified
+task_id: '763'
+native:
+  user_goal:
+    text: Show on the map the walking route from 401 Shady Ave, Pittsburgh, to the closest Trader Joe's, using the OSRM direction service.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both official checks score 1.0: AgentResponseEvaluator accepts the response as NAVIGATE with SUCCESS, and NetworkEventEvaluator accepts the last evaluator-visible navigation event as the expected map URL with method GET and response status 200.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator checks agent_response.json, the released NetworkEventEvaluator checks network.har, and TaskEvalResult.create combines their scores conjunctively.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize to a structure accepted by AgentResponseEvaluator as task_type NAVIGATE with status SUCCESS?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Under the released trace rules, does the last evaluator-visible navigation event normalize to the expected map URL with method GET and response status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff the retained response passes the NAVIGATE/SUCCESS agent-response check and the HAR passes the last-navigation-event map-URL/GET/200 check, so both evaluator scores are 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if the retained evaluator input is present but the agent response does not pass as NAVIGATE/SUCCESS, or the HAR lacks an accepted last navigation event matching the expected map URL, GET, and status 200; any evaluator or task-evaluation error also scores 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided if agent_response.json or network.har was not retained, or is truncated so its evaluator-visible contents cannot be reconstructed; a retained null or malformed input that the released evaluator rejects is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: verify_requested_route_semantics
+    text: Beyond native success, retained evidence must show the map displaying a walking route from 401 Shady Ave, Pittsburgh, to the closest Trader Joe's and show that the corresponding directions request used OSRM.
+    rationale: The official intent requires a particular displayed route, closest-store selection, walking mode, and OSRM, while the native evaluators check only the declared NAVIGATE/SUCCESS response and the last navigation to the map URL; they do not verify those route semantics.
+    decisive_artifacts:
+    - artifact: Retained final map screenshot or DOM/accessibility snapshot
+      question: Is a walking route visibly displayed from the specified origin to the selected Trader Joe's destination?
+      support:
+      - derived/task.json::intent
+    - artifact: network.har
+      question: Do retained search/directions events identify the selected destination as the closest Trader Joe's for the specified origin and contain the corresponding OSRM directions request?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

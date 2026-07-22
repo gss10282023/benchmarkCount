@@ -1,0 +1,68 @@
+schema_version: case_checklist_v1
+case_unit_id: '519'
+domain: webarena_verified
+task_id: '519'
+native:
+  user_goal:
+    text: Add the product on the current shopping page to the user's wishlist.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult scores 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the selected wishlist-add network event.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator and composes their scores with an all-must-pass rule.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response pass the released parser, normalizer, and comparator against the expected MUTATE/SUCCESS response fields?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the last evaluation event matching a POST to the normalized shopping path /wishlist/index/add/ have product=37339, qty=1, and response status 302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks score 1.0: the final response passes AgentResponseEvaluator for MUTATE/SUCCESS, and the HAR''s selected last matching POST passes all configured URL, form-data, and 302-status comparisons.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Complete retained evidence establishes that either check fails or errors—for example, the response does not pass its expected comparison, no qualifying wishlist POST exists, or the selected last matching POST differs in product, quantity, or response status; the composed task score is then 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: One or both required retained artifacts are absent, truncated, or unreadable, so at least one evaluator-visible check cannot be reconstructed from stored evidence.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: persisted_wishlist_membership
+    text: Beyond native scoring, retained post-run shopping state shows that product 37339 is present in the current user's wishlist.
+    rationale: The task asks for an actual wishlist mutation, while the released checks require a self-reported success response and a matching POST with a 302 response but do not inspect persisted wishlist membership.
+    decisive_artifacts:
+    - artifact: Post-run authenticated shopping-state snapshot
+      question: Does the current user's persisted wishlist contain product 37339 after the run?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::start_urls[0]
+      - derived/task.json::eval[1].expected.post_data.product
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

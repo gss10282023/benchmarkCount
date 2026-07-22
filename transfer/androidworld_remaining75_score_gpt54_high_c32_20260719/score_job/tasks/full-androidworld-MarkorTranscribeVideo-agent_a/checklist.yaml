@@ -1,0 +1,117 @@
+schema_version: case_checklist_v1
+case_unit_id: MarkorTranscribeVideo
+domain: androidworld
+task_id: MarkorTranscribeVideo
+native:
+  user_goal:
+    text: Watch the named video in VLC from Download and transcribe the per-frame string sequence into the named Markor text file as a comma-separated list.
+    support:
+    - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.template
+  benchmark_success:
+    text: 'Native success requires both runner completion and evaluator pass: the episode must end with `done=true`, and the released MarkorTranscribeVideo check must pass by finding the dispatched `file_name` in Markor and fuzzy-matching its stripped contents against the instance''s expected `text` string.'
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.is_successful
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+  checked_by:
+    text: Retained task-instance fields for `file_name` and expected `text`, retained episode completion evidence for `done`, and retained post-run Markor file evidence interpreted with the released CreateFile existence-plus-fuzzy-match rule.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.generate_random_params
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+  decisive_artifacts:
+  - artifact: task instance record
+    question: What are the dispatched `file_name`, `video_name`, and evaluator-expected `text` / message sequence for this instance?
+    support:
+    - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.generate_random_params
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.schema
+  - artifact: episode trace or run record
+    question: Does retained underlying evidence show the run finished with `done=true`, or does it record `done=false`?
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - artifact: post-run Markor file snapshot or file dump
+    question: Does the dispatched target file exist under Markor data, and if so what is its saved body after the evaluator's CR stripping and outer whitespace trimming?
+    support:
+    - official/install/android_world/env/device_constants.py::MARKOR_DATA
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+  success_if:
+  - text: The retained instance record supplies the expected `file_name` and `text`, the retained run evidence shows `done=true`, and the post-run Markor evidence shows that target file exists under `MARKOR_DATA` and its stripped contents fuzzy-match the expected `text`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/env/device_constants.py::MARKOR_DATA
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+  fail_if:
+  - text: Retained run evidence shows `done=false`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: Post-run Markor evidence shows the dispatched target file does not exist under `MARKOR_DATA`.
+    support:
+    - official/install/android_world/env/device_constants.py::MARKOR_DATA
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+  - text: Post-run Markor evidence shows the dispatched target file exists, but its stripped contents do not fuzzy-match the expected `text` string under the released CreateFile rule.
+    support:
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+  undecided_if:
+  - text: The expected instance fields needed for comparison, especially dispatched `file_name` or expected `text`, are not retained, and the remaining post-run evidence does not independently establish file absence, file mismatch, or runner completion.
+    support:
+    - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.generate_random_params
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+  - text: Runner completion evidence is missing or unusable, while retained Markor evidence is consistent with a passing CreateFile check rather than a decisive file failure.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+  - text: Only scalar outcome summaries, exception markers, or NaN-style evaluator outputs are retained without the underlying done/file evidence needed to apply the native rule.
+    rationale: This checklist treats stored scalar labels or failed-summary fields as non-decisive unless retained underlying completion and file evidence independently proves success or failure.
+stronger:
+  additional_conditions:
+  - id: exact_sequence_values_and_order
+    text: Beyond native fuzzy match, the saved Markor note must encode exactly the official per-frame string sequence in the correct order.
+    rationale: The task goal is to transcribe the sequence shown on each frame, but the released evaluator only fuzzy-matches the whole saved string against `text`, so small token-level errors can still satisfy the native check.
+    decisive_artifacts:
+    - artifact: task instance record
+      question: What official per-frame string sequence is expected for this instance?
+      support:
+      - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.generate_random_params
+    - artifact: post-run Markor file snapshot or file dump
+      question: When read as comma-delimited items, does the saved note match that expected sequence exactly and in order?
+      support:
+      - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.template
+    support:
+    - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.template
+    - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.generate_random_params
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+  - id: comma_and_space_format
+    text: Beyond native fuzzy match, the saved Markor note must use the dispatched comma-and-space formatting, with `, ` between consecutive items and no extra prose.
+    rationale: The dispatched example specifies comma-and-space output, while the released evaluator compares against `text` generated as `','.join(messages)` and uses fuzzy matching, so spacing deviations can be accepted natively.
+    decisive_artifacts:
+    - artifact: dispatched goal record
+      question: Does the official task text require comma-and-space list formatting?
+      support:
+      - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.template
+    - artifact: post-run Markor file snapshot or file dump
+      question: Does the saved note use literal comma-and-space separators throughout, without additional text?
+      support:
+      - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.template
+    support:
+    - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.template
+    - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.generate_random_params
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful
+  - id: vlc_video_consulted
+    text: Beyond native file-content checking, retained interaction evidence must show the named video was opened or viewed in VLC from Download before the Markor transcription was saved.
+    rationale: The official goal requires watching the named VLC video as the source, but the released evaluator only checks the saved Markor file and does not verify that the source video was actually consulted.
+    decisive_artifacts:
+    - artifact: task instance record
+      question: Which `video_name` was dispatched as the required source video?
+      support:
+      - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.template
+      - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.generate_random_params
+    - artifact: episode UI/action trace
+      question: Does retained interaction evidence show VLC opening or viewing that named Download video before the Markor file was saved?
+      support:
+      - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.template
+      - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.initialize_task
+      - official/install/android_world/env/device_constants.py::DOWNLOAD_DATA
+    support:
+    - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.template
+    - official/install/android_world/task_evals/single/markor.py::MarkorTranscribeVideo.initialize_task
+    - official/install/android_world/task_evals/common_validators/file_validators.py::CreateFile.is_successful

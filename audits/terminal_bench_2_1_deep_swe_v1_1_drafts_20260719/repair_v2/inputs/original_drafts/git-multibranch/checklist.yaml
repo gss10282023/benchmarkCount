@@ -1,0 +1,76 @@
+schema_version: case_checklist_v1
+case_unit_id: git-multibranch
+domain: terminal_bench_2_1
+task_id: terminal-bench/git-multibranch
+native:
+  user_goal:
+    text: Set up `git@localhost:/git/project` to accept password-authenticated SSH with password `password`, and deploy `main` and `dev` branch `index.html` contents to `https://localhost:8443/index.html` and `https://localhost:8443/dev/index.html` via Nginx over self-signed HTTPS, with each push triggering deployment via a `post-receive` hook within 3 seconds.
+    support:
+    - official/instruction.md::1-18
+  benchmark_success:
+    text: The official verifier succeeds only if `official/tests/test.sh` reaches a passing `pytest` run for `test_multi_branch_https_deploy`, which clones `git@localhost:/git/project`, pushes `main` and `dev` with the specified file contents using the password prompt, then observes within its scripted wait/retry window that the HTTPS endpoints return exactly `main branch content` and `dev branch content`.
+    support:
+    - official/tests/test.sh::11-28
+    - official/tests/test_outputs.py::7-99
+  checked_by:
+    text: Checked by `official/tests/test.sh` running `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`, specifically `test_multi_branch_https_deploy`.
+    support:
+    - official/tests/test.sh::17-28
+    - official/tests/test_outputs.py::7-99
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does it record whether `test_multi_branch_https_deploy` passed or failed?
+    support:
+    - case_packet.md::76-88
+    - official/tests/test.sh::17-21
+    - official/tests/test_outputs.py::7-99
+  - artifact: verifier/test-stdout.txt
+    question: Does it show the verifier's `TEST PASSED` line or the concrete clone/push/content-mismatch failure emitted by `verify.sh`?
+    support:
+    - case_packet.md::76-88
+    - official/tests/test_outputs.py::67-99
+  - artifact: verifier/test-stderr.txt
+    question: If CTRF or stdout is incomplete, does it show shell, pytest, or setup errors that still determine verifier failure?
+    support:
+    - case_packet.md::76-88
+    - official/tests/test.sh::11-21
+  success_if:
+  - text: 'Native success if retained verifier evidence shows `test_multi_branch_https_deploy` passed: the scripted clone and password-auth pushes completed, and during the verifier''s scripted wait/retry window `curl -sk` returned exactly `main branch content` from `/index.html` and `dev branch content` from `/dev/index.html`.'
+    support:
+    - official/tests/test_outputs.py::26-91
+    - official/tests/test.sh::17-28
+  fail_if:
+  - text: Native failure if retained verifier evidence shows the `official/tests/test.sh` working-directory guard fired before pytest.
+    support:
+    - official/tests/test.sh::11-15
+  - text: Native failure if retained verifier evidence shows `test_multi_branch_https_deploy` failed because the clone or password-auth push steps did not complete, or because either HTTPS endpoint did not return its exact expected branch content within the verifier's scripted wait/retry window.
+    support:
+    - official/tests/test_outputs.py::26-91
+    - official/tests/test.sh::17-28
+  undecided_if:
+  - text: Undecided only if retained non-label artifacts do not reliably establish whether the working-directory guard fired or whether `test_multi_branch_https_deploy` passed or failed, for example because `verifier/ctrf.json` is missing or unreadable and stdout/stderr lack decisive verifier output.
+    support:
+    - case_packet.md::76-88
+    - official/tests/test.sh::11-28
+    - official/tests/test_outputs.py::7-99
+stronger:
+  additional_conditions:
+  - id: post_receive_and_3s_deadline
+    text: Beyond native success, retained agent evidence should show that deployments are driven by a Git `post-receive` hook and that each push updates its branch HTTPS endpoint within 3 seconds; the native verifier only checks eventual correct content after a longer wait/retry window.
+    rationale: The instruction explicitly requires `post-receive`-triggered deployment within 3 seconds of each push. The released verifier never inspects hook configuration and allows success after `sleep 3` plus up to five additional 2-second retries, so it can accept later or differently-triggered deployments.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained execution show creation or configuration of a `hooks/post-receive` deployment path for `main` and `dev`, and any timed validation that endpoint updates complete within 3 seconds of push?
+      support:
+      - case_packet.md::76-88
+      - official/instruction.md::8-18
+      - official/tests/test_outputs.py::67-91
+    - artifact: artifacts/**
+      question: Do retained files include the Git hook or deployment configuration corroborating post-receive-triggered branch deployment, plus any retained timing evidence?
+      support:
+      - case_packet.md::76-88
+      - official/instruction.md::8-18
+      - official/tests/test_outputs.py::67-91
+    support:
+    - official/instruction.md::8-18
+    - official/tests/test_outputs.py::67-91

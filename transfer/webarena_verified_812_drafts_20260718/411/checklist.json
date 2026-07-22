@@ -1,0 +1,107 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "411",
+  "domain": "webarena_verified",
+  "task_id": "411",
+  "native": {
+    "user_goal": {
+      "text": "Change the LICENSE file in byteblaze/cloud-to-butt to an MIT license.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0: AgentResponseEvaluator must score 1.0 on the configured MUTATE/SUCCESS response, and NetworkEventEvaluator must score 1.0 on the last POST matching an allowed repository URL and all configured request/response criteria.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator; TaskEvalResult requires both component scores to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the stored response, after official parsing and normalization, pass the structural comparison against the configured MUTATE/SUCCESS response?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last POST selected by the configured GitLab URL/method filter have status 302 and post data matching LICENSE, branch master, `_method` pattern `^.*(?!delete$).*$`, and content pattern `^.*MIT.*License.*$`?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff the parsed response passes AgentResponseEvaluator and the last URL/method-filtered POST passes every configured NetworkEventEvaluator field; both evaluator scores must be 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Failure iff either evaluator scores 0.0 or errors, including a response mismatch, no selected matching POST, or a mismatch in any expected network field; any such component makes TaskEvalResult.score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when the retained agent response or HAR is absent or incomplete enough that the actual evaluator inputs cannot be reconstructed; screenshots or repository state alone do not determine both native component scores.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "confirm_persisted_mit_license",
+        "text": "Beyond native request matching, retained post-run GitLab state must show that byteblaze/cloud-to-butt on master has a LICENSE file whose content is an MIT license.",
+        "rationale": "The task asks for the repository license to be changed, but the released network evaluator only checks a 302 POST whose submitted content matches `^.*MIT.*License.*$`; it neither inspects persisted repository state nor compares the file with an MIT license body.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run GitLab repository snapshot or API response for master:LICENSE",
+            "question": "Does it show that byteblaze/cloud-to-butt's master-branch LICENSE exists after the run and contains an MIT license?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

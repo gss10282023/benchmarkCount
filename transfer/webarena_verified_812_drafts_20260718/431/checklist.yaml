@@ -1,0 +1,69 @@
+schema_version: case_checklist_v1
+case_unit_id: '431'
+domain: webarena_verified
+task_id: '431'
+native:
+  user_goal:
+    text: Add the product with the lowest per-unit price among the products open in the tabs to the shopping cart.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::start_urls
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 iff both configured evaluator scores are 1.0: AgentResponseEvaluator accepts the response against the expected MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the last target-URL POST as a status-200 cart addition with item 32202 and qty 1.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in configuration order, then conjunctively combines their scores in TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does AgentResponseEvaluator give the retained response score 1.0 against the configured MUTATE/SUCCESS expectation under its released normalization and comparison rules?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does NetworkEventEvaluator give score 1.0 for the last POST matching the configured product-32202 URL, with response status 200 and post-data values item=32202 and qty=1?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks score 1.0 on the complete retained artifacts: the response is accepted against the configured MUTATE/SUCCESS expectation, and the HAR''s selected last target-URL POST has item 32202, qty 1, and response status 200.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if either configured check scores other than 1.0 or errors, including an unaccepted response, no matching target-URL POST, or a selected last matching POST with the wrong item, quantity, or response status.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Fail if task-level evaluation errors while processing complete run artifacts, because TaskEvalResult then has score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Either required run artifact is absent or only a partial excerpt is retained, so both conjunctive checks cannot be reconstructed from stored evidence.
+    rationale: The response and network checks depend on different artifacts; incomplete retention does not by itself establish the benchmark score.
+stronger:
+  additional_conditions:
+  - id: confirm_final_cart_state
+    text: In addition to native success, require an end-of-run cart-state snapshot to show product 32202 present at quantity 1.
+    rationale: The task asks for the product to be added to the cart, while the native evaluator accepts a self-reported success plus a matching status-200 request and does not inspect the final cart state.
+    decisive_artifacts:
+    - artifact: Post-run shopping-cart page state snapshot (DOM or accessibility tree)
+      question: At the end of the run, does the cart show product 32202 present with quantity 1?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

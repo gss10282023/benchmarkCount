@@ -1,0 +1,83 @@
+schema_version: case_checklist_v1
+case_unit_id: '247'
+domain: webarena_verified
+task_id: '247'
+native:
+  user_goal:
+    text: Get the email address of the customer who is most unhappy with the style of Zoe products.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Task 247 succeeds when its sole AgentResponseEvaluator scores 1.0: the response must normalize to exactly task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null; TaskEvalResult then composes that sole 1.0 into score 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator parses the agent response and network trace, runs the configured AgentResponseEvaluator, and creates TaskEvalResult using the all-evaluator-scores-equal-1.0 rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does AgentResponseEvaluator parse and normalize the response to exactly task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the retained HAR parseable as the run's NetworkTrace so evaluation-context construction and validation complete without an evaluation error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+  success_if:
+  - text: The stored response produces no AgentResponseEvaluator assertion or error after normalization against RETRIEVE, NOT_FOUND_ERROR, and null retrieved_data.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The network trace and evaluation context are valid, the sole AgentResponseEvaluator scores 1.0, and TaskEvalResult therefore records score 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The response is not evaluator-parseable as a structured object, normalizes to a different task type or status, supplies non-null retrieved_data, creates a normalized key mismatch, or otherwise causes an assertion or evaluator error; the sole evaluator then does not score 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The network trace cannot be parsed or evaluation-context/orchestration validation errors; TaskEvalResult is then an error with score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._create_eval_error_result
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained agent response or network trace is missing or was corrupted after the run, and no retained official TaskEvalResult establishes whether the original evaluation completed with score 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult
+    rationale: Without the scored response input, the required evaluation context, or a retained official result, evidence review cannot distinguish original benchmark success from failure.
+stronger:
+  additional_conditions:
+  - id: substantiate_not_found
+    text: Beyond native acceptance of the self-reported NOT_FOUND_ERROR and null data, require network.har to independently substantiate that no customer/email satisfying the Zoe-product-style “most unhappy” criterion was available in the run.
+    rationale: NOT_FOUND_ERROR is defined for a target that could not be located after retry attempts, but this task has only AgentResponseEvaluator, which reads response fields and does not validate the not-found claim against network or site evidence.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Do captured shopping-admin responses provide sufficient relevant Zoe-product review and customer-record evidence, and do they support that no qualifying customer/email exists?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/types/agent_response.py::Status
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/agent_response.py::Status
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values

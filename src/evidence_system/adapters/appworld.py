@@ -88,13 +88,11 @@ def plan_smoke_execution(
     prefix = dotenv_source_prefix(dotenv_path, repo_root=target.remote_workdir)
     official_install_dir = install_dir.parent / f"{install_dir.name}-official-{APPWORLD_OFFICIAL_REPO_REF_SHORT}"
     official_root = official_install_dir / "project"
-    shared_data_dir = install_dir / "project" / "data"
     benchmark_python = official_install_dir / ".venv" / "bin" / "python"
     repo_src = str(Path(target.remote_workdir) / "src")
     ensure_official_agents = _official_bootstrap_command(
         official_install_dir=official_install_dir,
         official_root=official_root,
-        shared_data_dir=shared_data_dir,
     )
     command = (
         f"cd {shlex.quote(target.remote_workdir)} && {prefix} && {ensure_official_agents} && "
@@ -123,9 +121,9 @@ def plan_smoke_execution(
         f"official repo ref: {APPWORLD_OFFICIAL_REPO_REF}",
         f"official install dir: {official_install_dir}",
         f"official APPWORLD_ROOT: {official_root}",
-        f"shared locked AppWorld data reused from: {shared_data_dir}",
+        "official AppWorld 0.2.0 data is downloaded into the isolated official root",
         "bootstraps a dedicated official AppWorld main checkout and venv once under a remote lock",
-        "worker applies a narrow runtime data-version compatibility patch so the official simplified agent can run on the locked benchmark data bundle",
+        "worker fails before any LM request unless code, data, DB schema, and task versions are officially compatible",
         f"worker copies official AppWorld task outputs into {output_dir}/appworld_task_output and writes repo-local manifests under {output_dir}",
         "native artifacts expected: native_evaluator_input.json, native_evaluator_output.json, official_runner_config.json, appworld_task_output/dbs, appworld_task_output/logs/api_calls.jsonl, appworld_task_output/logs/environment_io.md, appworld_task_output/logs/lm_calls.jsonl",
     ]
@@ -245,6 +243,9 @@ def _bundle_source_entry(source_bundle: Mapping[str, Any], *, task_id: str) -> d
 def _source_ref(source_entry: Mapping[str, Any] | None) -> str | None:
     if not source_entry:
         return None
+    explicit = source_entry.get("source_ref")
+    if isinstance(explicit, str) and explicit:
+        return explicit
     visible_inputs = source_entry.get("visible_inputs")
     if isinstance(visible_inputs, Mapping):
         native_sources = list(visible_inputs.get("native_sources") or [])
@@ -263,19 +264,13 @@ def _official_bootstrap_command(
     *,
     official_install_dir: Path,
     official_root: Path,
-    shared_data_dir: Path,
 ) -> str:
     sentinel = official_install_dir / f".official_ready_{APPWORLD_OFFICIAL_REPO_REF_SHORT}"
     commands = [
         f"OFFICIAL_APPWORLD_DIR={shlex.quote(str(official_install_dir))};",
         f"OFFICIAL_APPWORLD_ROOT={shlex.quote(str(official_root))};",
-        f"SHARED_APPWORLD_DATA_DIR={shlex.quote(str(shared_data_dir))};",
         f"OFFICIAL_APPWORLD_SENTINEL={shlex.quote(str(sentinel))};",
         'OFFICIAL_APPWORLD_LOCKDIR="/tmp/appworld-official-bootstrap.lock";',
-        'if [ ! -f "$SHARED_APPWORLD_DATA_DIR/datasets/test_normal.txt" ]; then',
-        'echo "missing shared AppWorld data directory: $SHARED_APPWORLD_DATA_DIR" >&2;',
-        "exit 1;",
-        "fi;",
         'while ! mkdir "$OFFICIAL_APPWORLD_LOCKDIR" 2>/dev/null; do sleep 2; done;',
         'cleanup_official_appworld_lock(){ rmdir "$OFFICIAL_APPWORLD_LOCKDIR"; };',
         "trap cleanup_official_appworld_lock EXIT;",
@@ -295,9 +290,8 @@ def _official_bootstrap_command(
         "fi;",
         'mkdir -p "$OFFICIAL_APPWORLD_ROOT";',
         'mkdir -p "$OFFICIAL_APPWORLD_ROOT/experiments/outputs";',
-        'if [ ! -L "$OFFICIAL_APPWORLD_ROOT/data" ] || [ "$(readlink -f "$OFFICIAL_APPWORLD_ROOT/data" 2>/dev/null)" != "$(readlink -f "$SHARED_APPWORLD_DATA_DIR" 2>/dev/null)" ]; then',
-        'rm -rf "$OFFICIAL_APPWORLD_ROOT/data";',
-        'ln -s "$SHARED_APPWORLD_DATA_DIR" "$OFFICIAL_APPWORLD_ROOT/data";',
+        'if [ "$(cat "$OFFICIAL_APPWORLD_ROOT/data/version.txt" 2>/dev/null)" != "0.2.0" ] || [ "$(cat "$OFFICIAL_APPWORLD_ROOT/data/base_dbs/version.txt" 2>/dev/null)" != "0.2.0" ] || [ ! -s "$OFFICIAL_APPWORLD_ROOT/data/api_docs/standard/api_docs.json" ]; then',
+        '"$OFFICIAL_APPWORLD_DIR/.venv/bin/appworld" download data --version 0.2.0 --root "$OFFICIAL_APPWORLD_ROOT";',
         "fi;",
         "trap - EXIT;",
         'rmdir "$OFFICIAL_APPWORLD_LOCKDIR";',

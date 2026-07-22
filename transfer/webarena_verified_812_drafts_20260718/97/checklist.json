@@ -1,0 +1,119 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "97",
+  "domain": "webarena_verified",
+  "task_id": "97",
+  "native": {
+    "user_goal": {
+      "text": "Use the provided Wikipedia site to identify the university ranked third worldwide in the 2019 SCImago Institutions Rankings, obtain the OSRM driving distance from Carnegie Mellon University to that university, and return only a numeric distance with unit km or m.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Both configured evaluators must score 1.0: AgentResponseEvaluator must parse a RETRIEVE/SUCCESS response whose distance-normalized retrieved_data equals the singleton official value [\"914km\"] under unordered comparison, and NetworkEventEvaluator must find a GET event whose URL matches ^.*/routed-car/route/v1/.*/.*$ and whose last matching event has response status 200, with all query parameters ignored.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The official WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in the configured order; TaskEvalResult.create awards score 1.0 only when both evaluator scores are 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "derived/task.json::eval"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Under the released response parser and distance normalizer, does the evaluator-visible response match task_type RETRIEVE, status SUCCESS, and singleton retrieved_data [\"914km\"] without a compared-field or array mismatch?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Among evaluator-visible events, is there a GET route event matching ^.*/routed-car/route/v1/.*/.*$, and does the last such event have response status 200 after all query parameters are ignored?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success if agent_response.json passes the configured RETRIEVE/SUCCESS and normalized [\"914km\"] comparison, and network.har passes the configured last-matching GET route-event and status-200 comparison; both evaluator scores must be 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if the retained response was supplied to the evaluator but is invalid or its normalized task_type, status, or retrieved_data differs from RETRIEVE, SUCCESS, or singleton [\"914km\"], respectively.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "Fail if the supplied network trace has no matching GET route event, the last matching event does not satisfy the configured URL and status-200 comparison, or either evaluator errors; any such evaluator score below 1.0 makes the task score 0.0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only if agent_response.json or network.har is absent or truncated in the retained evidence so that the content supplied during evaluation cannot be recovered; malformed content known to have been supplied is a native failure, not undecided.",
+        "rationale": "Both artifacts are needed to reconstruct the two evaluator decisions, while evaluator-visible malformed inputs receive an error or failure score of 0.0."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "task_grounded_route_evidence",
+        "text": "Beyond native scoring, require retained network evidence to identify the 2019 SCImago rank-3 university from the provided Wikipedia site and tie the OSRM route endpoints to Carnegie Mellon University and that identified university.",
+        "rationale": "The official task requires a Wikipedia lookup and the driving route between two specified institutions, but the native network check accepts any successful GET whose path matches the generic route pattern and ignores all query parameters, without validating the institutions or any Wikipedia access.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Does the retained trace contain Wikipedia request/response evidence identifying the 2019 rank-3 institution and enough request evidence to establish that the OSRM route endpoints represent Carnegie Mellon University and that institution?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,67 @@
+schema_version: case_checklist_v1
+case_unit_id: '698'
+domain: webarena_verified
+task_id: '698'
+native:
+  user_goal:
+    text: Add a simple product named "Lelelumon Yoga Mat" with 42 in stock, uni-size and black options, a price of $769.99, and the appropriate attribute set.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the last qualifying product-save event.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator applies AgentResponseEvaluator to agent_response.json and NetworkEventEvaluator to network.har, then requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the evaluator parse and normalize the response as structurally matching the expected MUTATE task type and SUCCESS status?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the last POST event whose normalized URL matches the configured simple-product save pattern have response status 302 and all six required product form values?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks pass: agent_response.json receives AgentResponseEvaluator score 1.0, and the last qualifying HAR event matches the normalized POST URL ^__SHOPPING_ADMIN__/catalog/product/save/type/simple/store/0/set/\d+/back/edit$, status 302, and product fields name="Lelelumon Yoga Mat", price="769.99", qty="42", is_in_stock="1", status="1", and color="49" under evaluator normalization.'
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Either evaluator fails or errors: the final response is not accepted as the expected MUTATE/SUCCESS response, or no qualifying last save event matches every required URL, method, response-status, and form-field comparison; any evaluator score below 1.0 makes the task score 0.0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained evidence is missing or storage-incomplete for either agent_response.json or network.har, so the two official evaluator outcomes cannot both be reconstructed.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    rationale: Both artifacts are evaluator inputs; absent retained evidence cannot establish the original run's native score.
+stronger:
+  additional_conditions:
+  - id: persisted_complete_product
+    text: Retained post-run shopping-admin state confirms that the product exists as an enabled simple product with the requested name, price, stock state and quantity, black color, uni-size option, and appropriate attribute set.
+    rationale: The native network check accepts a 302 save request with only six selected form fields; it omits size, permits any numeric attribute-set ID through set/\d+, and does not inspect persisted product state. It therefore does not fully establish the stated creation goal.
+    decisive_artifacts:
+    - artifact: Post-run shopping-admin product record, export, or product-detail snapshot
+      question: Does the retained record show the product with the requested simple type, enabled status, name, $769.99 price, quantity 42 and in-stock state, black color, uni-size option, and appropriate attribute set?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

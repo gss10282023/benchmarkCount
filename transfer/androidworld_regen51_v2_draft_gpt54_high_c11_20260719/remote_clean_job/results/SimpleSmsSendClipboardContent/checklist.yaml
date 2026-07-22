@@ -1,0 +1,90 @@
+schema_version: case_checklist_v1
+case_unit_id: SimpleSmsSendClipboardContent
+domain: androidworld
+task_id: SimpleSmsSendClipboardContent
+native:
+  user_goal:
+    text: Send an SMS in Simple SMS Messenger to the specified number, using the current clipboard contents as the message body.
+    support:
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.initialize_task
+  benchmark_success:
+    text: 'Native success requires the run to finish with `done=true` and the released SMS evaluator to succeed: a sent-SMS record to the task number whose body matches the task message under the evaluator''s fuzzy rule is present within the evaluator''s 5-minute window, the foreground package is `com.simplemobiletools.smsmessenger`, and the final UI is not in the evaluator''s `Sending` exception state.'
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
+  checked_by:
+    text: AndroidWorld runner completion gating in `_run_task` plus `SimpleSMSSendSms.is_successful`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+  decisive_artifacts:
+  - artifact: Retained episode trace or runner completion record
+    question: Does the retained run evidence show the episode ended with `done=true` rather than an incomplete termination?
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - artifact: Retained sent-SMS query output together with retained Android evaluation time
+    question: Does the retained sent-SMS state contain a row whose address matches the task number under the evaluator's normalization, whose body matches the task message under the evaluator's fuzzy rule, and whose timestamp is within 5 minutes of the retained Android evaluation time?
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.get_sent_messages
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.get_android_time
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+  - artifact: Retained final foreground-activity/UI state
+    question: Does the retained final state show foreground package `com.simplemobiletools.smsmessenger` and no UI element whose text starts with `Sending`?
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
+  success_if:
+  - text: The retained run evidence shows `done=true`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: The retained sent-SMS state and retained Android evaluation time show at least one sent row that satisfies the evaluator's number/body/time rule for the task number and task message.
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.get_sent_messages
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.get_android_time
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+  - text: The retained final foreground/UI state shows package `com.simplemobiletools.smsmessenger` and does not show the evaluator's `Sending` stuck state.
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
+  fail_if:
+  - text: The retained run evidence shows `done=false`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: Usable retained sent-SMS state plus retained Android evaluation time show that no sent row satisfies the evaluator's number/body/time rule for the task number and task message.
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.get_sent_messages
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.get_android_time
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+  - text: Usable retained final foreground-activity evidence shows the foreground package is not `com.simplemobiletools.smsmessenger`.
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+  undecided_if:
+  - text: The retained evidence is missing or unusable for any native component needed to decide the done gate, the sent-SMS number/body/time check, or the final foreground/UI check.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+    rationale: Checklist-lock policy says missing underlying evidence is undecided unless other retained evidence independently establishes success or failure.
+  - text: The retained evidence only indicates the evaluator/runtime exception path, such as the final UI showing a `Sending` element or an evaluation exception, without separate underlying evidence that establishes the native criterion or its negation.
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
+    - official/install/android_world/suite_utils.py::_run_task
+    rationale: Checklist-lock policy treats evaluator/runtime exceptions and NaN-style outcomes as undecided unless other retained underlying evidence independently proves success or failure.
+stronger:
+  additional_conditions:
+  - id: clipboard_use_evidenced
+    text: Beyond native success, retained interaction evidence should show that the message body was inserted from clipboard content, not merely sent as matching text; this closes the task-intent/evaluator gap.
+    rationale: The official task specifically requires sending the clipboard content, and initialization sets that clipboard content, but the released evaluator only checks the sent SMS body, recipient, foreground app, and not-stuck state; it does not verify clipboard use.
+    decisive_artifacts:
+    - artifact: Retained interaction trace around SMS composition
+      question: Does the retained trace show a paste or other clipboard-insert action used to populate the SMS body before sending?
+      support:
+      - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent
+      - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.initialize_task
+    support:
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSendClipboardContent.initialize_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful

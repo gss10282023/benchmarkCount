@@ -1,0 +1,151 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "99",
+  "domain": "webarena_verified",
+  "task_id": "99",
+  "native": {
+    "user_goal": {
+      "text": "Find the nearest Five Guys to 5700 Penn Ave and its walking distance using the OSRM direction service, returning only the requested location-and-distance list with a numeric km or m unit.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only if evaluation completes without error and the sole AgentResponseEvaluator scores 1.0: the parsed, schema-normalized response has matching RETRIEVE task type, SUCCESS status, and an unordered exact structural match to the configured retrieved_data value.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator parses the retained response and network trace, runs the configured AgentResponseEvaluator, and derives the binary evaluator and task scores from its comparison assertions or errors; no NetworkEventEvaluator is configured for this case.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+        "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the submitted response parse under the evaluator's rules and normalize to task_type RETRIEVE, status SUCCESS, and an unordered singleton retrieved_data value containing distance equivalent to 4km and location {name: Five Guys, house_number: 117, street: South Bouquet Street, city: Pittsburgh, state: Pennsylvania, postcode: 15213}?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "derived/task.json::eval[0].ordered",
+          "derived/task.json::eval[0].results_schema",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the retained trace parse into the NetworkTrace supplied to evaluation and, if environment-URL fallback is needed, provide sufficient events for configuration validation so evaluation reaches the configured evaluator without error? Its request content is not otherwise compared in this case.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval",
+          "derived/task.json::eval"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The response's normalized task type and status match RETRIEVE and SUCCESS, and its normalized retrieved_data is exactly the configured singleton location and 4km distance under the schema's unordered structural comparison, leaving no failure assertions.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects"
+        ]
+      },
+      {
+        "text": "Trace parsing, context validation, and evaluator orchestration complete without error; the sole evaluator score is 1.0, so TaskEvalResult.score is 1.0.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The submitted response is null, unparseable as the required object, has a missing or mismatching task type or status, or its normalized retrieved_data is absent, empty, or differs from the configured singleton value, including missing or extra items or properties; the AgentResponseEvaluator then scores 0.0 or errors.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_recursive",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "The trace supplied to evaluation is established to be missing or invalid, configuration validation or orchestration errors, or any configured evaluator score is not 1.0; TaskEvalResult.score is then 0.0.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The retained evidence does not preserve what response or trace was actually supplied—for example, a required artifact is absent, truncated, or cannot be associated with this run—so the evaluator-visible inputs cannot be reconstructed. A preserved submitted null, invalid response, or invalid trace is failure rather than undecided.",
+        "rationale": "Loss or ambiguity of retained evidence does not establish how the official evaluator scored the inputs that were actually submitted."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "retrieved_data_is_actual_list",
+        "text": "Beyond native success, the raw retrieved_data payload is an actual JSON array of objects, not a singleton object or string accepted through evaluator coercion.",
+        "rationale": "The task and public response schema require a list, but the released evaluator wraps every non-list/tuple retrieved_data value as a singleton before normalization, so native success does not enforce the raw list shape.",
+        "decisive_artifacts": [
+          {
+            "artifact": "agent_response.json",
+            "question": "Before evaluator normalization, is retrieved_data represented as a JSON array whose item is the requested location-and-distance object?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data"
+        ]
+      },
+      {
+        "id": "osrm_route_evidence",
+        "text": "Beyond native success, the retained trace contains a successful OSRM direction-service interaction for the route between 5700 Penn Ave and the reported Five Guys, with a returned walking-route distance supporting the reported value.",
+        "rationale": "The official instruction explicitly mandates OSRM, while this case configures only AgentResponseEvaluator, which reads the final response and does not inspect network events; answer matching can therefore pass without evidence of the required service use.",
+        "decisive_artifacts": [
+          {
+            "artifact": "agent_response.json",
+            "question": "Which Five Guys location and walking distance does the submitted response report?",
+            "support": [
+              "derived/task.json::eval[0].expected",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+            ]
+          },
+          {
+            "artifact": "network.har",
+            "question": "Does the trace show a successful OSRM directions request corresponding to 5700 Penn Ave and the reported destination, with response data supporting the reported walking distance?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

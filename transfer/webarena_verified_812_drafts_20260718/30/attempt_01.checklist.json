@@ -1,0 +1,118 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "30",
+  "domain": "webarena_verified",
+  "task_id": "30",
+  "native": {
+    "user_goal": {
+      "text": "In Reddit's space forum, return a list of objects giving the username and title of the most recent post and the count of its comments that are not by the author and have more downvotes than upvotes.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "The sole AgentResponseEvaluator scores 1.0 and evaluation completes without error, making TaskEvalResult.score 1.0. After the evaluator's extraction, singleton coercion, and schema normalization, the compared fields must match task_type RETRIEVE, status SUCCESS, and—order-insensitively—retrieved_data containing exactly {\"username\":\"Dhghomon\",\"post_title\":\"Scientists erupt at NASA gutting funding for crucial Venus mission\",\"count\":0}.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The official WebArenaVerifiedEvaluator invokes the configured AgentResponseEvaluator; TaskEvalResult.create awards success only when every configured evaluator score is 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Can the official AgentResponseEvaluator extract and normalize the submitted response without error, and do its compared task_type, status, and retrieved_data match the configured expected values under the unordered structural comparison?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Can the trace be parsed into the NetworkTrace needed to construct and run the official evaluation context without an input/configuration error? No NetworkEventEvaluator content check is configured for this case.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Official evaluation completes without error and the sole AgentResponseEvaluator produces no failure assertions after normalizing the submitted response and comparing RETRIEVE, SUCCESS, and the exact unordered singleton retrieved-data object; consequently its score and TaskEvalResult.score are both 1.0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The retained response is invalid for evaluator extraction/normalization, its compared task_type or status mismatches, or its normalized retrieved_data is missing, empty, differently valued, or has any missing or extra element or object key; the AgentResponseEvaluator then does not score 1.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_recursive"
+        ]
+      },
+      {
+        "text": "Trace parsing, context/configuration, normalization, or evaluation orchestration errors produce an evaluator or task error with score 0.0 and therefore count as native failure.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The retained artifacts are missing or truncated so that the exact submitted response and required evaluation input cannot be reconstructed, and no complete official TaskEvalResult is retained. A preserved malformed or mismatching response is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "literal_list_of_objects",
+        "text": "Beyond native scoring, require the parsed submitted response to encode retrieved_data literally as a JSON array whose sole element is a JSON object; do not accept a lone object or serialized-object string merely because it normalizes to the expected singleton.",
+        "rationale": "The task explicitly requests a list of objects and its result schema declares an array of objects, but the released evaluator wraps non-list retrieved_data into a singleton tuple and non-strict object normalization can JSON-decode a string. Native scoring therefore does not enforce the requested raw result shape.",
+        "decisive_artifacts": [
+          {
+            "artifact": "agent_response.json",
+            "question": "After extracting only the outer response JSON and before singleton coercion or item normalization, is retrieved_data an actual array whose sole element is an actual object?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[0].results_schema",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data",
+              "official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer._normalize_object"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0].results_schema",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data",
+          "official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer._normalize_object"
+        ]
+      }
+    ]
+  }
+}

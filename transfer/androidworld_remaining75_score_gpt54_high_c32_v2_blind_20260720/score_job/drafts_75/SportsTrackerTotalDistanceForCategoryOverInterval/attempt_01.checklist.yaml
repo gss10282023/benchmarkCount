@@ -1,0 +1,83 @@
+schema_version: case_checklist_v1
+case_unit_id: SportsTrackerTotalDistanceForCategoryOverInterval
+domain: androidworld
+task_id: SportsTrackerTotalDistanceForCategoryOverInterval
+native:
+  user_goal:
+    text: Answer what total distance was covered for the requested `{category}` activities in OpenTracks from `{start_date}` to `{end_date}`, expressed as a single number in meters rounded to the nearest integer.
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3167
+  benchmark_success:
+    text: 'Native success requires retained evidence that the episode finished with `done=true` and that the final submitted answer is accepted by the official information-retrieval evaluator against this task''s proto-defined expected answer: SUM of `total_distance` with `NUMBER_MATCH` tolerance 10.'
+    support:
+    - official/install/android_world/suite_utils.py::suite_utils._run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3167
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+  checked_by:
+    text: '`suite_utils._run_task` done-gates the score, then `InformationRetrieval.is_successful` checks `env.interaction_cache` with `proto_utils.check_agent_answer` against the task proto.'
+    support:
+    - official/install/android_world/suite_utils.py::suite_utils._run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+  decisive_artifacts:
+  - artifact: Episode record or trace with dispatched goal text, completion status, and final submitted answer
+    question: What concrete category/date interval was asked, did the episode end with `done=true`, and what exact final answer string was submitted?
+    support:
+    - official/install/android_world/suite_utils.py::suite_utils._run_task
+    - official/install/android_world/task_evals/task_eval.py::TaskEval.goal
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::_maybe_replace_date
+  - artifact: Initialized OpenTracks activity-state snapshot or equivalent retained DB export for the episode
+    question: Using the requested category and inclusive date interval, what `total_distance` values were present for matching activities after official task initialization, so the evaluator SUM can be computed?
+    support:
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.initialize_task
+    - official/install/android_world/task_evals/information_retrieval/activity_app_utils.py::setup_task_state
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3167
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+  success_if:
+  - text: The episode evidence shows `done=true`, and the retained final answer is a single submitted answer that the official checker would accept for this task after computing the expected value from the retained initialized OpenTracks activity state as SUM(`total_distance`) for the requested category over the requested inclusive date interval, with `NUMBER_MATCH` tolerance 10.
+    support:
+    - official/install/android_world/suite_utils.py::suite_utils._run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3167
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+  fail_if:
+  - text: The episode record shows `done=false`; the runner scores the task as failure regardless of any would-be answer match.
+    support:
+    - official/install/android_world/suite_utils.py::suite_utils._run_task
+  - text: The retained evidence shows no final answer was submitted, or the final answer is present but does not parse and match the proto-defined SUM(`total_distance`) expectation for the requested category/date interval under the official `NUMBER_MATCH` tolerance 10 rule.
+    support:
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3167
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+  undecided_if:
+  - text: 'The retained evidence does not preserve enough underlying execution evidence to determine the native claim: missing the dispatched goal or done flag, missing the exact final submitted answer, or missing the initialized OpenTracks activity-state needed to compute the evaluator''s expected SUM, with no other retained artifact independently establishing success or failure.'
+    support:
+    - official/install/android_world/suite_utils.py::suite_utils._run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.initialize_task
+    - official/install/android_world/task_evals/information_retrieval/activity_app_utils.py::setup_task_state
+stronger:
+  additional_conditions:
+  - id: exact_integer_total_distance
+    text: Because the dispatched task asks for a single number in meters rounded to the nearest integer, require the final submitted answer to equal the exact rounded-meter total for the requested category/date interval as an integer string, not merely any numeric answer within the evaluator's ±10 meter tolerance.
+    rationale: The official prompt requires an exact rounded integer-form answer, but the released evaluator accepts numeric answers within tolerance 10 and does not enforce integer-string formatting.
+    decisive_artifacts:
+    - artifact: Episode record or trace with dispatched goal text and final submitted answer
+      question: Does the retained final answer equal one exact integer string rather than just an approximately correct numeric value?
+      support:
+      - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3167
+      - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - artifact: Initialized OpenTracks activity-state snapshot or equivalent retained DB export for the episode
+      question: What exact rounded-meter total follows from the requested category and inclusive date interval?
+      support:
+      - official/install/android_world/task_evals/information_retrieval/activity_app_utils.py::_distance_rounding_error_conversion
+      - official/install/android_world/task_evals/information_retrieval/activity_app_utils.py::_create_activity_from_proto
+      - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::2931-3167
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::3050-3057

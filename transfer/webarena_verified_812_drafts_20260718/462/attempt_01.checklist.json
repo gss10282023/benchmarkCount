@@ -1,0 +1,101 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "462",
+  "domain": "webarena_verified",
+  "task_id": "462",
+  "native": {
+    "user_goal": {
+      "text": "Increase the price of the product on the current shopping-admin page by 10%.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Task score is 1.0 only if both configured checks score 1.0: AgentResponseEvaluator accepts a successful MUTATE response, and NetworkEventEvaluator accepts the last matching product-710 save POST with product[price] = 19.80 and response status 302.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator and conjunctively composes their scores in TaskEvalResult.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and normalize to the configured successful MUTATE response with task_type MUTATE and status SUCCESS?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching the configured POST save URL for product 710 have product[price] = 19.80 and response status 302?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff the response check scores 1.0 and the last URL-and-method-matching network event also scores 1.0 by matching the configured product-710 save URL, POST method, price 19.80, and status 302.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Failure is established if either configured evaluator scores 0.0 or errors—for example, the final response is not accepted as successful MUTATE, or the HAR has no qualifying last save event or that event mismatches the required price or status—because any non-1.0 component makes the task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+          "derived/task.json::eval"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when an original evaluator input was not retained or is known to have been damaged after the run, no retained component already establishes failure, and the missing evidence prevents determining whether both checks passed.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task"
+        ],
+        "rationale": "The two evaluator inputs are the response and network trace; retention loss can prevent retrospective scoring, while a malformed original run input is an evaluator error and therefore native failure."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_price_state",
+        "text": "Beyond native success, a fresh post-save product-state capture for product 710 must show a persisted price of 19.80.",
+        "rationale": "The native network check verifies an outgoing save request and its 302 response but does not read the product afterward; therefore it does not by itself establish that the requested 10% price increase persisted.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Fresh post-save product-state capture for shopping-admin product 710",
+            "question": "After the product is freshly reloaded or refetched, is its stored price 19.80?",
+            "support": [
+              "derived/task.json::start_urls[0]",
+              "derived/task.json::eval[1].expected.post_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+        ]
+      }
+    ]
+  }
+}

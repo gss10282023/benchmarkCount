@@ -1,0 +1,105 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "433",
+  "domain": "webarena_verified",
+  "task_id": "433",
+  "native": {
+    "user_goal": {
+      "text": "Add the product with the lowest per-unit price among the products in the open shopping tabs to the shopping cart.",
+      "support": [
+        "derived/task.json::intent",
+        "derived/task.json::start_urls"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only if both configured checks score 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the last matching add-to-cart POST event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator parses, normalizes, and structurally compares the final response; NetworkEventEvaluator filters and compares retained network events; TaskEvalResult conjunctively combines their scores.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the final response normalize to task_type MUTATE and status SUCCESS, with retrieved_data resolving to null for this mutate task?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching POST and the rendered URL pattern ^__SHOPPING__/checkout/cart/add/uenc/.*/product/52674$ have post_data item=52674 and qty=1 and response status 200?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success requires both conditions: the final response passes AgentResponseEvaluator as MUTATE/SUCCESS, and the last matching add-to-cart POST in network.har passes NetworkEventEvaluator with product 52674, quantity 1, and response status 200.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Failure is established if either evaluator scores below 1.0: the final response does not pass its parse/normalize/comparison rule, or the required last matching POST event is absent or mismatches its URL, product, quantity, method, or response status. An evaluator error also yields score 0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The stored evidence is undecidable only when no retained component already establishes failure and agent_response.json or network.har is absent or incomplete enough that one or both evaluator outcomes cannot be reconstructed.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "confirm_cart_state",
+        "text": "Beyond native request-level success, a retained post-run cart-state view must show product 52674 present in the shopping cart.",
+        "rationale": "The instruction requires a cart-state mutation, while the released network check accepts a matching HTTP 200 POST without checking response content or the post-run cart contents.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run shopping-cart state snapshot",
+            "question": "Does the retained cart DOM, accessibility snapshot, or equivalent state view show product 52674 present after the run?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

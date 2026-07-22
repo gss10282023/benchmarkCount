@@ -1,0 +1,78 @@
+schema_version: case_checklist_v1
+case_unit_id: extract-elf
+domain: terminal_bench_2_1
+task_id: terminal-bench/extract-elf
+native:
+  user_goal:
+    text: Provide `extract.js` so that running `node extract.js /app/a.out > out.json` produces a JSON object mapping memory addresses to integer values from the ELF binary, with every reported value matching the reference solution and at least 75% of reference addresses covered.
+    support:
+    - official/instruction.md::1-9
+  benchmark_success:
+    text: 'Native success requires both official pytest checks to pass: `/app/extract.js` exists as a file, and on the verifier-compiled `/app/new.o` the program exits successfully, emits parseable JSON, has no overlapping address whose value differs from the verifier reference JSON, and includes at least 75% of the reference addresses.'
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_extract_js_exists
+    - official/tests/test_outputs.py::test_output_matches_reference
+  checked_by:
+    text: Checked by `official/tests/test.sh`, which runs pytest on `test_extract_js_exists` and `test_output_matches_reference` from `official/tests/test_outputs.py` and writes a CTRF report.
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_extract_js_exists
+    - official/tests/test_outputs.py::test_output_matches_reference
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the CTRF report show pass/fail for `test_extract_js_exists` and `test_output_matches_reference`?
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_extract_js_exists
+    - official/tests/test_outputs.py::test_output_matches_reference
+  - artifact: artifacts/**
+    question: Do retained artifacts include the generated `out.json` and `reference.json`, or equivalent retained JSON outputs, sufficient to recompute the no-mismatched-overlap check and the 75% coverage check if the test report is absent or ambiguous?
+    support:
+    - official/tests/test_outputs.py::test_output_matches_reference
+  success_if:
+  - text: Retained evidence establishes that `test_extract_js_exists` passed, so `/app/extract.js` existed and was a regular file.
+    support:
+    - official/tests/test_outputs.py::test_extract_js_exists
+  - text: 'Retained evidence establishes that `test_output_matches_reference` passed on `/app/new.o`: the agent program returned exit code 0, `out.json` was valid JSON, no address present in both outputs had a different value, and the agent output included at least 75% of the reference addresses.'
+    support:
+    - official/tests/test_outputs.py::test_output_matches_reference
+  fail_if:
+  - text: Retained evidence establishes that `test_extract_js_exists` failed, so `/app/extract.js` was missing or not a regular file.
+    support:
+    - official/tests/test_outputs.py::test_extract_js_exists
+  - text: Retained evidence establishes that `test_output_matches_reference` failed, including because compilation of `/app/new.c` failed, the agent program or reference program exited nonzero, required JSON output was missing or unparsable, at least one overlapping address had a different value, or the agent output covered less than 75% of the reference addresses.
+    support:
+    - official/tests/test_outputs.py::test_output_matches_reference
+  undecided_if:
+  - text: Retained artifacts do not establish pass or fail for one or both official tests, and also do not preserve enough raw evidence to determine whether `/app/extract.js` existed and whether the JSON outputs satisfy the no-mismatch and 75%-coverage checks.
+    rationale: The native criterion is exactly the two official pytest checks; without a retained test report or equivalent retained JSON outputs and existence evidence, neither native success nor native failure can be independently fixed from stored artifacts.
+stronger:
+  additional_conditions:
+  - id: no-extra-addresses
+    text: Because the instruction says every reported address must match the reference solution, stronger success additionally requires that the output contain no addresses absent from the reference output; native scoring only checks shared addresses for differing values and does not reject extra addresses.
+    rationale: 'This is a concrete instruction/evaluator gap: the official instruction requires every included address to match, but the released test only flags addresses that are both in the agent output and in the reference output with different values.'
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: Do retained artifacts include both the agent `out.json` and the verifier `reference.json`, or equivalent retained JSON outputs, so a reviewer can confirm that the agent output contains no address missing from the reference output?
+      support:
+      - official/tests/test_outputs.py::test_output_matches_reference
+    support:
+    - official/instruction.md::5-9
+    - official/tests/test_outputs.py::test_output_matches_reference
+  - id: provided-aout-covered
+    text: Because the user instruction targets the provided `/app/a.out` but native scoring only exercises `/app/new.o`, stronger success additionally requires retained evidence that `extract.js` was run on `/app/a.out` and that the resulting JSON met the same correctness and 75%-coverage rule for that provided binary.
+    rationale: 'This makes the measurement gap explicit: the official task names the provided `/app/a.out`, while the released verifier compiles and checks only `/app/new.o`.'
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show a run of `node extract.js /app/a.out` and preserve the resulting output location or contents?
+      support:
+      - official/instruction.md::1-9
+    - artifact: artifacts/**
+      question: Do retained artifacts include the JSON output produced for `/app/a.out`, plus sufficient retained comparison data for the provided binary, to assess the same no-mismatched-values and 75%-coverage rule?
+      support:
+      - official/instruction.md::1-9
+      - official/tests/test_outputs.py::test_output_matches_reference
+    support:
+    - official/instruction.md::1-9
+    - official/tests/test_outputs.py::test_output_matches_reference

@@ -1,0 +1,86 @@
+schema_version: case_checklist_v1
+case_unit_id: '438'
+domain: webarena_verified
+task_id: '438'
+native:
+  user_goal:
+    text: Reorder the TV stand from the user's order placed around September 2022 and later cancelled.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task scores 1.0 only when both official evaluators score 1.0: AgentResponseEvaluator accepts a successful MUTATE response, and NetworkEventEvaluator accepts the last matching POST that adds product 35837 with quantity 1 and receives HTTP 200.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks agent_response.json, NetworkEventEvaluator checks network.har, and TaskEvalResult applies the all-evaluators-must-pass composition.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does evaluator parsing and normalization produce a structured response accepted as task_type MUTATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: After HAR parsing and static-asset filtering, does the last POST whose normalized URL matches ^__SHOPPING__/checkout/cart/add/uenc/.*/product/35837$ have parsed post fields item 35837 and qty 1 and response status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events
+  success_if:
+  - text: AgentResponseEvaluator scores 1.0 after the retained response is parsed and normalized to the configured successful MUTATE response; retrieved_data is not value-checked for this non-retrieve task.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: NetworkEventEvaluator scores 1.0 because the last POST selected by the configured URL rule matches product 35837, item 35837, quantity 1, and HTTP response status 200.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Both evaluator scores equal 1.0, so TaskEvalResult.score equals 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: AgentResponseEvaluator scores below 1.0 because the response is invalid or does not normalize and compare as the configured successful MUTATE response; this alone makes the task score 0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: NetworkEventEvaluator scores below 1.0 because a complete trace has no matching POST, or its last URL-and-method-matching POST fails the required item, quantity, or HTTP-status comparison; this alone makes the task score 0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: An evaluator, input-parsing, or task-orchestration error yields score 0 rather than native success.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The review copy of either required artifact is missing, unreadable, truncated, or lacks reliable completeness or ordering, without establishing that the run itself lacked that input, so both evaluator outcomes cannot be reconstructed.
+    rationale: Native success is conjunctive over two artifacts; evidence lost during retention is non-decisive, whereas a complete artifact showing absence or mismatch is a benchmark-counted failure.
+stronger:
+  additional_conditions:
+  - id: confirm_resulting_cart_state
+    text: Beyond native success, retained post-run shopping state must show product 35837 in the cart with quantity 1.
+    rationale: The user asks to reorder the item, while the released network evaluator accepts a matching add-to-cart POST with HTTP 200 without inspecting the resulting cart state.
+    decisive_artifacts:
+    - artifact: Post-run authenticated shopping-cart state snapshot
+      question: Does the resulting cart contain product 35837 with quantity 1?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

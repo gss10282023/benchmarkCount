@@ -1,0 +1,103 @@
+schema_version: case_checklist_v1
+case_unit_id: '19'
+domain: webarena_verified
+task_id: '19'
+native:
+  user_goal:
+    text: Use the OSRM direction service to obtain the driving and walking travel times from Carnegie Science Center to Carnegie Mellon University, returning only objects with `mode` and an HH:MM:SS `duration`.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: The sole AgentResponseEvaluator must score 1.0, making TaskEvalResult.score 1.0. This requires the submitted response, after released parsing and schema normalization, to match RETRIEVE/SUCCESS and the configured unordered two-item route-duration result without an evaluation error or comparison assertion.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator invokes the configured AgentResponseEvaluator; EvaluatorResult.create assigns score 1.0 only when comparison produces no failures, and TaskEvalResult.create requires every configured evaluator score to be 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the released evaluator parse the submitted response without error, match RETRIEVE/SUCCESS, and match unordered retrieved_data exactly to driving/12min and walking/1hr 44min under the duration schema, with no unmatched item or item field?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  success_if:
+  - text: The submitted response is evaluator-readable as an object whose compared task_type and status match RETRIEVE and SUCCESS.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+  - text: 'After `duration` normalization, retrieved_data matches unordered exactly: driving with `12min` and walking with `1hr 44min`, with no missing, extra, or mismatched items or item fields.'
+    support:
+    - derived/task.json::eval[0].expected.retrieved_data
+    - derived/task.json::eval[0].ordered
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: The comparison produces no assertion or evaluator error, so the sole AgentResponseEvaluator and therefore TaskEvalResult both score 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The sole evaluator produces any failure assertion because the response is not a comparable object, task_type or status differs, retrieved_data is missing or null, or its normalized unordered items contain any missing, extra, or mismatched value or field; its score and the task score are then 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_recursive
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Any response-normalization, evaluator, or orchestration error yields score 0.0 and counts as native failure.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The submitted response was not retained, is truncated, or its evaluator-visible content cannot be recovered from agent_response.json.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    rationale: This is an evidence-retention gap; a complete retained submission that is invalid or unparseable is a benchmark failure, not an undecided case.
+stronger:
+  additional_conditions:
+  - id: osrm_route_evidence
+    text: Beyond native scoring, network.har must show successful OSRM direction-service requests for both driving and walking between the specified endpoints, and their returned durations must support the reported values.
+    rationale: The task explicitly requires OSRM, but this case config contains only AgentResponseEvaluator, which evaluates the submitted response rather than verifying direction-service traffic.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the trace show successful OSRM direction-service traffic for both driving and walking routes between Carnegie Science Center and Carnegie Mellon University, including returned durations?
+      support:
+      - derived/task.json::intent
+    - artifact: agent_response.json
+      question: Do the reported driving and walking durations agree with the corresponding retained OSRM responses?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].expected.retrieved_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].evaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+  - id: literal_hhmmss
+    text: Beyond native scoring, the raw retrieved duration strings must be `00:12:00` for driving and `01:44:00` for walking.
+    rationale: The instruction requires literal HH:MM:SS formatting, while the evaluator's configured values are `12min` and `1hr 44min` and are schema-normalized before comparison; native equality therefore establishes duration value, not literal presentation.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Before evaluator normalization, are the driving and walking duration strings literally `00:12:00` and `01:44:00`, respectively?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].expected.retrieved_data
+      - derived/task.json::eval[0].results_schema
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected.retrieved_data
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer.normalize_array

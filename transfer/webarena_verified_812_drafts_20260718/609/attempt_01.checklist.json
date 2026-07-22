@@ -1,0 +1,114 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "609",
+  "domain": "webarena_verified",
+  "task_id": "609",
+  "native": {
+    "user_goal": {
+      "text": "Find a Reddit forum focused on ML, DL, and NLP and post the question “what is the SOTA web navigation agent repo” there.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only if both configured checks score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the last matching POST to either configured Reddit submit URL with forum 10043, the configured question title, and response status 302.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator on the final response and NetworkEventEvaluator on the network trace, then conjunctively composes their scores in TaskEvalResult.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the released AgentResponseEvaluator give the retained final response score 1.0 after parsing and normalization by matching task_type MUTATE and status SUCCESS, with retrieved_data value comparison skipped for this mutate task?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching a POST to __REDDIT__/submit or __REDDIT__/submit/deeplearning have response status 302 and normalized form values submission[forum]=10043 and submission[title]=\"what is the SOTA web navigation agent repo\"?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The final response passes the MUTATE/SUCCESS comparison and the HAR’s last qualifying POST passes all configured URL, method, form-value, and 302-status comparisons; both evaluator scores are therefore 1.0 and TaskEvalResult.score is 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The fully retained final response fails or errors under AgentResponseEvaluator parsing, normalization, or comparison, so that evaluator does not score 1.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "The fully retained HAR has no qualifying POST event, or its last qualifying event fails or errors on a configured URL, method, forum, title, or 302-status comparison, so NetworkEventEvaluator does not score 1.0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "A required artifact was not retained, or its retained copy is known to be incomplete, so at least one official evaluator outcome cannot be reconstructed; a fully retained malformed or mismatching artifact is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "confirm_persisted_submission",
+        "text": "Beyond native scoring, require post-run Reddit state to contain a persisted submission with the exact question in the intended Deep Learning forum, rather than relying only on a matching submit request and HTTP 302 response.",
+        "rationale": "The task asks for the question to be posted, while the native NetworkEventEvaluator checks request metadata, two form fields, and response status without inspecting post-run site state; native acceptance therefore does not directly establish persistence.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Reddit submission-state snapshot or submission-page capture",
+            "question": "Does post-run state show a persisted submission in the Deep Learning forum (forum 10043) titled exactly “what is the SOTA web navigation agent repo”?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

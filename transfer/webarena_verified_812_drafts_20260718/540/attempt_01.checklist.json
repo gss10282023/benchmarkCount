@@ -1,0 +1,114 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "540",
+  "domain": "webarena_verified",
+  "task_id": "540",
+  "native": {
+    "user_goal": {
+      "text": "Modify order #301 in shopping admin so its stored address is 321 Birch Boulevard, Suite 200, Dallas, TX 75201.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the normalized MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the last matching address-save POST event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in sequence; TaskEvalResult.create applies their all-must-pass score composition.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained final response parse and normalize to the AgentResponseEvaluator expectation of task_type MUTATE, status SUCCESS, and retrieved_data null or ignored for this non-retrieve task, without a structural mismatch?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last matching POST to __SHOPPING_ADMIN__/sales/order/addressSave/address_id/602/ accepted with response status 302 and post fields street[0]=321 Birch Boulevard, street[1]=Suite 200, city=Dallas, region=Texas, region_id=57, postcode=75201, and country_id=US, after ignoring form_key?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both official evaluator scores are 1.0: the final response is accepted as MUTATE/SUCCESS, and the HAR's last matching address-save POST satisfies the configured URL, method, 302 response, and address post-data comparison with form_key ignored.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The benchmark score is 0 if AgentResponseEvaluator does not score 1.0 because the final response is missing, malformed, or does not normalize to the expected MUTATE/SUCCESS structure.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "The benchmark score is 0 if NetworkEventEvaluator does not score 1.0 because no matching address-save POST exists or the last matching POST fails any configured URL, method, response-status, or post-data comparison.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "If neither retained artifact already establishes a failing evaluator, but agent_response.json or network.har is absent or incomplete enough that its check cannot be reconstructed, the stored evidence is undecided; an intact HAR containing no matching event is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_order_address",
+        "text": "Beyond native success, retained post-run site state must show that order #301 actually stores street lines 321 Birch Boulevard and Suite 200, city Dallas, state Texas/TX, postcode 75201, and country US.",
+        "rationale": "The task claims an actual order mutation, while the released checks accept a self-reported success plus a matching POST/302 and do not inspect the persisted post-run order record; this condition closes that state-persistence gap.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run shopping-admin order #301 state snapshot or export",
+            "question": "Does the retained order record show the requested address in its stored address fields?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

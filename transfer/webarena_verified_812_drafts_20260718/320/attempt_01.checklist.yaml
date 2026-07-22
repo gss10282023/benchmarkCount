@@ -1,0 +1,84 @@
+schema_version: case_checklist_v1
+case_unit_id: '320'
+domain: webarena_verified
+task_id: '320'
+native:
+  user_goal:
+    text: Determine the total refund expected for orders canceled in February 2023, including shipping fees, and return only the numeric value.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: The sole AgentResponseEvaluator must score 1.0, which makes TaskEvalResult.score 1.0. This occurs when the parsed, evaluator-normalized response matches task_type RETRIEVE, status SUCCESS, and unordered retrieved_data [406.53] under the currency schema.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator parses the final response, normalizes its configured fields, and recursively compares them; TaskEvalResult.create assigns 1.0 only when every configured evaluator scores 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the complete response parse to a mapping whose evaluator-normalized task_type, status, and retrieved_data match RETRIEVE, SUCCESS, and exactly [406.53] without a comparison assertion?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Is the required trace present and parseable so that the official evaluation context can be constructed and evaluation can complete without a task-level error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+  success_if:
+  - text: agent_response.json parses to an evaluator-visible mapping whose normalized task_type is RETRIEVE and status is SUCCESS.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+  - text: The response's retrieved_data normalizes under the currency-array schema to exactly the singleton [406.53], with no missing or extra value under the unordered comparison.
+    support:
+    - derived/task.json::eval[0].expected.retrieved_data
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: The required trace and evaluation context are valid, evaluation completes without error, and the sole AgentResponseEvaluator scores 1.0, yielding TaskEvalResult.score 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: A retained final response is non-mapping or unparseable, or its evaluator-visible structure omits or mismatches task_type RETRIEVE or status SUCCESS.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: retrieved_data is missing or null, or its normalized values differ from the singleton [406.53], including any missing or extra element.
+    support:
+    - derived/task.json::eval[0].expected.retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: Official evaluation reports an evaluator or task-level error, or the sole evaluator score is not 1.0; TaskEvalResult.score is then 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained artifacts are missing or truncated such that the complete evaluator-visible response or a usable required trace cannot be established, and no retained official TaskEvalResult resolves the run outcome.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+stronger:
+  additional_conditions:
+  - id: number_only_user_facing_answer
+    text: Beyond native scoring, the retrieved answer content must represent 406.53 as a number and contain no explanatory text or additional user-facing answer fields; required response-envelope metadata is exempt.
+    rationale: The official instruction requires a number only with no additional details, while native actual-value normalization projects configured fields before comparison and therefore does not check unconfigured raw response fields.
+    decisive_artifacts:
+    - artifact: agent_response.json (raw final response)
+      question: Is the answer value represented numerically as 406.53 and, apart from required envelope metadata, free of prose or extra answer-bearing fields?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values

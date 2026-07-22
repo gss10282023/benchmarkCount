@@ -1,0 +1,74 @@
+schema_version: case_checklist_v1
+case_unit_id: '397'
+domain: webarena_verified
+task_id: '397'
+native:
+  user_goal:
+    text: Fork the MetaSeq project in GitLab.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: Native success is TaskEvalResult.score = 1.0, which requires both configured evaluators—AgentResponseEvaluator and NetworkEventEvaluator—to score 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator parses and normalizes the final response before structural comparison; NetworkEventEvaluator selects the last matching network event and compares its configured request and response fields.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - derived/task.json::eval
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the parsed and normalized response match task_type MUTATE, status SUCCESS, and retrieved_data null under AgentResponseEvaluator's comparison?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last matching POST event for the normalized GitLab path /api/v4/projects/33/fork have post data id "33", name "metaseq", namespace_id 2505, and path "metaseq", with response status 201?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: AgentResponseEvaluator scores 1.0 because the retained response parses, normalizes, and compares without assertions or evaluator error against the configured MUTATE/SUCCESS response.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: NetworkEventEvaluator scores 1.0 because the last matching fork event matches every configured URL, method, post-data, and response-status field; together with the response-evaluator score of 1.0, this makes TaskEvalResult.score equal 1.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The task fails if AgentResponseEvaluator does not score 1.0 because the response mismatches, cannot be parsed or normalized as required, or causes an evaluator error.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: The task fails if NetworkEventEvaluator does not score 1.0 because no qualifying fork event exists, the selected last matching event differs on any configured field, or evaluation errors; either evaluator score below 1.0 makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored evidence is undecidable if the review package lacks a complete agent_response.json or network.har and no retained official evaluator result resolves the missing check.
+    rationale: Without both evaluator inputs or an official result produced from them, absence from the retained review package alone cannot distinguish native success from native failure.
+stronger:
+  additional_conditions:
+  - id: post_run_fork_state
+    text: Beyond native scoring, require a retained end-of-run GitLab state record showing that namespace 2505 contains project path metaseq as a fork of source project 33.
+    rationale: The task asks for the MetaSeq fork to exist, while the native evaluator accepts a matching POST event with status 201 and does not inspect the resulting end-of-run GitLab state.
+    decisive_artifacts:
+    - artifact: End-of-run GitLab project lookup or state export
+      question: Does it show project path metaseq in namespace 2505 with its fork source pointing to project 33?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

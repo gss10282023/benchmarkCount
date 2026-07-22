@@ -1,14 +1,146 @@
 from __future__ import annotations
 
+import importlib.metadata
 import json
 from collections import Counter
 from pathlib import Path
 
+import pytest
+
 from evidence_system.contracts.case_packets import build_case_packet_source_bundle, build_case_packets, derive_source_context
+from evidence_system.contracts.agentdojo_packet_extraction import (
+    SHARED_SOURCE_BUNDLE_DIRECTORY,
+    validate_materialized_agentdojo_case_packet,
+    validate_official_source_bundle,
+)
+from evidence_system.contracts.common import ContractLifecycleError
 from evidence_system.core.hashing import sha256_file
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_full_agentdojo_packet_materializes_pinned_evidence_basis(
+    tmp_path: Path,
+) -> None:
+    try:
+        installed_version = importlib.metadata.version("agentdojo")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("pinned AgentDojo package is not installed")
+    if installed_version != "0.1.35":
+        pytest.skip("pinned AgentDojo package is not installed")
+
+    case_unit_id = "v1.2.2:workspace:user_task_0:injection_task_0"
+    built = build_case_packets(
+        manifest_path=(
+            ROOT
+            / "experiments/agentdojo_full_v1.2.2_direct/experiment_manifest.yaml"
+        ),
+        official_splits_path=(
+            ROOT / "experiments/agentdojo_full_v1.2.2_direct/official_splits"
+        ),
+        output_root=tmp_path / "case_packets",
+        case_unit_ids=[case_unit_id],
+    )
+
+    assert len(built) == 1
+    case_dir = Path(built[0].case_dir)
+    raw_case = case_dir / "raw_case"
+    manifest = json.loads(
+        (case_dir / "raw_case_manifest.json").read_text(encoding="utf-8")
+    )
+    assert "derived/checklist_basis.json" in manifest["packet_files"]
+    assert "derived/native_decision_rules.json" in manifest["packet_files"]
+    assert "derived/stronger_measurement_basis.json" in manifest["packet_files"]
+    assert "official/state_schema_excerpts.json" in manifest["packet_files"]
+    assert "derived/artifact_inventory.json" in manifest["packet_files"]
+    assert "official/case_definition.json" in manifest["official_files"]
+    assert "official/evaluator_oracle_excerpts.json" in manifest["official_files"]
+    assert not any(path.startswith("official/src/agentdojo/") for path in manifest["copied_files"])
+    assert len(manifest["copied_files"]) == 8
+    for relative in manifest["copied_files"]:
+        assert manifest["sha256_per_file"][relative] == sha256_file(
+            raw_case / relative
+        )
+
+    wiring = json.loads(
+        (raw_case / "derived/native_decision_rules.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert [
+        item["component_id"]
+        for item in wiring["released_components"]
+    ] == [
+        "benign_user_utility",
+        "injected_user_utility",
+        "injected_security_breach",
+    ]
+    assert (
+        wiring["local_evidence_system_aggregation"]["classification"]
+        .lower()
+        .startswith("local paired-case aggregation")
+    )
+    assert wiring["goal_role_mapping"]["native_user_goal"]["source"] == (
+        "official/case_definition.json::user_goal.text"
+    )
+    assert wiring["goal_role_mapping"]["injected_attack_goal"]["source"] == (
+        "official/case_definition.json::injection_goal.text"
+    )
+    aggregation = wiring["local_evidence_system_aggregation"]
+    assert len(aggregation["decision_precedence"]) == 3
+    assert aggregation[
+        "mutually_exclusive_and_exhaustive_over_three_valued_inputs"
+    ]
+    assert aggregation["local_label_mapping"] == {
+        "success_expression_true": "success",
+        "failure_expression_true": "fail",
+        "otherwise": "unknown",
+    }
+
+    stronger = json.loads(
+        (raw_case / "derived/stronger_measurement_basis.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert "locked_stronger_conditions" not in stronger
+    assert stronger["pre_draft_lock_status"] == "candidate_review_required"
+    assert stronger["lock_destination"] == "checklist.stronger.additional_conditions"
+
+    artifacts = json.loads(
+        (raw_case / "derived/artifact_inventory.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert len(artifacts["episodes"]) == 3
+    assert not artifacts["post_run_state"]["standalone_full_snapshot_retained"]
+    assert "equal one single entry" in artifacts["artifact_name_rule"]
+
+    bundle_root = tmp_path / "source_bundles" / SHARED_SOURCE_BUNDLE_DIRECTORY
+    bundle = validate_official_source_bundle(bundle_root)
+    assert bundle["file_count"] == 112
+    assert bundle["git_commit"] == "a75aba7631d3ca5fb7ab938965c97ead2f9ff84b"
+    assert not (bundle_root / "source/src/agentdojo/__pycache__").exists()
+    validation = validate_materialized_agentdojo_case_packet(
+        raw_case,
+        case_unit_id=case_unit_id,
+        bundle_root=bundle_root,
+    )
+    assert validation["deterministic_reextraction"]
+    assert validation["semantic_contract"]
+    assert "official/src/agentdojo/benchmark.py" not in (
+        case_dir / "case_packet.md"
+    ).read_text(encoding="utf-8")
+    excerpt_file = raw_case / "official/evaluator_oracle_excerpts.json"
+    excerpt_file.write_bytes(excerpt_file.read_bytes() + b"\n")
+    with pytest.raises(
+        ContractLifecycleError, match="deterministic packet re-extraction differs"
+    ):
+        validate_materialized_agentdojo_case_packet(
+            raw_case,
+            case_unit_id=case_unit_id,
+            bundle_root=bundle_root,
+        )
 
 
 def test_build_case_packets_materializes_sample_cases(tmp_path: Path) -> None:
@@ -218,9 +350,39 @@ def test_build_case_packets_materializes_miniwob_case_from_local_sources(tmp_pat
     )
 
     assert len(built) == 1
+    case_dir = Path(built[0].case_dir)
     packet = Path(built[0].case_packet_path).read_text(encoding="utf-8")
     assert "miniwob.click-test" in packet
     assert "official/install/miniwob/html/miniwob/click-test.html" in packet
+    manifest_payload = json.loads(
+        (case_dir / "raw_case_manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest_payload["packet_files"] == [
+        "derived/drafting_context.json",
+        "derived/official_source_excerpts.json",
+        "derived/selected_task_source.json",
+        "official/install/miniwob/html/miniwob/click-test.html",
+    ]
+    assert "official/python/browsergym/miniwob/all.py" in manifest_payload["official_files"]
+    assert "### `official/python/browsergym/miniwob/all.py`" not in packet
+    assert "### `official/python/browsergym/miniwob/base.py`" not in packet
+    context_payload = json.loads(
+        (case_dir / "raw_case/derived/drafting_context.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert context_payload["locked_before_outcomes"] is True
+    assert context_payload["contains_agent_outcomes"] is False
+    assert context_payload["official_policy"]["applicability"] == "N/A"
+    assert context_payload["artifact_inventory"]["artifact_types"] == [
+        "browser_artifact",
+        "post_state",
+        "trace",
+        "native_evaluator_input",
+        "native_evaluator_output",
+        "structured_output",
+        "file",
+    ]
 
     source_bundle_path = build_case_packet_source_bundle(
         manifest_path=manifest_path,
@@ -230,6 +392,47 @@ def test_build_case_packets_materializes_miniwob_case_from_local_sources(tmp_pat
         allow_generated_contract_ids=True,
     )
     source_bundle = json.loads(source_bundle_path.read_text(encoding="utf-8"))
+    assert source_bundle["manifest_sha256"] == sha256_file(manifest_path)
     context = derive_source_context(source_bundle["sources"][0])
     assert context["task_text"]["task_id"] == "miniwob.click-test"
     assert context["task_text"]["static_query_text"] == "Click the button."
+
+
+def test_source_bundle_can_omit_manifest_hash_to_avoid_hash_cycle(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    packet_root = tmp_path / "case_packets"
+    case_dir = packet_root / "miniwob" / "miniwob.click-test"
+    case_dir.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "domains": [
+                    {
+                        "domain": "miniwob",
+                        "case_units": [
+                            {
+                                "case_unit_id": "miniwob.click-test",
+                                "task_id": "miniwob.click-test",
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (case_dir / "case_packet.md").write_text("locked packet\n", encoding="utf-8")
+    (case_dir / "raw_case_manifest.json").write_text("{}\n", encoding="utf-8")
+
+    bundle_path = build_case_packet_source_bundle(
+        manifest_path=manifest_path,
+        case_packets_root=packet_root,
+        previous_source_bundle_path=tmp_path / "missing.json",
+        output_path=tmp_path / "bundle.json",
+        allow_generated_contract_ids=True,
+        include_manifest_sha256=False,
+    )
+
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    assert bundle["manifest_path"]
+    assert "manifest_sha256" not in bundle

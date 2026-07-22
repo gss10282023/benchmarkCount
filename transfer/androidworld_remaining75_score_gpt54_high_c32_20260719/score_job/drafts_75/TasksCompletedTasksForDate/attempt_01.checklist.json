@@ -1,0 +1,192 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "TasksCompletedTasksForDate",
+  "domain": "androidworld",
+  "task_id": "TasksCompletedTasksForDate",
+  "native": {
+    "user_goal": {
+      "text": "Answer which Tasks-app tasks were completed for the requested date, using task titles only and a comma-separated list if more than one.",
+      "support": [
+        "official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1526-1671"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success requires a terminal `done=true` episode and a final submitted answer whose comma-split, trimmed items pass `proto_utils.check_agent_answer` against the instantiated task's expected titles: the relevant-state task `title` values, compared with unordered `STRING_MATCH` fuzzy matching and equal item count.",
+      "support": [
+        "official/install/android_world/suite_utils.py::_run_task",
+        "official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful",
+        "official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer",
+        "official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer",
+        "official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match",
+        "official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1526-1671"
+      ]
+    },
+    "checked_by": {
+      "text": "`android_world.suite_utils._run_task` applies the `done` gate, then `InformationRetrieval.is_successful` scores the final answer via `proto_utils.check_agent_answer`.",
+      "support": [
+        "official/install/android_world/suite_utils.py::_run_task",
+        "official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful",
+        "official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "Retained episode trace / episode record",
+        "question": "Does the record preserve the dispatched goal text, the terminal `done` status, and the exact final answer text submitted by the agent?",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task",
+          "official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action"
+        ]
+      },
+      {
+        "artifact": "Retained initialized Tasks-app state snapshot or DB export for this run",
+        "question": "Which task titles were seeded with `due_date` equal to the queried date, and what `completed_date` value was stored for each seeded task?",
+        "support": [
+          "official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1526-1671",
+          "official/install/android_world/task_evals/information_retrieval/task_app_utils.py::setup_task_state",
+          "official/install/android_world/task_evals/information_retrieval/task_app_utils.py::create_task_from_proto"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The retained trace shows terminal `done=true`, and the retained initialized Tasks state plus the dispatched goal/date evidence show that the submitted final answer, after comma splitting and trimming, passes the native unordered `STRING_MATCH` comparison against the seeded `title` values for tasks with `due_date` equal to the queried date.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task",
+          "official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1526-1671",
+          "official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer",
+          "official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match",
+          "official/install/android_world/env/device_constants.py::DT"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The retained trace shows terminal `done=false`.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task"
+        ]
+      },
+      {
+        "text": "The retained trace shows `done=true`, but no final answer text was submitted.",
+        "support": [
+          "official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful",
+          "official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action"
+        ]
+      },
+      {
+        "text": "The retained trace shows `done=true`, but the submitted answer fails the native comma-split/trimmed `STRING_MATCH` comparison against the seeded `title` values for tasks with `due_date` equal to the queried date.",
+        "support": [
+          "official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer",
+          "official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match",
+          "official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1526-1671"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Retained evidence does not let the reviewer recover both the terminal `done`/final-answer evidence and the seeded Tasks-app titles for the queried date.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task",
+          "official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1526-1671",
+          "official/install/android_world/task_evals/information_retrieval/task_app_utils.py::setup_task_state"
+        ]
+      },
+      {
+        "text": "The run ended with exception/NaN-style summary output or otherwise lacks usable underlying trace/state evidence, and no retained artifact independently proves success or failure.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task",
+          "official/install/android_world/suite_utils.py::_create_failed_result"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "completed_date_matches_query",
+        "text": "Beyond native scoring, the returned titles should be exactly the tasks whose `completed_date` matches the requested date, interpreting relative date wording against the benchmark device time, not merely tasks whose `due_date` matches that date.",
+        "rationale": "The prompt asks which tasks were completed for `{date}`, but the instantiated relevant state ties the seeded titles to `due_date: {date}` and native success checks only `title`; `completed_date` is populated yet ignored.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Episode trace / dispatched goal record",
+            "question": "What date did the question ask about, after resolving any relative wording against the fixed benchmark device time?",
+            "support": [
+              "official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1526-1671",
+              "official/install/android_world/suite_utils.py::_run_task",
+              "official/install/android_world/env/device_constants.py::DT"
+            ]
+          },
+          {
+            "artifact": "Retained initialized Tasks-app state snapshot or DB export for this run",
+            "question": "Which seeded tasks have `completed_date` equal to that resolved date?",
+            "support": [
+              "official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1526-1671",
+              "official/install/android_world/task_evals/information_retrieval/task_app_utils.py::setup_task_state",
+              "official/install/android_world/task_evals/information_retrieval/task_app_utils.py::create_task_from_proto"
+            ]
+          }
+        ],
+        "support": [
+          "official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1526-1671",
+          "official/install/android_world/env/device_constants.py::DT"
+        ]
+      },
+      {
+        "id": "exact_title_strings",
+        "text": "Beyond native scoring, each comma-separated answer item should exactly equal a qualifying task title; fuzzy near-matches should not count.",
+        "rationale": "The prompt asks for titles only, but native `STRING_MATCH` uses fuzzy matching with a 0.9 similarity threshold.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Episode trace / submitted answer record",
+            "question": "What exact final comma-separated answer text did the agent submit?",
+            "support": [
+              "official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action",
+              "official/install/android_world/suite_utils.py::_run_task"
+            ]
+          },
+          {
+            "artifact": "Retained initialized Tasks-app state snapshot or DB export for this run",
+            "question": "What are the exact qualifying task titles under the task's intended criterion?",
+            "support": [
+              "official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1526-1671",
+              "official/install/android_world/task_evals/information_retrieval/task_app_utils.py::setup_task_state"
+            ]
+          }
+        ],
+        "support": [
+          "official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1526-1671",
+          "official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer",
+          "official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match"
+        ]
+      },
+      {
+        "id": "complete_unique_title_list",
+        "text": "Beyond native scoring, the answer list should include every qualifying title once each; duplicated items or omission of another qualifying title should not count.",
+        "rationale": "Native answer checking requires only equal list length and that each submitted item matches some expected title, so the same expected title can satisfy multiple submitted items.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Episode trace / submitted answer record",
+            "question": "After comma splitting and trimming, what answer items did the agent submit?",
+            "support": [
+              "official/install/android_world/suite_utils.py::_run_task",
+              "official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer"
+            ]
+          },
+          {
+            "artifact": "Retained initialized Tasks-app state snapshot or DB export for this run",
+            "question": "What is the full intended qualifying title list for the queried date?",
+            "support": [
+              "official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1526-1671",
+              "official/install/android_world/task_evals/information_retrieval/task_app_utils.py::setup_task_state"
+            ]
+          }
+        ],
+        "support": [
+          "official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1526-1671",
+          "official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 3 ]]; then
+  echo "Usage: neurips-score-batch TASK_ROOT OUTPUT_ROOT STATE_ROOT [run_score_batch.py options]" >&2
+  exit 2
+fi
+
+if [[ -r /etc/neurips-score.env ]]; then
+  # shellcheck disable=SC1091
+  source /etc/neurips-score.env
+fi
+
+task_root=$1
+output_root=$2
+state_root=$3
+shift 3
+
+scorer=codex
+scorer_seen=0
+expect_scorer_value=0
+for argument in "$@"; do
+  if (( expect_scorer_value )); then
+    if [[ $argument == --* ]]; then
+      echo "--scorer requires codex or claude-code." >&2
+      exit 2
+    fi
+    scorer=$argument
+    scorer_seen=$((scorer_seen + 1))
+    expect_scorer_value=0
+    continue
+  fi
+  case $argument in
+    --scorer)
+      expect_scorer_value=1
+      ;;
+    --scorer=*)
+      scorer=${argument#--scorer=}
+      scorer_seen=$((scorer_seen + 1))
+      ;;
+  esac
+done
+if (( expect_scorer_value )); then
+  echo "--scorer requires codex or claude-code." >&2
+  exit 2
+fi
+if (( scorer_seen > 1 )); then
+  echo "Pass --scorer at most once." >&2
+  exit 2
+fi
+
+codex_timeout_seconds=${SCORE_CODEX_TIMEOUT_SECONDS:-1800}
+claude_timeout_seconds=${SCORE_CLAUDE_TIMEOUT_SECONDS:-1800}
+max_attempts=${SCORE_MAX_ATTEMPTS:-2}
+max_run_attempts=${SCORE_MAX_RUN_ATTEMPTS:-2}
+max_input_files=${SCORE_MAX_INPUT_FILES:-200000}
+max_input_bytes=${SCORE_MAX_INPUT_BYTES:-107374182400}
+max_single_file_bytes=${SCORE_MAX_SINGLE_FILE_BYTES:-5368709120}
+min_free_bytes=${SCORE_MIN_FREE_BYTES:-21474836480}
+
+case $scorer in
+  codex)
+    model=${SCORE_MODEL:-gpt-5.4}
+    reasoning_effort=${SCORE_REASONING_EFFORT:-xhigh}
+    max_parallel=${SCORE_MAX_PARALLEL:-1}
+    max_allowed_parallel=${SCORE_MAX_ALLOWED_PARALLEL:-36}
+    ;;
+  claude-code)
+    model=${SCORE_CLAUDE_MODEL:-sonnet}
+    reasoning_effort=${SCORE_CLAUDE_REASONING_EFFORT:-high}
+    max_parallel=${SCORE_CLAUDE_MAX_PARALLEL:-1}
+    max_allowed_parallel=${SCORE_CLAUDE_MAX_ALLOWED_PARALLEL:-72}
+    ;;
+  *)
+    echo "Unsupported scorer: $scorer" >&2
+    exit 2
+    ;;
+esac
+
+for value in \
+  "$max_parallel" \
+  "$max_allowed_parallel" \
+  "$codex_timeout_seconds" \
+  "$claude_timeout_seconds" \
+  "$max_attempts" \
+  "$max_run_attempts" \
+  "$max_input_files" \
+  "$max_input_bytes" \
+  "$max_single_file_bytes" \
+  "$min_free_bytes"; do
+  if [[ ! $value =~ ^[1-9][0-9]*$ ]]; then
+    echo "Score service limits must be positive integers." >&2
+    exit 2
+  fi
+done
+if (( max_parallel > max_allowed_parallel )); then
+  echo "Configured parallelism exceeds the $scorer ceiling of $max_allowed_parallel." >&2
+  exit 2
+fi
+
+export HOME=/srv/neurips-draft/home
+export CODEX_HOME=/srv/neurips-draft/home/.codex
+export SCORE_CODEX_HOME_ROOT=/srv/neurips-score/runtime/codex_homes
+export TMPDIR=/srv/neurips-score/runtime/tmp
+export PYTHONPYCACHEPREFIX=/srv/neurips-score/runtime/pycache
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PYTHONUNBUFFERED=1
+export DISABLE_AUTOUPDATER=1
+
+if [[ $scorer == codex ]]; then
+  # Fail before any model call if the host can no longer provide Codex's Linux
+  # read-only sandbox (for example after an OS or CLI path change).
+  sandbox_probe=$(mktemp -d "$TMPDIR/score_sandbox_probe.XXXXXX")
+  cleanup_sandbox_probe() {
+    rm -rf "$sandbox_probe"
+  }
+  trap cleanup_sandbox_probe EXIT
+  install -m 0444 /dev/null "$sandbox_probe/readable"
+  if ! codex sandbox -P :read-only -C "$sandbox_probe" -- /bin/sh -c \
+    'test -r readable && ! touch should_not_write 2>/dev/null'; then
+    echo "Codex read-only sandbox self-test failed; refusing to start score model calls." >&2
+    exit 2
+  fi
+  cleanup_sandbox_probe
+  trap - EXIT
+else
+  if [[ ! -x /usr/local/bin/claude ]]; then
+    echo "Claude Code is not installed; rerun install_runtime.sh." >&2
+    exit 2
+  fi
+  claude_auth_json=$(env \
+    -u ANTHROPIC_API_KEY \
+    -u ANTHROPIC_AUTH_TOKEN \
+    -u ANTHROPIC_BASE_URL \
+    -u CLAUDE_CODE_USE_BEDROCK \
+    -u CLAUDE_CODE_USE_VERTEX \
+    -u CLAUDE_CODE_USE_FOUNDRY \
+    /usr/local/bin/claude auth status --json) || {
+      echo "Claude Code login status check failed." >&2
+      exit 2
+    }
+  if ! /opt/neurips-draft/venv/bin/python -c '
+import json
+import sys
+
+status = json.loads(sys.argv[1])
+if status.get("loggedIn") is not True or status.get("authMethod") != "claude.ai":
+    raise SystemExit(1)
+' "$claude_auth_json"; then
+    echo "Claude scorer requires draftsvc Claude subscription login; run neurips-score-claude-login." >&2
+    exit 2
+  fi
+fi
+
+exec /opt/neurips-draft/venv/bin/python \
+  /opt/neurips-draft/app/neurips_ed_track_minimal/scripts/run_score_batch.py \
+  "$@" \
+  --task-root "$task_root" \
+  --output-root "$output_root" \
+  --state-root "$state_root" \
+  --scorer "$scorer" \
+  --model "$model" \
+  --reasoning-effort "$reasoning_effort" \
+  --sandbox read-only \
+  --service-tier default \
+  --max-parallel "$max_parallel" \
+  --codex-timeout-seconds "$codex_timeout_seconds" \
+  --claude-timeout-seconds "$claude_timeout_seconds" \
+  --max-attempts "$max_attempts" \
+  --max-run-attempts "$max_run_attempts" \
+  --max-input-files "$max_input_files" \
+  --max-input-bytes "$max_input_bytes" \
+  --max-single-file-bytes "$max_single_file_bytes" \
+  --min-free-bytes "$min_free_bytes"

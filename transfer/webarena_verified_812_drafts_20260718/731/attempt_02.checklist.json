@@ -1,0 +1,111 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "731",
+  "domain": "webarena_verified",
+  "task_id": "731",
+  "native": {
+    "user_goal": {
+      "text": "Edit the user's Reddit post titled \"Nvidia RTX 4090\" by adding \"EDIT: This news aged well\" as a line in its body.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response as a successful MUTATE, and NetworkEventEvaluator accepts the selected edit POST event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order, then TaskEvalResult.create applies the all-evaluators score rule.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the response parse to a mapping that AgentResponseEvaluator normalizes without error and structurally accepts against task_type MUTATE, status SUCCESS, and retrieved_data null, whose value is not compared for this mutate task?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event filtered by POST plus the configured edit URL path match the expected normalized URL, response status 302, submission title \"Nvidia RTX 4090\", and body regex \"^\\s*Crazy device for ML!\\s*EDIT: This news aged well\\s*$\"?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "AgentResponseEvaluator scores 1.0 for the accepted MUTATE/SUCCESS response and NetworkEventEvaluator scores 1.0 for the selected POST event matching every configured URL, status, title, and body condition; both scores together yield TaskEvalResult.score 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure is established if either evaluator has a score other than 1.0 or errors: the response is absent, malformed, or rejected by its normalized structural comparison; or no eligible edit POST exists, or the selected last event mismatches any configured URL, status, title, or body condition.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecidable if agent_response.json or network.har is missing, unreadable, truncated, or lacks the fields needed to replay its evaluator, because neither artifact alone determines both required evaluator scores.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_separate_line",
+        "text": "In addition to native success, retained post-run Reddit state shows that the edit persisted and that \"EDIT: This news aged well\" starts on a separate line after \"Crazy device for ML!\".",
+        "rationale": "The official instruction requires an actual edit that adds a line, while the released evaluator checks only a matching POST/302 trace; its \\s* body regex also permits no whitespace or spaces instead of a line break.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run DOM or page-state snapshot of the Reddit post",
+            "question": "Does the retained post state show the \"Nvidia RTX 4090\" body with \"Crazy device for ML!\" followed by an actual line break and then \"EDIT: This news aged well\"?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.post_data",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

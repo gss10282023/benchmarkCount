@@ -1,0 +1,102 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "415",
+  "domain": "webarena_verified",
+  "task_id": "415",
+  "native": {
+    "user_goal": {
+      "text": "On the GitLab merge request assigned to the user for “verification functions,” reply “Thank you” if the existing last comment is by the merge-request author; otherwise tag the author as a reminder.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success requires both configured evaluators to score 1.0: AgentResponseEvaluator must accept a MUTATE/SUCCESS response with no retrieved data, and NetworkEventEvaluator must accept the selected last GitLab POST with the specified target, HTTP 200 response, MergeRequest note type, and note text containing @davepgreene.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released AgentResponseEvaluator and NetworkEventEvaluator perform the two checks; TaskEvalResult.create assigns score 1.0 only when every evaluator score is 1.0.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the response parse and normalize to task_type MUTATE, status SUCCESS, and retrieved_data null, without an evaluator error or compared-key mismatch?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last evaluation event matching POST and the /byteblaze/a11y-webring.club/notes path a 200 response whose full URL targets merge request 138783 and whose parsed post data has note.noteable_type equal to MergeRequest and note.note matching ^.*@davepgreene.*$?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both retained artifacts satisfy their respective checks, so AgentResponseEvaluator and NetworkEventEvaluator each score 1.0 and the composed task score is 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "With complete artifacts, native failure occurs if either evaluator fails or errors: the response is not accepted as MUTATE/SUCCESS with null retrieved data, or the selected last POST event is absent or mismatches any required method, target URL/query, HTTP status, note type, or @davepgreene text condition. Any non-1.0 evaluator score makes the task score 0.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "A retained copy of agent_response.json or network.har is absent or known to be incomplete, so the corresponding evaluator input cannot be reconstructed from stored evidence.",
+        "rationale": "This is an evidence-retention gap; a complete malformed response or a complete HAR with no qualifying event is instead a native failure."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_conditional_reply_in_persisted_thread",
+        "text": "Beyond native success, retained post-run GitLab evidence must show that the target is the merge request assigned to the user for “verification functions,” that its immediately preceding comment was not by the merge-request author, that @davepgreene is that author, and that the submitted reminder reply is visibly persisted in the thread.",
+        "rationale": "The official task is conditional on displayed thread state and identifies the target by assignment and topic, while the native network rule only checks a fixed successful POST whose note contains @davepgreene; it does not establish those thread facts or visible persistence.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run GitLab merge-request page snapshot containing MR metadata and the comment thread",
+            "question": "Does the snapshot establish the assignee and topic, the merge-request author, the immediately preceding commenter, and the visibly persisted @davepgreene reply needed to validate the official conditional branch?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

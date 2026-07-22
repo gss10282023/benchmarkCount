@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+  echo "neurips-score-submit must run as root." >&2
+  exit 2
+fi
+if [[ $# -lt 1 ]]; then
+  echo "Usage: neurips-score-submit JOB_ID [run_score_batch.py options]" >&2
+  exit 2
+fi
+
+job_id=$1
+shift
+if [[ ! $job_id =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$ ]]; then
+  echo "JOB_ID must match [A-Za-z0-9][A-Za-z0-9_-]{0,47}." >&2
+  exit 2
+fi
+
+job_root=/srv/neurips-score/jobs/$job_id
+task_root=$job_root/tasks
+output_root=$job_root/results
+state_root=$job_root/state
+unit=neurips-score-$job_id.service
+
+if [[ ! -d $task_root ]]; then
+  echo "Missing score task root: $task_root" >&2
+  exit 2
+fi
+if find "$task_root" -type l -print -quit | grep -q .; then
+  echo "Score task uploads must not contain symbolic links." >&2
+  exit 2
+fi
+first_checklist=$(find "$task_root" -mindepth 2 -maxdepth 2 -type f -name checklist.yaml -print -quit)
+if [[ -z $first_checklist ]]; then
+  echo "No <task_id>/checklist.yaml files found under $task_root" >&2
+  exit 2
+fi
+first_evidence=$(find "$task_root" -mindepth 3 -type f -path '*/evidence/*' -print -quit)
+if [[ -z $first_evidence ]]; then
+  echo "No files found under any <task_id>/evidence/ directory" >&2
+  exit 2
+fi
+if [[ -e $output_root || -e $state_root ]]; then
+  echo "Score job already has output/state; choose a new JOB_ID: $job_id" >&2
+  exit 2
+fi
+if systemctl is-active --quiet "$unit"; then
+  echo "Score job is already active: $job_id" >&2
+  exit 2
+fi
+
+# Seal uploaded inputs as root-owned, read-only data for the service account.
+chown -R --no-dereference root:draftsvc "$task_root"
+find "$task_root" -type d -exec chmod 0750 {} +
+find "$task_root" -type f -exec chmod 0640 {} +
+install -d -m 0750 -o draftsvc -g draftsvc "$output_root" "$state_root"
+
+systemd-run \
+  --quiet \
+  --unit "$unit" \
+  --collect \
+  --property Type=exec \
+  --property TasksMax=8192 \
+  --property NoNewPrivileges=yes \
+  --property UMask=0027 \
+  --uid draftsvc \
+  --gid draftsvc \
+  --setenv HOME=/srv/neurips-draft/home \
+  --setenv CODEX_HOME=/srv/neurips-draft/home/.codex \
+  --setenv SCORE_CODEX_HOME_ROOT=/srv/neurips-score/runtime/codex_homes \
+  --setenv TMPDIR=/srv/neurips-score/runtime/tmp \
+  --setenv PYTHONPYCACHEPREFIX=/srv/neurips-score/runtime/pycache \
+  --setenv PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  /usr/local/bin/neurips-score-batch "$task_root" "$output_root" "$state_root" "$@"
+
+echo "submitted_job=$job_id"
+echo "systemd_unit=$unit"
+echo "task_root=$task_root"
+echo "output_root=$output_root"
+echo "state_root=$state_root"

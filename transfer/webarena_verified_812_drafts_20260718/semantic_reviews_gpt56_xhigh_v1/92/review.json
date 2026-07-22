@@ -1,0 +1,265 @@
+{
+  "decision": "revise",
+  "checklist_items": [
+    {
+      "id": "identity_and_scope",
+      "status": "pass",
+      "rationale": "The domain, case unit, and task identifiers exactly match case 92, and the checklist stays within the packet-defined case.",
+      "evidence": [
+        "case_packet.md::Case Metadata",
+        "checklist.yaml::case_unit_id",
+        "checklist.yaml::domain",
+        "checklist.yaml::task_id"
+      ]
+    },
+    {
+      "id": "native_user_goal",
+      "status": "pass",
+      "rationale": "The user goal faithfully preserves the request for every state bordering Vermont and relation IDs returned as integers without additional details.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::official instruction",
+        "derived/tag_task.json::intent",
+        "checklist.yaml::native.user_goal"
+      ]
+    },
+    {
+      "id": "official_evaluator_semantics",
+      "status": "pass",
+      "rationale": "The checklist identifies the explicitly configured task_type, status, and retrieved_data checks, the numeric-array schema, unordered duplicate-sensitive comparison, and the released response extraction and normalization behavior. It does not incorrectly score the materialized error_details default.",
+      "evidence": [
+        "derived/tag_task.json::eval[0]",
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+        "checklist.yaml::native.benchmark_success"
+      ]
+    },
+    {
+      "id": "evaluator_composition",
+      "status": "pass",
+      "rationale": "The checklist correctly states that there is exactly one AgentResponseEvaluator and that both its score and the composed TaskEvalResult score must be 1.0; evaluator or task errors are treated as failure.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::evaluator sequence",
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "checklist.yaml::native.checked_by"
+      ]
+    },
+    {
+      "id": "decisive_post_run_evidence",
+      "status": "fail",
+      "rationale": "The checklist makes network.har a decisive artifact even though the only configured check is the AgentResponseEvaluator and this case compares numeric response data. The packet does not show trace contents changing that comparison; the batch artifact contract alone does not make the HAR decisive.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::evaluator sequence",
+        "case_packet.md::Benchmark Task Summary::required run artifacts",
+        "derived/task.json::eval[0]",
+        "checklist.yaml::native.decisive_artifacts[1]"
+      ]
+    },
+    {
+      "id": "decision_rules",
+      "status": "fail",
+      "rationale": "The success, failure, and undecided rules unnecessarily depend on network.har. In particular, loss of the HAR can produce undecided despite a complete response being sufficient for the sole configured comparison. Undecided should be limited to loss of the complete response evidence and must not supersede a complete invalid or mismatching response.",
+      "evidence": [
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.fail_if[0]",
+        "checklist.yaml::native.undecided_if[0]",
+        "derived/task.json::eval",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+      ]
+    },
+    {
+      "id": "source_support_pointers",
+      "status": "pass",
+      "rationale": "The cited paths, evaluator methods, configuration fields, and expected values are all represented in the packet; no invented source or evaluator instance is cited.",
+      "evidence": [
+        "case_packet.md::Source Inventory",
+        "case_packet.md::Packet Source Files",
+        "checklist.yaml::native",
+        "checklist.yaml::stronger"
+      ]
+    },
+    {
+      "id": "stronger_conditions",
+      "status": "pass",
+      "rationale": "The stronger condition captures a concrete evaluator gap: fenced or prose-wrapped JSON, ignored extra fields, and number-valued rather than integer-only data can satisfy native processing despite the literal output instruction. It is explicitly beyond native scoring and measurable from the raw response.",
+      "evidence": [
+        "derived/tag_task.json::intent",
+        "derived/task.json::eval[0].results_schema",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+        "checklist.yaml::stronger.additional_conditions[0]"
+      ]
+    },
+    {
+      "id": "minimality_and_no_run_leakage",
+      "status": "fail",
+      "rationale": "There is no run leakage, but the checklist is not minimal because it adds a HAR artifact and several HAR-dependent branches that are unnecessary for reconstructing this case’s sole configured response check.",
+      "evidence": [
+        "derived/task.json::eval",
+        "checklist.yaml::native.decisive_artifacts",
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.undecided_if[0]"
+      ]
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "nondecisive_har_artifact",
+      "checklist_item_id": "decisive_post_run_evidence",
+      "message": "network.har is designated as decisive solely through generic evaluator plumbing and the batch retention contract, although this case has only an AgentResponseEvaluator comparing numeric response values.",
+      "required_change": "Remove network.har from native decisive_artifacts and use the complete agent_response.json as the minimal sufficient retained evidence for the configured check.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::evaluator sequence",
+        "case_packet.md::Benchmark Task Summary::required run artifacts",
+        "derived/task.json::eval[0]",
+        "checklist.yaml::native.decisive_artifacts[1]"
+      ]
+    },
+    {
+      "id": "har_dependent_decision_rules",
+      "checklist_item_id": "decision_rules",
+      "message": "The native rules require a parseable HAR and allow HAR retention loss to make the result undecided, broadening the evidence requirement beyond the sole configured response comparison.",
+      "required_change": "Remove HAR-dependent success, failure, and undecided clauses. Restrict undecided to loss or corruption of the complete response evidence, while explicitly treating a retained complete invalid, null, or mismatching response as failure.",
+      "evidence": [
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.fail_if[0]",
+        "checklist.yaml::native.undecided_if[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+      ]
+    },
+    {
+      "id": "redundant_native_material",
+      "checklist_item_id": "minimality_and_no_run_leakage",
+      "message": "The HAR artifact and its repeated conditions add nondecisive material to an otherwise compact checklist.",
+      "required_change": "Consolidate native evidence and rules around agent_response.json while retaining the exact AgentResponseEvaluator semantics and task-level all-evaluators composition.",
+      "evidence": [
+        "derived/task.json::eval",
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.fail_if[0]"
+      ]
+    }
+  ],
+  "revised_checklist": {
+    "native": {
+      "user_goal": {
+        "text": "Identify the relation IDs of every U.S. state bordering Vermont and return only a list of integers, with no additional details.",
+        "support": [
+          "derived/tag_task.json::intent"
+        ]
+      },
+      "benchmark_success": {
+        "text": "TaskEvalResult.score is 1.0 exactly when the sole AgentResponseEvaluator scores 1.0 and no evaluator or task-level error occurs. Released extraction must yield a mapping whose explicitly configured fields normalize to task_type RETRIEVE, status SUCCESS, and retrieved_data equal to [175905, 67213, 61315] under the array-of-number schema. retrieved_data comparison is unordered, exact, and duplicate-sensitive; the materialized default error_details is not scored because it was not explicitly configured in the sparse task.",
+        "support": [
+          "derived/tag_task.json::eval[0]",
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "checked_by": {
+        "text": "The sole configured AgentResponseEvaluator extracts and normalizes the final response, checks the explicitly configured response fields, and produces score 1.0 only when no failing assertion or evaluator error remains. TaskEvalResult.create then requires every configured evaluator score—here that one score—to equal 1.0.",
+        "support": [
+          "derived/task.json::eval[0].evaluator",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "decisive_artifacts": [
+        {
+          "artifact": "agent_response.json",
+          "question": "Does the complete retained final response, after released extraction and normalization, yield evaluator-visible task_type RETRIEVE, status SUCCESS, and retrieved_data equal as an unordered duplicate-sensitive numeric array to [175905, 67213, 61315]?",
+          "support": [
+            "derived/tag_task.json::eval[0]",
+            "derived/task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+          ]
+        }
+      ],
+      "success_if": [
+        {
+          "text": "Released extraction produces a mapping. JSON text, including JSON extracted from a code block, may be parsed; performed_operation is accepted as the legacy task_type alias when task_type is absent. Normalization produces evaluator-visible task_type RETRIEVE and status SUCCESS.",
+          "support": [
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+          ]
+        },
+        {
+          "text": "retrieved_data normalizes under the array-of-number schema to exactly the unordered multiset [175905, 67213, 61315], with no missing, extra, or duplicate occurrence, and the evaluator and composed task result have no error and both score 1.0.",
+          "support": [
+            "derived/task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "fail_if": [
+        {
+          "text": "Native failure occurs if the complete response is null, malformed or non-mapping after released extraction, or lacks or mismatches the evaluator-visible task_type RETRIEVE or status SUCCESS. A valid legacy performed_operation field supplies task_type rather than counting as missing.",
+          "support": [
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects"
+          ]
+        },
+        {
+          "text": "Native failure occurs if retrieved_data is missing, null, empty, or does not normalize to exactly the unordered duplicate-sensitive numeric array [175905, 67213, 61315].",
+          "support": [
+            "derived/task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered"
+          ]
+        },
+        {
+          "text": "Any failing evaluator assertion, evaluator error, or task-level orchestration error produces a non-1.0 native score and is failure.",
+          "support": [
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "undecided_if": [
+        {
+          "text": "Only when the complete provenance-linked agent_response.json, or a clearly equivalent retained final-response artifact, is missing, truncated, or corrupted so that the response supplied for evaluation cannot be reconstructed.",
+          "rationale": "Loss of retained response evidence may prevent reconstruction; a retained complete null, invalid, or evaluator-visible mismatching response is native failure, not undecided."
+        }
+      ]
+    },
+    "stronger": {
+      "additional_conditions": [
+        {
+          "id": "literal_integer_list_format",
+          "text": "Beyond native scoring and within the required response protocol, the raw final response has no surrounding prose or code fence, contains no extra explanatory keys, and represents every retrieved_data entry as a JSON integer primitive rather than a float.",
+          "rationale": "The instruction asks for an integer list only without additional details, while released extraction can accept fenced JSON, normalization considers only explicitly expected fields, and the configured item schema is number rather than integer.",
+          "decisive_artifacts": [
+            {
+              "artifact": "agent_response.json",
+              "question": "Does the raw response contain no prose, code fence, or extra explanatory keys, with every retrieved_data entry represented as a JSON integer primitive?",
+              "support": [
+                "derived/tag_task.json::intent",
+                "derived/task.json::eval[0].results_schema",
+                "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+                "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+              ]
+            }
+          ],
+          "support": [
+            "derived/tag_task.json::intent",
+            "derived/task.json::eval[0].results_schema.items.type",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "678",
+  "domain": "webarena_verified",
+  "task_id": "678",
+  "native": {
+    "user_goal": {
+      "text": "Open the shopping-admin orders list filtered to canceled orders.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult score 1.0 and status success: both the configured AgentResponseEvaluator and NetworkEventEvaluator must score 1.0.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs the two configured evaluators in order and composes their scores through TaskEvalResult.create.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Under the official parsing, normalization, and structural-comparison rules, does the response match task_type NAVIGATE, status SUCCESS, and retrieved_data null without a compared-key mismatch?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the navigate/GET rule's selected last navigation event normalize to the configured GET request to __SHOPPING_ADMIN__/mui/index/render/ with referer __SHOPPING_ADMIN__/sales/order/, response 200, and the exact non-ignored canceled-order query parameters?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff agent_response.json gives AgentResponseEvaluator score 1.0 by matching normalized {task_type: NAVIGATE, status: SUCCESS, retrieved_data: null}, and network.har gives NetworkEventEvaluator score 1.0 because the selected last navigation event matches GET __SHOPPING_ADMIN__/mui/index/render/, referer __SHOPPING_ADMIN__/sales/order/, response 200, and query parameters filters[placeholder]=[\"true\"], filters[status]=[\"canceled\"], keywordUpdated=[\"false\"], namespace=[\"sales_order_grid\"], and search=[\"\"] after ignoring names matching ^paging, ^sorting, or isAjax.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if the retained response is evaluator-visible but does not normalize and compare to the expected NAVIGATE/SUCCESS/null object, or if its evaluation errors; AgentResponseEvaluator then does not score 1.0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Fail if the retained HAR has no event selected by the navigation rule, the selected event fails any configured network comparison, or parsing/evaluation errors; NetworkEventEvaluator then does not score 1.0, and the all-of task composition yields score 0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when retained evidence cannot establish an evaluator input or result—for example, an artifact is absent or truncated and it is unclear whether this is a retention loss rather than the input supplied during evaluation. A present malformed or mismatching input is failure.",
+        "rationale": "An evidence-retention gap does not reveal the run-time evaluator input, whereas evaluator-visible malformed or missing input is scored 0 by the released evaluator."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "visible_canceled_orders_view",
+        "text": "Retained final-page evidence shows the shopping-admin Orders grid open with the Canceled status filter applied.",
+        "rationale": "The native evaluator checks a self-reported success and one selected network event but does not inspect the rendered final page; the official intent specifically requires going to the canceled-orders list.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Final-page screenshot or final accessibility/DOM snapshot",
+            "question": "Does the final rendered shopping-admin view visibly show the Orders list with the Canceled filter applied?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

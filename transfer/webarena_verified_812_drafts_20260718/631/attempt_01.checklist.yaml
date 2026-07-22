@@ -1,0 +1,66 @@
+schema_version: case_checklist_v1
+case_unit_id: '631'
+domain: webarena_verified
+task_id: '631'
+native:
+  user_goal:
+    text: Create a post in f/sports titled "running shoes recommendations?" with body "Hey, looking for good running shoes under $100, any suggestions?"
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both AgentResponseEvaluator and NetworkEventEvaluator must score 1.0; any evaluator failure or error makes the task score 0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator applies AgentResponseEvaluator to agent_response.json and NetworkEventEvaluator to network.har, then conjunctively composes their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response normalize to a structured object with task_type MUTATE and status SUCCESS and no structural mismatch under AgentResponseEvaluator? For this MUTATE task, retrieved_data's value is not compared.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last evaluation event matching a POST to either configured submit URL have response status 302 and parsed form fields submission[forum]="10080", submission[title]="running shoes recommendations?", and submission[body]="Hey, looking for good running shoes under $100, any suggestions?" under evaluator normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: AgentResponseEvaluator finds no assertion or error for the normalized MUTATE/SUCCESS response, and NetworkEventEvaluator finds the required last matching POST/302 event with all three expected form-field values; both evaluator scores are therefore 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: On complete run artifacts, native failure occurs if the final response has a compared structure, task_type, or status mismatch or causes an evaluator error; or if no configured-path POST exists, the last such POST is not a 302, or any expected form-field value mismatches. Any one evaluator score below 1.0 is decisive failure.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Retrospective review is undecided if either retained artifact is missing, truncated after the run, or cannot be associated with the same run, so one or both official evaluator outcomes cannot be reconstructed.
+    rationale: Native success is conjunctive and requires independently reviewable response and HAR evidence; loss or uncertain association of retained evidence establishes neither pass nor failure for the unavailable check.
+stronger:
+  additional_conditions:
+  - id: persisted-post-state
+    text: Retained post-run Reddit state shows the post actually present in f/sports with the requested title and body.
+    rationale: The stated goal is to create the post, while the native mutation check accepts a matching POST request followed by status 302 and does not inspect persisted Reddit state or response content; this stronger condition closes that concrete measurement gap.
+    decisive_artifacts:
+    - artifact: Retained post-run Reddit state or rendered post page
+      question: Is there a persisted post in f/sports whose title is "running shoes recommendations?" and whose body is "Hey, looking for good running shoes under $100, any suggestions?"
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

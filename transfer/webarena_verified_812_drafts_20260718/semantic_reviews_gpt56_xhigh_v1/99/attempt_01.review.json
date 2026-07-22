@@ -1,0 +1,283 @@
+{
+  "decision": "revise",
+  "checklist_items": [
+    {
+      "id": "identity_and_scope",
+      "status": "pass",
+      "rationale": "The checklist matches WebArena-Verified case and task 99 and stays within the packet-defined case.",
+      "evidence": [
+        "case_packet.md::Case Metadata",
+        "checklist.yaml::case_unit_id",
+        "checklist.yaml::domain",
+        "checklist.yaml::task_id"
+      ]
+    },
+    {
+      "id": "native_user_goal",
+      "status": "pass",
+      "rationale": "The goal preserves the nearest-location request, walking distance, required OSRM service, output structure, and km-or-m unit requirement.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary.official instruction",
+        "derived/task.json::intent",
+        "checklist.yaml::native.user_goal"
+      ]
+    },
+    {
+      "id": "official_evaluator_semantics",
+      "status": "pass",
+      "rationale": "The native claim correctly identifies the explicitly configured task_type, status, and retrieved_data fields, schema normalization, unordered comparison, expected singleton result, and non-1.0 treatment of evaluator errors. It does not incorrectly compare the materialized error_details default.",
+      "evidence": [
+        "derived/tag_task.json::eval[0]",
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "checklist.yaml::native.benchmark_success"
+      ]
+    },
+    {
+      "id": "evaluator_composition",
+      "status": "pass",
+      "rationale": "The checklist states that exactly one AgentResponseEvaluator is configured and that task success requires its score to be 1.0; mismatches and evaluator errors are treated as failure.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary.evaluator sequence",
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "checklist.yaml::native.checked_by",
+        "checklist.yaml::native.fail_if"
+      ]
+    },
+    {
+      "id": "decisive_post_run_evidence",
+      "status": "fail",
+      "rationale": "The checklist makes network.har a native decisive artifact even though the only configured check is AgentResponseEvaluator and no packet-represented comparison reads network events. The conditional environment-URL fallback does not make HAR contents part of this case's configured response comparison.",
+      "evidence": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval",
+        "checklist.yaml::native.decisive_artifacts[1]"
+      ]
+    },
+    {
+      "id": "decision_rules",
+      "status": "fail",
+      "rationale": "The native rules incorrectly make trace availability and validity a prerequisite and allow a missing retained trace to produce undecided. For this sole response-evaluator case, a complete agent_response.json is sufficient; only loss of that decisive response evidence should make native reconstruction undecidable.",
+      "evidence": [
+        "derived/task.json::eval",
+        "checklist.yaml::native.success_if[1]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]"
+      ]
+    },
+    {
+      "id": "source_support_pointers",
+      "status": "pass",
+      "rationale": "The checklist's paths, fields, classes, and methods are all represented in the packet, and its expected values match the task configuration.",
+      "evidence": [
+        "case_packet.md::Source Inventory",
+        "case_packet.md::Packet Source Files",
+        "checklist.yaml::native",
+        "checklist.yaml::stronger"
+      ]
+    },
+    {
+      "id": "stronger_conditions",
+      "status": "pass",
+      "rationale": "Both stronger conditions describe concrete, case-specific gaps beyond native scoring: the evaluator's singleton coercion weakens the requested raw list shape, and the sole response evaluator does not verify the instruction-mandated OSRM interaction. Both are measurable from the named retained evidence and remain separate from native success.",
+      "evidence": [
+        "derived/task.json::intent",
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data",
+        "checklist.yaml::stronger.additional_conditions"
+      ]
+    },
+    {
+      "id": "minimality_and_no_run_leakage",
+      "status": "fail",
+      "rationale": "There is no run leakage, but the repeated native trace artifact and trace-dependent success, failure, and undecided branches make the checklist nonminimal for a case whose sole configured comparison uses the agent response.",
+      "evidence": [
+        "derived/task.json::eval",
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "checklist.yaml::native.success_if[1]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]"
+      ]
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "native_trace_not_decisive",
+      "checklist_item_id": "decisive_post_run_evidence",
+      "message": "network.har is incorrectly designated as native decisive evidence for a case configured only with AgentResponseEvaluator.",
+      "required_change": "Remove network.har from native.decisive_artifacts and retain it only for the beyond-native OSRM condition. Use complete agent_response.json as the minimal sufficient native evidence.",
+      "evidence": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+        "checklist.yaml::native.decisive_artifacts[1]"
+      ]
+    },
+    {
+      "id": "trace_dependent_native_rules",
+      "checklist_item_id": "decision_rules",
+      "message": "The rules make trace parsing or retention affect native success, failure, and undecided despite the absence of a configured NetworkEventEvaluator.",
+      "required_change": "Base native decisions on the complete response and its released parsing, normalization, comparison, and evaluator result. Restrict undecided to loss, corruption, or provenance ambiguity of the response evidence; do not make omission of network.har undecided.",
+      "evidence": [
+        "derived/task.json::eval",
+        "checklist.yaml::native.success_if[1]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]"
+      ]
+    },
+    {
+      "id": "remove_redundant_native_trace_material",
+      "checklist_item_id": "minimality_and_no_run_leakage",
+      "message": "Trace-related native artifact and decision text adds substantial case-irrelevant material.",
+      "required_change": "Delete the native trace artifact and consolidate native success and failure around the sole AgentResponseEvaluator while preserving network.har only under the OSRM stronger condition.",
+      "evidence": [
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "checklist.yaml::native.success_if[1]",
+        "checklist.yaml::native.fail_if[1]"
+      ]
+    }
+  ],
+  "revised_checklist": {
+    "native": {
+      "user_goal": {
+        "text": "Find the nearest Five Guys to 5700 Penn Ave and its walking distance using the OSRM direction service, returning only a list of objects with keys location and distance, with distance expressed as a numeric value carrying a km or m unit.",
+        "support": [
+          "derived/task.json::intent"
+        ]
+      },
+      "benchmark_success": {
+        "text": "TaskEvalResult.score is 1.0 exactly when the sole configured AgentResponseEvaluator completes without error and scores 1.0: under the released parsing and schema normalization, the explicitly configured task_type, status, and retrieved_data fields match RETRIEVE, SUCCESS, and the configured singleton result, with retrieved_data compared structurally without regard to order. The materialized default error_details is not an explicitly configured comparison field.",
+        "support": [
+          "derived/tag_task.json::eval[0]",
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "checked_by": {
+        "text": "The sole configured AgentResponseEvaluator reads the submitted response, applies its released JSON/code-block parsing and field normalization, normalizes retrieved_data with the configured array-of-objects schema, and performs unordered recursive structural comparison. No NetworkEventEvaluator is configured.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      "decisive_artifacts": [
+        {
+          "artifact": "agent_response.json",
+          "question": "Does the complete submitted response pass the released parser and normalize to task_type RETRIEVE, status SUCCESS, and exactly one unordered retrieved_data item containing distance equivalent to 4km and location {name: Five Guys, house_number: 117, street: South Bouquet Street, city: Pittsburgh, state: Pennsylvania, postcode: 15213}?",
+          "support": [
+            "derived/tag_task.json::eval[0].expected",
+            "derived/task.json::eval[0].ordered",
+            "derived/task.json::eval[0].results_schema",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered"
+          ]
+        }
+      ],
+      "success_if": [
+        {
+          "text": "The complete response passes released parsing and normalization; its task type and status match RETRIEVE and SUCCESS, and its retrieved_data is an unordered exact structural match to the configured singleton location and 4km distance, producing no failure assertions and an AgentResponseEvaluator score of 1.0.",
+          "support": [
+            "derived/task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+          ]
+        },
+        {
+          "text": "Because that sole evaluator score is 1.0, TaskEvalResult.score is 1.0.",
+          "support": [
+            "derived/task.json::eval",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "fail_if": [
+        {
+          "text": "The preserved submitted response is null or invalid, is not a response object accepted by the released parser, is missing or mismatches task_type or status, or normalizes to absent, empty, malformed, missing, extra, or otherwise mismatching retrieved_data relative to the configured singleton result; such a mismatch or response-processing evaluator error yields a non-1.0 evaluator score and native failure.",
+          "support": [
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_recursive",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+          ]
+        },
+        {
+          "text": "Any non-1.0 score or error from the sole configured AgentResponseEvaluator makes TaskEvalResult.score 0.0.",
+          "support": [
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "undecided_if": [
+        {
+          "text": "The retained evidence does not preserve the complete response actually submitted, or that response is truncated, corrupted, or cannot be associated with this run, so the configured comparison cannot be reconstructed. A completely preserved null, invalid, or mismatching response is failure rather than undecided.",
+          "rationale": "Only loss or provenance failure of the response evidence prevents reconstruction of this case's sole configured check; network.har is not native decisive evidence here."
+        }
+      ]
+    },
+    "stronger": {
+      "additional_conditions": [
+        {
+          "id": "retrieved_data_is_actual_list",
+          "text": "Beyond native success, the raw retrieved_data payload is an actual JSON array of objects, not a singleton object or string accepted through evaluator coercion.",
+          "rationale": "The instruction and public response schema require a list, while the released evaluator wraps non-list and non-tuple retrieved_data values as singletons before normalization.",
+          "decisive_artifacts": [
+            {
+              "artifact": "agent_response.json",
+              "question": "Before evaluator normalization, is retrieved_data represented as a JSON array whose item is the requested location-and-distance object?",
+              "support": [
+                "derived/task.json::intent",
+                "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse",
+                "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data"
+              ]
+            }
+          ],
+          "support": [
+            "derived/task.json::intent",
+            "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data"
+          ]
+        },
+        {
+          "id": "osrm_route_evidence",
+          "text": "Beyond native success, the retained trace contains a successful OSRM direction-service request whose route endpoints correspond to 5700 Penn Ave and the reported Five Guys and whose response distance supports the reported walking distance.",
+          "rationale": "The official instruction explicitly requires OSRM, but the sole configured AgentResponseEvaluator reads only the final response and does not verify network events. If no complete trace is retained, this stronger condition is undecidable without affecting native success.",
+          "decisive_artifacts": [
+            {
+              "artifact": "agent_response.json",
+              "question": "Which Five Guys location and walking distance does the submitted response report?",
+              "support": [
+                "derived/task.json::eval[0].expected",
+                "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+              ]
+            },
+            {
+              "artifact": "network.har",
+              "question": "Does the trace show a successful OSRM directions request corresponding to 5700 Penn Ave and the reported destination, with returned route data supporting the reported walking distance?",
+              "support": [
+                "derived/task.json::intent",
+                "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+              ]
+            }
+          ],
+          "support": [
+            "derived/task.json::intent",
+            "derived/task.json::eval",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+          ]
+        }
+      ]
+    }
+  }
+}

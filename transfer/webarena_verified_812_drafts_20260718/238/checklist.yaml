@@ -1,0 +1,76 @@
+schema_version: case_checklist_v1
+case_unit_id: '238'
+domain: webarena_verified
+task_id: '238'
+native:
+  user_goal:
+    text: Navigate One Stop Market to the product page for the most expensive PS4 accessory.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the NAVIGATE/SUCCESS response and NetworkEventEvaluator accepts the last navigation event as the configured product-page GET with HTTP 200.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks the retained agent response, NetworkEventEvaluator checks the retained network trace, and TaskEvalResult.create composes their scores conjunctively.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize to the configured NAVIGATE/SUCCESS response shape under AgentResponseEvaluator's structural comparison?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is its last navigation event a GET returning HTTP 200 whose normalized URL matches __SHOPPING__/astro-gaming-a50-wireless-headset-base-station-gen-4-compatible-with-ps5-ps4-pc-mac-black-silver.html?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: Success iff agent_response.json passes the configured NAVIGATE/SUCCESS comparison and network.har's last navigation event passes the configured target-URL, GET, and HTTP-200 comparison; both evaluator scores must be 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Fail if either evaluator is not 1.0: the response fails its normalized NAVIGATE/SUCCESS structural comparison, or the trace has no qualifying last navigation event or that event mismatches the configured URL, GET method, or HTTP-200 status; evaluator errors also make the task score 0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained evidence is undecidable if agent_response.json or network.har is absent, unreadable, or incomplete enough that either official comparison cannot be reconstructed.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    rationale: Both artifact-dependent evaluator outcomes are required to determine the conjunctive native score.
+stronger:
+  additional_conditions:
+  - id: verify_actual_price_maximum
+    text: Beyond native scoring, retained run evidence must show that the reached item is a PS4 accessory and that its displayed price is at least as high as every other PS4 accessory offered by One Stop Market in the run's catalog state.
+    rationale: The user asks for the most expensive PS4 accessory, but the released evaluator accepts a fixed product-page GET/200 event without comparing category membership or prices.
+    decisive_artifacts:
+    - artifact: Retained complete PS4-accessory catalog evidence
+      question: Does a complete listing, sorted listing, or equivalent retained catalog response show all in-scope products and prices with no price above the reached item's price?
+      support:
+      - derived/task.json::intent
+    - artifact: Retained reached-product page evidence
+      question: Does the final-page DOM, screenshot, or response identify the reached Astro Gaming A50 item as PS4-compatible and show its price?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.url
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

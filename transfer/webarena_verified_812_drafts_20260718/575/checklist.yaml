@@ -1,0 +1,64 @@
+schema_version: case_checklist_v1
+case_unit_id: '575'
+domain: webarena_verified
+task_id: '575'
+native:
+  user_goal:
+    text: Update the user's saved OneStopShopping address to 222 Redwood Rise, Suite 300, Seattle, WA 98101.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the last matching address-update POST event.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task-config order, then TaskEvalResult.create requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize without structural mismatch to task_type MUTATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Under the evaluator's URL and value normalization, does the last POST event matching __SHOPPING__/customer/address/formPost/id/26/ have response status 302 and post_data firstname Emma, lastname Lopez, street[0] 222 Redwood Rise, street[1] Suite 300, city Seattle, postcode 98101, and country_id US?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success only if AgentResponseEvaluator scores 1.0 on agent_response.json and NetworkEventEvaluator scores 1.0 on network.har; both scores must be 1.0 for the task score to be 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if either configured evaluator mismatches or errors—including an invalid or non-MUTATE/SUCCESS response, no qualifying last address-update POST event, or a mismatch in its checked URL, method, status, or post fields—because any evaluator score below 1.0 makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retained run evidence is missing, corrupt, truncated, or cannot be attributed to this case, so one or both official evaluator outcomes cannot be reconstructed and no retained TaskEvalResult resolves them.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    rationale: This denotes an evidence-retention gap; a retained official failure or error is benchmark failure, not undecided.
+stronger:
+  additional_conditions:
+  - id: persisted_full_address
+    text: Beyond native scoring, retained post-run OneStopShopping account state must show the saved address as 222 Redwood Rise, Suite 300, Seattle, Washington (WA) 98101, US.
+    rationale: The native evaluator checks a matching POST with a 302 response and the agent's success claim, but it does not inspect persisted account state and its expected post_data omits the task-specified WA region; native success therefore does not prove that the complete requested address was saved.
+    decisive_artifacts:
+    - artifact: Post-run authenticated OneStopShopping address-book snapshot or exported account-state record
+      question: Does the saved customer address contain both street lines, Seattle, Washington/WA, postcode 98101, and country US?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.post_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

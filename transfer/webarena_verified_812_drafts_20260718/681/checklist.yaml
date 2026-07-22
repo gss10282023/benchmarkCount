@@ -1,0 +1,69 @@
+schema_version: case_checklist_v1
+case_unit_id: '681'
+domain: webarena_verified
+task_id: '681'
+native:
+  user_goal:
+    text: Find a GitLab repository related to GAN implementation and create a new URL post in the most relevant discussion forum, using the repository path as the title and "<number of commits> commit(s) already!" as the body.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success requires both configured evaluators to score 1.0: AgentResponseEvaluator must accept the final response as a successful MUTATE response, and NetworkEventEvaluator must accept the last matching Reddit submission POST. Any evaluator failure or error makes TaskEvalResult.score 0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArena-Verified evaluator runs AgentResponseEvaluator and NetworkEventEvaluator in configuration order, then requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Under the released parser and normalizer, does the response compare without assertions to task_type MUTATE, status SUCCESS, and null non-retrieve data?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event matching POST and the Reddit /submit URL pattern a 302 response whose submission fields match the configured forum, media type, title, GitLab URL, and body under official normalization and regex comparison?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Success iff the response check scores 1.0 and the network check scores 1.0: the final response is accepted as MUTATE/SUCCESS, and the last POST matching ^__REDDIT__/submit/?.*$ has status 302 with submission[body]="193 commits already!", submission[forum] matching ^(10043|10018)$, submission[mediaType]="url", submission[title]="eriklindernoren/PyTorch-GAN", and submission[url]="__GITLAB__/eriklindernoren/PyTorch-GAN" under the released comparison rules.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail iff AgentResponseEvaluator reports a mismatch or error, or NetworkEventEvaluator finds no matching Reddit submission POST or the selected last event differs in any configured status or submission field. Any evaluator score other than 1.0 makes the overall score 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when the retained record does not establish which agent response or complete ordered HAR the evaluator actually received and no retained TaskEvalResult resolves the outcome. A present artifact that the released evaluator treats as invalid is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+stronger:
+  additional_conditions:
+  - id: persisted_created_post
+    text: Beyond native scoring, the accepted submission event must be corroborated by retained post-run Reddit state showing that it produced a persisted URL post in forum 10043 or 10018 with title "eriklindernoren/PyTorch-GAN", URL "__GITLAB__/eriklindernoren/PyTorch-GAN", and body "193 commits already!".
+    rationale: The user goal requires creating a new post, while the native NetworkEventEvaluator checks only a matching POST event and its 302 response, not the resulting forum state.
+    decisive_artifacts:
+    - artifact: network.har plus a post-run Reddit discussion-state snapshot or created-post record
+      question: Can the accepted submission be linked to a persisted post with the configured forum, media type, title, URL, and body?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

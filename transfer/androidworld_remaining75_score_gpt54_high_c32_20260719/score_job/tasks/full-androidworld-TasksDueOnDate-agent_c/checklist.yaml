@@ -1,0 +1,85 @@
+schema_version: case_checklist_v1
+case_unit_id: TasksDueOnDate
+domain: androidworld
+task_id: TasksDueOnDate
+native:
+  user_goal:
+    text: Report the titles of the tasks due on the asked date in Tasks app, returning titles only and using a comma-separated list if there are multiple.
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::tasks[name="TasksDueOnDate"]
+  benchmark_success:
+    text: 'Native success requires the run to finish with `done=true`, and the submitted answer text to pass `check_agent_answer` for this task: after splitting on commas and trimming whitespace, the answer must have the same item count as the expected due-date titles, and each returned item must fuzzy-match at least one expected title under the evaluator''s STRING_MATCH rule.'
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::tasks[name="TasksDueOnDate"]
+  checked_by:
+    text: AndroidWorld runner completion gate plus `InformationRetrieval.is_successful`, which delegates answer checking to `proto_utils.check_agent_answer` for the initialized Tasks-app state.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+  decisive_artifacts:
+  - artifact: Episode trace or action log with termination status and submitted answer text
+    question: Does retained run evidence show `done=true` or `done=false`, and what exact answer text, if any, was submitted to the environment?
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+  - artifact: Initialized Tasks-app state snapshot for this run
+    question: Which task titles were initialized with `due_date` equal to this task's target date?
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::tasks[name="TasksDueOnDate"]
+    - official/install/android_world/task_evals/information_retrieval/task_app_utils.py::setup_task_state
+    - official/install/android_world/task_evals/information_retrieval/task_app_utils.py::check_task_conditions
+  success_if:
+  - text: Retained evidence shows the episode finished with `done=true`, and the submitted answer, after comma splitting and trimming, has the same number of items as the initialized target-date titles and every returned item fuzzy-matches at least one of those titles under the evaluator's case-insensitive STRING_MATCH rule.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::tasks[name="TasksDueOnDate"]
+    - official/install/android_world/task_evals/information_retrieval/task_app_utils.py::setup_task_state
+  fail_if:
+  - text: Retained evidence shows the episode ended with `done=false`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: A complete retained trace shows the run finished but no answer text was submitted before termination, so `interaction_cache` remained empty.
+    support:
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+  - text: 'Retained evidence shows `done=true`, but the submitted answer fails the native comparator: the comma-split item count differs from the expected target-date title count, or at least one returned item fails to fuzzy-match any expected title.'
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::tasks[name="TasksDueOnDate"]
+  undecided_if:
+  - text: Retained evidence does not preserve enough run-execution detail to determine whether the episode finished with `done=true` and what answer text, if any, was submitted.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+  - text: Retained evidence does not preserve the initialized Tasks-app target-date titles, so the evaluator's expected answers cannot be reconstructed from stored underlying state.
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::tasks[name="TasksDueOnDate"]
+    - official/install/android_world/task_evals/information_retrieval/task_app_utils.py::setup_task_state
+    - official/install/android_world/task_evals/information_retrieval/task_app_utils.py::check_task_conditions
+stronger:
+  additional_conditions:
+  - id: exact_complete_unique_titles
+    text: Beyond native scoring, the answer lists every task title due on the target date exactly once, using the exact title text from the initialized Tasks-app state rather than a merely fuzzy near-match or repeated title.
+    rationale: The official prompt asks for the tasks due on the date as titles only, but native scoring only checks equal answer length and whether each returned item fuzzy-matches at least one expected title under a 0.9 similarity threshold; it does not require exact text or complete one-to-one coverage of all expected titles.
+    decisive_artifacts:
+    - artifact: Episode trace or action log with submitted answer text
+      question: What exact comma-separated answer text was submitted?
+      support:
+      - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - artifact: Initialized Tasks-app state snapshot for this run
+      question: What are the full task titles due on the target date?
+      support:
+      - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::tasks[name="TasksDueOnDate"]
+      - official/install/android_world/task_evals/information_retrieval/task_app_utils.py::setup_task_state
+      - official/install/android_world/task_evals/information_retrieval/task_app_utils.py::check_task_conditions
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::tasks[name="TasksDueOnDate"]
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match

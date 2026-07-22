@@ -1,0 +1,62 @@
+schema_version: case_checklist_v1
+case_unit_id: '645'
+domain: webarena_verified
+task_id: '645'
+native:
+  user_goal:
+    text: Create a post in Reddit's books forum titled exactly "What could machine learning help the books field?"
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0: both configured evaluators score 1.0—the final response passes AgentResponseEvaluator and the selected Reddit submission event passes NetworkEventEvaluator.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator parses, normalizes, and compares agent_response.json; NetworkEventEvaluator selects and compares the configured event from network.har; TaskEvalResult.create requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After evaluator parsing and normalization, does the response contain exactly task_type MUTATE, status SUCCESS, and retrieved_data null, with no extra normalized keys?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last POST selected for a normalized /submit or /submit/books URL a 302 response whose parsed form fields compare to submission[forum]=10037 and submission[title]="What could machine learning help the books field?" under evaluator normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks pass: agent_response.json normalizes to the expected MUTATE/SUCCESS response, and network.har''s selected last matching POST satisfies the configured URL, form-data, method, and 302-status comparison; therefore every evaluator score is 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Failure occurs if the response check fails or errors, or if the trace has no qualifying POST or its selected last matching event fails any configured URL, form-data, method, or response-status comparison; any such evaluator score below 1.0 makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retained copies are absent, truncated, or otherwise insufficient to determine what the complete agent_response.json or network.har contained; a complete artifact that the evaluator cannot parse or match is failure/error, not undecided.
+    rationale: This reserves undecided for post-run evidence-retention gaps rather than ordinary benchmark-counted mismatches or evaluator errors.
+stronger:
+  additional_conditions:
+  - id: persisted_books_post
+    text: Beyond native scoring, retained post-run Reddit state must show a persisted post in the books forum with the exact requested title.
+    rationale: The official intent claims creation of a forum post, while native scoring checks self-reported success and a matching POST/302 network event without inspecting the resulting forum state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit books-forum page/DOM capture or site-state export
+      question: Does the retained state show a post in the books forum titled exactly "What could machine learning help the books field?"?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

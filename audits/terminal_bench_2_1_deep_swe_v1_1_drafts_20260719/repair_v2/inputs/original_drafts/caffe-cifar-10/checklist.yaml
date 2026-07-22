@@ -1,0 +1,89 @@
+schema_version: case_checklist_v1
+case_unit_id: caffe-cifar-10
+domain: terminal_bench_2_1
+task_id: terminal-bench/caffe-cifar-10
+native:
+  user_goal:
+    text: Install the original BVLC Caffe 1.0.0 in `/app/caffe`, build it for CPU-only execution, train CIFAR-10 for exactly 500 iterations using `examples/cifar10/cifar10_quick_solver.prototxt`, write `/app/caffe/training_output.txt`, and produce the expected model file with 100-iteration test accuracy above 45% and within 5 percentage points of train accuracy.
+    support:
+    - official/instruction.md::1-9
+  benchmark_success:
+    text: 'Native success is a passing official verifier run under `official/tests/test.sh`: the pytest suite in `official/tests/test_outputs.py` passes `test_caffe_version_and_source`, `test_cifar10_model_exists`, `test_prototxt_files_exist`, `test_cpu_only_training_configured`, `test_training_completed_500_iterations`, and `test_model_accuracy_verification`.'
+    support:
+    - official/tests/test.sh::18-29
+    - official/tests/test_outputs.py::test_caffe_version_and_source
+    - official/tests/test_outputs.py::test_cifar10_model_exists
+    - official/tests/test_outputs.py::test_prototxt_files_exist
+    - official/tests/test_outputs.py::test_cpu_only_training_configured
+    - official/tests/test_outputs.py::test_training_completed_500_iterations
+    - official/tests/test_outputs.py::test_model_accuracy_verification
+  checked_by:
+    text: The official verifier script `official/tests/test.sh`, which runs pytest with CTRF reporting against `/tests/test_outputs.py` and treats a zero-exit pytest run as success.
+    support:
+    - official/tests/test.sh::18-29
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the retained CTRF report show all six official verifier tests passing, or identify which official test failed?
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_caffe_version_and_source
+    - official/tests/test_outputs.py::test_cifar10_model_exists
+    - official/tests/test_outputs.py::test_prototxt_files_exist
+    - official/tests/test_outputs.py::test_cpu_only_training_configured
+    - official/tests/test_outputs.py::test_training_completed_500_iterations
+    - official/tests/test_outputs.py::test_model_accuracy_verification
+  - artifact: verifier/test-stdout.txt
+    question: Do verifier stdout logs show the official script reached and completed the pytest run, or aborted earlier such as at the explicit working-directory check?
+    support:
+    - official/tests/test.sh::12-29
+  - artifact: verifier/test-stderr.txt
+    question: Do verifier stderr logs show pytest or subprocess errors that establish native failure when the CTRF report is missing or incomplete?
+    support:
+    - official/tests/test.sh::18-29
+    - official/tests/test_outputs.py::test_caffe_version_and_source
+    - official/tests/test_outputs.py::test_model_accuracy_verification
+  success_if:
+  - text: 'Retained verifier evidence establishes a completed official pytest run in which all six official tests passed: Caffe reports version 1.0.0; `examples/cifar10/cifar10_quick_iter_500.caffemodel` exists and is nontrivially sized; the required prototxt files exist; the solver and build metadata show CPU-only mode with `max_iter: 500`; `training_output.txt` shows iteration 500 but not 501 with realistic training logs; and the 100-iteration test accuracy is above 0.45 and at most 0.05 below the final training accuracy parsed from `training_output.txt`.'
+    support:
+    - official/tests/test.sh::18-29
+    - official/tests/test_outputs.py::test_caffe_version_and_source
+    - official/tests/test_outputs.py::test_cifar10_model_exists
+    - official/tests/test_outputs.py::test_prototxt_files_exist
+    - official/tests/test_outputs.py::test_cpu_only_training_configured
+    - official/tests/test_outputs.py::test_training_completed_500_iterations
+    - official/tests/test_outputs.py::test_model_accuracy_verification
+  fail_if:
+  - text: Retained verifier evidence shows the official script aborted before a passing pytest run, including the explicit failure when no working directory is set before running the tests.
+    support:
+    - official/tests/test.sh::12-29
+  - text: Retained verifier evidence shows any official pytest check failed, including failure of the version check, model-file check, required prototxt check, CPU-only configuration check, exact-500-iteration training-output check, or accuracy-threshold check.
+    support:
+    - official/tests/test.sh::18-29
+    - official/tests/test_outputs.py::test_caffe_version_and_source
+    - official/tests/test_outputs.py::test_cifar10_model_exists
+    - official/tests/test_outputs.py::test_prototxt_files_exist
+    - official/tests/test_outputs.py::test_cpu_only_training_configured
+    - official/tests/test_outputs.py::test_training_completed_500_iterations
+    - official/tests/test_outputs.py::test_model_accuracy_verification
+  undecided_if:
+  - text: Retained verifier artifacts are missing, truncated, or inconsistent such that they do not establish either a completed all-pass official pytest run or a specific official verifier failure.
+    rationale: The native criterion is exactly the official verifier run in `official/tests/test.sh` over the pytest suite in `official/tests/test_outputs.py`. If the retained CTRF report and verifier stdout/stderr do not let a reviewer reconstruct whether that run passed or failed, the benchmark claim cannot be decided from stored non-label evidence.
+stronger:
+  additional_conditions:
+  - id: bvlc-source-provenance
+    text: Beyond native scoring, retained agent evidence should establish that `/app/caffe` was obtained from the original BVLC Caffe source repository, because the instruction requires the original BVLC Caffe but the released verifier only operationalizes a binary that reports version `1.0.0` plus the expected files and metrics.
+    rationale: '`official/instruction.md` requires installing the original BVLC Caffe and cloning Caffe to `/app/caffe`. The released verifier''s `test_caffe_version_and_source` function checks only that the discovered binary runs and its output contains `1.0.0`; it does not inspect repository origin, remote, or source-tree identity. This is a concrete, source-supported task/evaluator gap.'
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show `/app/caffe` being cloned from the BVLC Caffe repository or otherwise establish BVLC source provenance for the installed tree?
+      support:
+      - official/instruction.md::1-9
+      - official/tests/test_outputs.py::test_caffe_version_and_source
+    - artifact: agent/*-stdout.txt
+      question: Do retained command outputs show the clone URL, git remote, or equivalent evidence that `/app/caffe` came from the BVLC Caffe source repository?
+      support:
+      - official/instruction.md::1-9
+      - official/tests/test_outputs.py::test_caffe_version_and_source
+    support:
+    - official/instruction.md::1-9
+    - official/tests/test_outputs.py::test_caffe_version_and_source

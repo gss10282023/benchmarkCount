@@ -1,0 +1,90 @@
+schema_version: case_checklist_v1
+case_unit_id: '280'
+domain: webarena_verified
+task_id: '280'
+native:
+  user_goal:
+    text: Return the full names of available Anker charger products and the numeric minimum and maximum prices as one object containing only "names", "min", and "max".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Task 280 succeeds only when TaskEvalResult.score is 1.0. Its sole AgentResponseEvaluator must complete at 1.0: the response normalizes to task_type RETRIEVE, status SUCCESS, and retrieved_data exactly matching the configured singleton object under schema-driven, unordered array comparison.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the task's sole AgentResponseEvaluator, which parses and normalizes the response, recursively compares it with the configured value, and produces the evaluator score used by TaskEvalResult.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse to evaluator-visible task_type RETRIEVE, status SUCCESS, and retrieved_data that normalizes to one object containing min 8.99, max 59.99, and all 12 configured names, with no missing or extra retrieved-data elements or properties under unordered comparison?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Can the retained HAR be parsed into a NetworkTrace so evaluation context construction completes, and, if configured environment URLs are unavailable, does it provide an event from which the shopping base URL can be recovered?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: The response parses and normalizes to a mapping whose evaluator-visible task_type and status match RETRIEVE and SUCCESS.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+  - text: Normalized retrieved_data is an unordered singleton collection whose object has exactly names, min, and max; min and max normalize to 8.99 and 59.99, and names is an unordered, duplicate-sensitive match to the 12 strings configured for task 280.
+    support:
+    - derived/task.json::eval[0].expected.retrieved_data[0]
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer.normalize_array
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: The trace and evaluation context are valid, the sole AgentResponseEvaluator produces no failing assertions or error and scores 1.0, and TaskEvalResult therefore records score 1.0 and success.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Evidence shows that the evaluator received a null, empty, non-mapping, or otherwise unparseable response, or that its evaluator-visible key structure, task_type, or status differs from RETRIEVE/SUCCESS; any resulting assertion or evaluator error scores 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: After schema normalization, retrieved_data is missing or null, has other than one matching object, or has any missing, extra, or mismatching property, name occurrence, minimum, or maximum; order alone is not a failure.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+  - text: The run's HAR, context construction, or evaluator orchestration produces an error, or the sole evaluator score is not 1.0; TaskEvalResult then has score 0 with failure or error status.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._create_eval_error_result
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The review copy lacks or truncates the exact agent response or required trace and no trustworthy retained evaluation result establishes what inputs reached the official evaluator. If evidence instead shows that the run itself supplied a missing or malformed input, treat it as failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    rationale: Loss of post-run evidence does not establish that the evaluator received a failing value.
+stronger:
+  additional_conditions:
+  - id: no_ignored_extra_details
+    text: 'Apart from mandatory benchmark response-envelope fields, the raw final response contains no user-facing content beyond the single requested names/min/max object: no explanatory prose and no extra unscored fields or details.'
+    rationale: The instruction explicitly forbids additional details, but the evaluator can extract JSON from within a fenced block and processes only fields selected from the configured expected response, allowing surrounding prose or unknown top-level fields to be ignored by native scoring.
+    decisive_artifacts:
+    - artifact: agent_response.json before evaluator parsing
+      question: Outside the mandatory response envelope and requested names/min/max payload, does the exact raw response contain prose or additional user-facing fields/content that evaluator parsing or field selection discards?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse

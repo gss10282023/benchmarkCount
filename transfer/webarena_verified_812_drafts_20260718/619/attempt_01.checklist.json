@@ -1,0 +1,116 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "619",
+  "domain": "webarena_verified",
+  "task_id": "619",
+  "native": {
+    "user_goal": {
+      "text": "Re-post the “costume contest” image from the starting /f/pics forum to the funny forum using the image URL, with title “from /f/pics”.",
+      "support": [
+        "derived/task.json::intent",
+        "derived/task.json::start_urls[0]",
+        "derived/task.json::instantiation_dict"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0: both configured evaluators must score 1.0—AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the selected last matching Reddit submission POST with the configured fields and a 302 response.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator checks agent_response.json and NetworkEventEvaluator checks network.har; WebArenaVerifiedEvaluator runs both, and TaskEvalResult.create applies the all-evaluator-scores-equal-1.0 composition.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "After parsing and normalization, does the response comparison pass for task_type MUTATE and status SUCCESS without a normalized-structure mismatch? For this mutate task, retrieved_data is not value-compared.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Among evaluation events, is the last POST matching ^__REDDIT__/submit.*$ a 302 response whose extracted post data matches submission[forum]=10046, submission[title]=from /f/pics, and submission[url]=__REDDIT__/submission_images/bd8bc5f4c846aac4df08626faa3a34a7d47c8f3bdd92bf615a54afd939f063a7.jpg under evaluator normalization?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both evaluator scores are 1.0: agent_response.json is accepted as the MUTATE/SUCCESS response, and the selected last matching submission POST in network.har has response status 302 and all three configured post-data values under evaluator normalization.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure occurs if either evaluator does not score 1.0, including an evaluator error: the final response is not accepted as MUTATE/SUCCESS, or the selected last matching submission POST is absent or fails the configured URL, method, status, or post-data comparison.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Review is undecided only when retention loss makes agent_response.json or network.har unavailable or non-reconstructable and no retained official evaluation result supplies both evaluator outcomes. An artifact that was actually missing, invalid, or error-producing at evaluation time is native failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ],
+        "rationale": "This distinguishes incomplete retained review evidence from an evaluator-visible input or execution error, which receives score 0."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_repost_state",
+        "text": "Beyond native success, retained post-run Reddit state must show that the run leaves a post in the funny forum titled “from /f/pics” whose target is the configured costume-contest image URL.",
+        "rationale": "The task requests a persistent repost, while the released checks require only a self-reported SUCCESS and a matching POST that returned 302; they do not inspect destination-site state, so native success alone does not verify persistence.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Reddit state capture",
+            "question": "Does a post corresponding to the run exist in funny with title “from /f/pics” and a target URL equal to the rendered form of __REDDIT__/submission_images/bd8bc5f4c846aac4df08626faa3a34a7d47c8f3bdd92bf615a54afd939f063a7.jpg?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.post_data",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

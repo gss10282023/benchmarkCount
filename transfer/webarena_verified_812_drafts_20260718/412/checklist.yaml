@@ -1,0 +1,77 @@
+schema_version: case_checklist_v1
+case_unit_id: '412'
+domain: webarena_verified
+task_id: '412'
+native:
+  user_goal:
+    text: Change the LICENSE in byteblaze/accessible-html-content-patterns to an Apache License.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator on the final response and NetworkEventEvaluator on the network trace.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator performs the normalized response comparison, the released NetworkEventEvaluator checks the selected network event, and TaskEvalResult.create conjunctively composes their scores.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response normalize to the expected response structure with task_type MUTATE, status SUCCESS, and retrieved_data null for this mutation task, yielding AgentResponseEvaluator score 1.0?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last POST event whose normalized URL matches an accepted main-branch LICENSE update/create/blob URL have response status 302 and post data extracting LICENSE from the file_path-or-file_name key, branch_name main, content matching ^.*Apache.*License.*$, and _method matching ^.*(?!delete$).*$?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/core/utils/jsonpath_utils.py::extract_jsonpath_value
+  success_if:
+  - text: AgentResponseEvaluator scores 1.0 because agent_response.json matches the evaluator-normalized MUTATE/SUCCESS response expectation.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: NetworkEventEvaluator scores 1.0 because the last qualifying POST in network.har matches every configured URL, status, method, and extracted post-data criterion; together with the response check, this yields TaskEvalResult.score 1.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The complete retained response is null, malformed, non-object, or otherwise fails the evaluator-normalized MUTATE/SUCCESS response comparison, so AgentResponseEvaluator does not score 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The complete retained trace has no qualifying POST, or its last qualifying POST fails any configured URL, response-status, method, or post-data comparison; any evaluator or orchestration error also produces native score 0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Either agent_response.json or network.har was not retained, or retained evidence is incomplete enough that the corresponding evaluator input cannot be reconstructed. A complete trace with no qualifying event is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    rationale: Both evaluator inputs are necessary to verify the conjunctive native score; loss of retained evidence cannot establish what the missing check would have returned.
+stronger:
+  additional_conditions:
+  - id: verify_post_run_license_state
+    text: Beyond native success, retained post-run repository state must show that byteblaze/accessible-html-content-patterns/LICENSE on main is an Apache License, rather than merely showing a POST whose content contains the words Apache and License.
+    rationale: The stated goal claims the repository file was changed, but the released evaluator only accepts a matching network event with status 302 and a permissive content pattern; it does not inspect the resulting repository state.
+    decisive_artifacts:
+    - artifact: Post-run GitLab repository export or API snapshot of main/LICENSE
+      question: Does the resulting LICENSE file in byteblaze/accessible-html-content-patterns actually contain an Apache License?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.post_data.content
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

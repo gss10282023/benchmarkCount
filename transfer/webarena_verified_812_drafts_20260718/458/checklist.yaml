@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '458'
+domain: webarena_verified
+task_id: '458'
+native:
+  user_goal:
+    text: Reduce the price of the product on the current shopping-admin page by $5.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both evaluator scores are 1.0: the agent response passes the released MUTATE/SUCCESS structural comparison, and the last POST matching the configured product-1481 save URL has product[price] equal to 27.00 and response status 302.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator and NetworkEventEvaluator, composed by TaskEvalResult.create using the rule that every evaluator score must equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize to a structure that passes the configured MUTATE and SUCCESS comparison under the released AgentResponseEvaluator?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last POST matching the configured product-1481 save URL a 302 response whose parsed form data has product[price] equal to 27.00?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: The response check passes and the HAR's last matching save POST passes every configured URL, method, price, and response-status comparison, so both evaluator scores are 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'With complete artifacts, fail if either evaluator does not score 1.0: the response is invalid or mismatched, no matching save POST exists, the last matching POST differs in any configured field, or either evaluator errors.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored-evidence review is undecidable only when agent_response.json or network.har is absent, truncated, or unreadable so a released check cannot be reconstructed; a complete malformed response or complete HAR with no qualifying event is failure, not undecided.
+    rationale: This distinguishes evidence-retention insufficiency from outcomes that the released evaluators count as failure or error.
+stronger:
+  additional_conditions:
+  - id: persisted_price_change
+    text: Beyond native scoring, retained product-state evidence for product 1481 must show that its persisted price decreased by exactly $5 and ended at $27.00.
+    rationale: The official intent requires a state change, while the released evaluator checks only a matching POST and its 302 response and does not inspect the persisted post-run product state.
+    decisive_artifacts:
+    - artifact: Retained pre-run and post-run shopping-admin product-state snapshots for product 1481
+      question: Do the snapshots identify the same product and show a $5 price decrease, with $27.00 persisted after the run?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::start_urls[0]
+      - derived/task.json::eval[1].expected.post_data
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::start_urls[0]
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

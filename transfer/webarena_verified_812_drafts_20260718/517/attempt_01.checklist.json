@@ -1,0 +1,107 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "517",
+  "domain": "webarena_verified",
+  "task_id": "517",
+  "native": {
+    "user_goal": {
+      "text": "Add the product on the current shopping page to the user's wishlist.",
+      "support": [
+        "derived/task.json::intent",
+        "derived/task.json::start_urls[0]"
+      ]
+    },
+    "benchmark_success": {
+      "text": "The task succeeds only when both released checks score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the selected wishlist-add POST event; TaskEvalResult then has score 1.0.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator executes the two configured evaluators, and TaskEvalResult.create applies an all-evaluators-must-pass composition.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the official parser and normalizer make the response pass AgentResponseEvaluator against task_type MUTATE and status SUCCESS, with retrieved_data not value-compared for this mutate task?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching POST and the normalized __SHOPPING__/wishlist/index/add/ URL have response status 302 and extracted post_data product 37811 with qty null or absent?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both checks score 1.0: the final response passes the official MUTATE/SUCCESS comparison, and the trace's last matching wishlist-add POST has product 37811, qty resolving to null, and response status 302.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Failure is established if either official check fails or errors—including a response not accepted as MUTATE/SUCCESS or no selected network event satisfying every configured URL, method, post-data, and status criterion—because any evaluator score below 1.0 makes the task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when retention loss or damage leaves no known failed check but makes at least one evaluator outcome indeterminable; if malformed or missing content is known to be the actual run input, its resulting evaluator failure or error is native failure.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ],
+        "rationale": "The conjunction can be disproved by one known failed check, but cannot be proved when an otherwise-unknown required check lacks usable stored evidence."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "wishlist_state_confirmed",
+        "text": "Beyond native scoring, a freshly loaded authenticated post-run wishlist view or state export must show product 37811 present.",
+        "rationale": "The user requests a persisted wishlist addition, while the released mutation check accepts a matching POST/302 event without inspecting the resulting wishlist state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Retained post-run authenticated wishlist state capture",
+            "question": "After a fresh wishlist load, does the page DOM/accessibility snapshot or state export list the current-page product, product 37811?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

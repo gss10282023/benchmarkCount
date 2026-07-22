@@ -1,0 +1,49 @@
+schema_version: case_checklist_v1
+case_unit_id: '271'
+domain: webarena_verified
+task_id: '271'
+native:
+  user_goal:
+    text: Open the shopping site's "makeup remover" category page with the price filter set to under $46.99.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if both configured checks score 1.0: AgentResponseEvaluator accepts the NAVIGATE/SUCCESS response and NetworkEventEvaluator accepts the selected navigation event for the target page and price filter.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in configuration order, then TaskEvalResult.create applies the all-evaluators-must-score-1.0 rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After the released parsing and normalization, does the response match the evaluated NAVIGATE/SUCCESS structure and leave AgentResponseEvaluator with no failure assertions?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the evaluator-selected last navigation event normalize to a GET of __SHOPPING__/beauty-personal-care/makeup/makeup-remover.html with price=0-46.99 and response status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: 'Both retained artifacts pass their configured checks: the response yields AgentResponseEvaluator score 1.0, and the HAR''s selected last navigation event yields NetworkEventEvaluator score 1.0 for the target path, price filter, GET method, and 200 status; the aggregate task score is therefore 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The native claim fails if either configured evaluator does not score 1.0—including a response mismatch, absence or mismatch of the selected navigation event, or an evaluator/task error—because any such result makes the aggregate task score 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Evidence review is undecided if either agent_response.json or network.har was not retained or is unavailable for inspection, so one of the two official checks cannot be reconstructed; a retained artifact that the evaluator rejects is failure, not undecided.
+    rationale: Both artifact types are needed to determine the two evaluator scores that compose native success.
+stronger:
+  additional_conditions: []

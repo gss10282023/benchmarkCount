@@ -1,0 +1,95 @@
+case_unit_id: nginx-request-logging
+domain: terminal_bench_2_1
+native:
+  benchmark_success:
+    support:
+    - official/tests/test.sh::17-25
+    - official/tests/test_outputs.py::test_nginx_installed
+    - official/tests/test_outputs.py::test_nginx_running
+    - official/tests/test_outputs.py::test_index_page_content
+    - official/tests/test_outputs.py::test_custom_404_page
+    - official/tests/test_outputs.py::test_nginx_config_syntax
+    - official/tests/test_outputs.py::test_nginx_config_settings
+    - official/tests/test_outputs.py::test_log_file_creation
+    - official/tests/test_outputs.py::test_log_file_format
+    text: 'Native success is a completed official verifier run in which every pytest check in /tests/test_outputs.py passes: nginx is installed; localhost:8080 returns 200 with the exact index body; a nonexistent page returns 404 with the exact custom body; nginx -t succeeds; the tested configuration settings pass; and /var/log/nginx/benchmark-access.log exists with the tested log-format regexes satisfied.'
+  checked_by:
+    support:
+    - official/tests/test.sh::17-25
+    text: The official shell verifier invokes pytest on /tests/test_outputs.py with CTRF reporting; its native passing criterion is pytest exit status zero.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the retained CTRF report account for all eight official tests from /tests/test_outputs.py and show that all passed, or show a failed or errored test?
+    support:
+    - official/tests/test.sh::17-22
+    - official/tests/test_outputs.py::11-178
+  - artifact: verifier/test-stdout.txt
+    question: Does verifier stdout establish completion and the all-pass status of the official pytest suite, or identify a concrete failed test or verifier invocation failure?
+    support:
+    - official/tests/test.sh::11-25
+    - official/tests/test_outputs.py::11-178
+  - artifact: verifier/test-stderr.txt
+    question: Does verifier stderr unambiguously establish that the official pytest invocation failed or could not run, rather than merely contain a nonfatal setup message?
+    support:
+    - official/tests/test.sh::11-25
+  fail_if:
+  - support:
+    - official/tests/test.sh::17-25
+    - official/tests/test_outputs.py::11-178
+    text: Retained non-label verifier evidence establishes that any official pytest test in /tests/test_outputs.py failed or errored.
+  - support:
+    - official/tests/test.sh::11-25
+    text: Retained non-label verifier evidence establishes that the official pytest invocation returned nonzero or could not execute, so the shell verifier did not obtain a passing pytest run.
+  success_if:
+  - support:
+    - official/tests/test.sh::17-25
+    - official/tests/test_outputs.py::11-178
+    text: Retained non-label verifier evidence establishes a completed run of the official pytest suite for /tests/test_outputs.py in which all eight tests pass and none fail or error.
+  undecided_if:
+  - support:
+    - official/tests/test.sh::17-25
+    text: The retained non-label verifier artifacts are missing, truncated, or mutually inconsistent enough that they establish neither a completed all-pass official run nor a concrete official test or verifier failure.
+  user_goal:
+    support:
+    - official/instruction.md::1-24
+    text: Install and configure Nginx on localhost:8080 to serve /var/www/html with the exact index and custom 404 content; detailed access logging at /var/log/nginx/benchmark-access.log; error logging at /var/log/nginx/benchmark-error.log; per-IP rate limiting at 10 requests/second with a 10-request burst and 10MB zone; the required configuration-file placement and default-site removal; a syntax test before start/restart; a running-service localhost check; and display of the access-log path, while minimizing commands.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory contain final-state reads or other direct observations of the relevant configuration files and default-site path that establish all of these uncovered clauses?
+      support:
+      - official/instruction.md::4-13
+      - official/tests/test_outputs.py::test_nginx_config_settings
+    - artifact: agent/*-stdout.txt
+      question: Do retained stdout logs print the final relevant Nginx configuration and filesystem state sufficiently to establish all of these uncovered clauses?
+      support:
+      - official/instruction.md::4-13
+      - official/tests/test_outputs.py::test_nginx_config_settings
+    - artifact: artifacts/**
+      question: Do retained final-state copies, listings, or diffs establish the required directives, their locations, and removal of the default-site path?
+      support:
+      - official/instruction.md::4-13
+      - official/tests/test_outputs.py::test_nginx_config_settings
+    id: instruction_only_final_configuration
+    rationale: The instruction explicitly requires these details. The released configuration test only checks that benchmark-site.conf exists with listen 8080 and root /var/www/html and that nginx.conf contains a log_format with four fields and some limit_req_zone text matching rate=10r/s. It does not check the error-log directive, per-IP key, 10MB zone size, server-block application, burst value, or default-site removal.
+    support:
+    - official/instruction.md::4-13
+    - official/tests/test_outputs.py::test_nginx_config_settings
+    text: Beyond native success, retained evidence should show that the final setup configures error_log at /var/log/nginx/benchmark-error.log; defines limit_req_zone in /etc/nginx/nginx.conf using a client-IP key, a 10MB zone, and rate 10r/s; applies limit_req in the server block in /etc/nginx/conf.d/benchmark-site.conf with burst 10; and removes /etc/nginx/sites-enabled/default.
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory directly show the successful syntax check, its ordering before start/restart, the subsequent localhost:8080 verification, and the requested access-log-path display?
+      support:
+      - official/instruction.md::17-24
+      - official/tests/test_outputs.py::test_nginx_running
+      - official/tests/test_outputs.py::test_nginx_config_syntax
+    id: instruction_only_execution_and_reporting
+    rationale: These actions and their ordering are explicit in the instruction. The released tests independently inspect final syntax and final HTTP reachability, but they do not establish that the agent ran the syntax check before service start/restart, performed the requested start/restart and localhost verification, or displayed the access-log path.
+    support:
+    - official/instruction.md::17-24
+    - official/tests/test_outputs.py::test_nginx_running
+    - official/tests/test_outputs.py::test_nginx_config_syntax
+    text: Beyond native success, the retained trajectory should show that the agent successfully tested Nginx configuration syntax before starting or restarting Nginx, performed the start/restart, then verified the service through localhost:8080, and displayed /var/log/nginx/benchmark-access.log as the access-log location.
+task_id: terminal-bench/nginx-request-logging

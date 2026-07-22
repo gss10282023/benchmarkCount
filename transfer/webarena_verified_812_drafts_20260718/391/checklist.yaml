@@ -1,0 +1,55 @@
+schema_version: case_checklist_v1
+case_unit_id: '391'
+domain: webarena_verified
+task_id: '391'
+native:
+  user_goal:
+    text: Post the comment "close because non reproducible" on the merge request related to focus edge cases in the a11yproject/a11yproject.com GitLab project.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the last matching note-creation event; any other score composition yields 0.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator and combines them with an all-of score rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - derived/task.json::eval
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response pass the official parsing, normalization, and structural comparison for evaluator-normalized task_type MUTATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: 'Does the last evaluator-relevant POST matching the GitLab path /a11yproject/a11yproject.com/notes satisfy the normalized comparison: target_id=72404, target_type=merge_request, note.note="close because non reproducible", note.noteable_type="MergeRequest", and response status 200?'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks pass: the final response matches the configured MUTATE/SUCCESS response under AgentResponseEvaluator, and the last matching notes POST in network.har matches every configured URL/query/body/status criterion under NetworkEventEvaluator.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'With complete evaluator inputs, fail if either check does not score 1.0 or errors: the final response is invalid or mismatched, or no qualifying notes POST exists, or the selected last matching POST differs on any configured URL/query/body/status criterion.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retained agent_response.json or network.har is unavailable, unreadable, or incomplete enough that an evaluator-visible input cannot be reconstructed; an intact artifact showing a malformed response or no matching event is failure, not undecided.
+    rationale: Loss or corruption of retained review evidence does not establish what input the official evaluator received, whereas negative evidence in a complete retained input directly determines native failure.
+stronger:
+  additional_conditions: []

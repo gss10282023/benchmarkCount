@@ -1,0 +1,86 @@
+schema_version: case_checklist_v1
+case_unit_id: '35'
+domain: webarena_verified
+task_id: '35'
+native:
+  user_goal:
+    text: Find an available Hyatt hotel near Pittsburgh Airport and return only a list of objects containing its hotel_name and the minimum driving time to a supermarket as travel_time in HH:MM:SS, using OSRM directions.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when the sole AgentResponseEvaluator scores 1.0: task_type and status normalize to RETRIEVE and SUCCESS, and retrieved_data, after permitted singleton coercion and unordered normalization, matches one object with hotel_name "Hyatt Regency Pittsburgh International Airport" and travel_time "15min".'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator parses the final response, normalizes it using results_schema, and structurally compares task_type, status, and retrieved_data with ordered=false; TaskEvalResult then requires every evaluator score—only this one—to equal 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response parse and normalize to RETRIEVE/SUCCESS and an unordered one-item retrieved-data sequence containing only {"hotel_name":"Hyatt Regency Pittsburgh International Airport","travel_time":"15min"}, with no evaluator comparison failures?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: 'The retained response produces no AgentResponseEvaluator assertions: its normalized task_type/status match RETRIEVE/SUCCESS, and normalized retrieved_data, after permitted singleton coercion, unordered-matches exactly one object with hotel_name "Hyatt Regency Pittsburgh International Airport" and travel_time "15min"; the evaluator and task scores are therefore 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The native claim fails if the retained response is non-mapping after parsing, cannot be normalized, has any evaluator-compared value or structural mismatch—including missing/null retrieved_data or missing, extra, or mismatched retrieved items—or triggers an evaluator error; the sole evaluator and task scores are then 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_recursive
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Evidence is undecided only when agent_response.json was not retained or cannot be established as the complete final response; a retained malformed, empty, or mismatching response is a native failure, not undecided.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    rationale: The sole scoring evaluator consumes the final response, so network evidence alone cannot reconstruct a response lost during artifact retention.
+stronger:
+  additional_conditions:
+  - id: task_output_shape_and_duration_format
+    text: For task-output fidelity, require the returned data collection itself to be a JSON list and each travel_time to use HH:MM:SS. This closes the native gap that singleton non-lists are coerced and the configured comparison target is "15min".
+    rationale: The instruction explicitly requires a list and HH:MM:SS, while the released evaluator wraps non-list retrieved_data as a singleton and its expected value uses a different duration representation.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Before evaluator coercion, is retrieved_data a JSON array of objects, and is every travel_time syntactically in HH:MM:SS format?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected.retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+  - id: osrm_use_evidence
+    text: Require retained network evidence of a successful OSRM directions transaction whose endpoints and returned duration support the reported hotel-to-supermarket travel_time; native scoring checks only the agent response and therefore cannot establish the mandated OSRM use.
+    rationale: The instruction mandates OSRM, but the task config contains no NetworkEventEvaluator and AgentResponseEvaluator extracts only agent_response_raw.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the trace contain a successful OSRM directions request and response whose route endpoints and duration support the reported hotel-to-supermarket trip?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval
+      - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - artifact: agent_response.json
+      question: What hotel and travel_time must the OSRM transaction in network.har support?
+      support:
+      - derived/task.json::eval[0].expected.retrieved_data
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value

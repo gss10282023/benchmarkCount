@@ -1,0 +1,98 @@
+schema_version: case_checklist_v1
+case_unit_id: large-scale-text-editing
+domain: terminal_bench_2_1
+task_id: terminal-bench/large-scale-text-editing
+native:
+  user_goal:
+    text: Transform `/app/input.csv` to match `/app/expected.csv` exactly by saving a headless Vim script at `/app/apply_macros.vim` that defines three distinct non-empty macros in registers `a`, `b`, and `c`, keeps total macro keystrokes under 200, and uses only the specified command forms.
+    support:
+    - official/instruction.md::1-18
+  benchmark_success:
+    text: 'Native success means the official verifier run passes all five pytest checks in `official/tests/test_outputs.py`: script existence; well-formed/allowed-command validation with `a`/`b`/`c` defined and executed; headless Vim exit code 0 with post-run `expected.csv` generation; SHA-256 equality of transformed `input.csv` and `expected.csv`; and macro evidence showing `a`/`b`/`c` are non-empty, pairwise distinct, and total keystrokes are `< 200`.'
+    support:
+    - official/tests/test.sh::27-31
+    - official/tests/test_outputs.py::test_apply_macros_exists
+    - official/tests/test_outputs.py::test_apply_macros_well_formed
+    - official/tests/test_outputs.py::test_apply_macros_runs
+    - official/tests/test_outputs.py::test_input_equiv_expected
+    - official/tests/test_outputs.py::test_macros_nonempty_and_efficient
+  checked_by:
+    text: The official checker is `official/tests/test.sh`, which runs `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`; native pass is pytest exit 0 on that suite.
+    support:
+    - official/tests/test.sh::27-37
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the CTRF report show PASS for `test_apply_macros_exists`, `test_apply_macros_well_formed`, `test_apply_macros_runs`, `test_input_equiv_expected`, and `test_macros_nonempty_and_efficient`?
+    support:
+    - official/tests/test.sh::27-31
+    - official/tests/test_outputs.py::test_apply_macros_exists
+    - official/tests/test_outputs.py::test_apply_macros_well_formed
+    - official/tests/test_outputs.py::test_apply_macros_runs
+    - official/tests/test_outputs.py::test_input_equiv_expected
+    - official/tests/test_outputs.py::test_macros_nonempty_and_efficient
+  - artifact: verifier/test-stdout.txt
+    question: If any official test did not pass or the CTRF record is incomplete, what pytest assertion output identifies the specific failed native check?
+    support:
+    - official/tests/test.sh::27-31
+    - official/tests/test_outputs.py::test_apply_macros_well_formed
+    - official/tests/test_outputs.py::test_apply_macros_runs
+    - official/tests/test_outputs.py::test_input_equiv_expected
+    - official/tests/test_outputs.py::test_macros_nonempty_and_efficient
+  success_if:
+  - text: 'Retained verifier evidence establishes that all five official tests pass: the script exists, satisfies the allowed-line checks, runs headlessly with Vim exit code 0, yields `input.csv` with the same SHA-256 as `expected.csv`, and produces non-empty pairwise-distinct macros whose counted total keystrokes are `< 200`.'
+    support:
+    - official/tests/test.sh::27-31
+    - official/tests/test_outputs.py::test_apply_macros_exists
+    - official/tests/test_outputs.py::test_apply_macros_well_formed
+    - official/tests/test_outputs.py::test_apply_macros_runs
+    - official/tests/test_outputs.py::test_input_equiv_expected
+    - official/tests/test_outputs.py::test_macros_nonempty_and_efficient
+  fail_if:
+  - text: Retained verifier evidence shows `test_apply_macros_exists` failed, so `/app/apply_macros.vim` was missing.
+    support:
+    - official/tests/test_outputs.py::test_apply_macros_exists
+  - text: Retained verifier evidence shows `test_apply_macros_well_formed` failed, including missing `:wq`/`:x`, missing any required `setreg` or `:%normal! @a/@b/@c` line, an invalid line type, or a macro string rejected by the native forbidden-pattern check.
+    support:
+    - official/tests/test_outputs.py::test_apply_macros_well_formed
+    - official/tests/test_outputs.py::_is_valid_line
+    - official/tests/test_outputs.py::_is_valid_keystroke_sequence
+  - text: Retained verifier evidence shows `test_apply_macros_runs` failed because headless Vim exited nonzero or post-run `expected.csv` generation failed.
+    support:
+    - official/tests/test_outputs.py::test_apply_macros_runs
+  - text: Retained verifier evidence shows `test_input_equiv_expected` failed because transformed `input.csv` and `expected.csv` did not match under the verifier's SHA-256 comparison.
+    support:
+    - official/tests/test_outputs.py::test_input_equiv_expected
+  - text: Retained verifier evidence shows `test_macros_nonempty_and_efficient` failed because any macro was empty, macros were not pairwise distinct, the keystroke report was unparsable or inconsistent, or total keystrokes were `>= 200`.
+    support:
+    - official/tests/test_outputs.py::test_macros_nonempty_and_efficient
+  undecided_if:
+  - text: '`verifier/ctrf.json` is missing, truncated, or does not clearly record all five official test outcomes, and the retained verifier stdout is insufficient to determine whether every native check passed or which native check failed.'
+    support:
+    - official/tests/test.sh::27-31
+    - official/tests/test_outputs.py::test_apply_macros_exists
+    - official/tests/test_outputs.py::test_apply_macros_well_formed
+    - official/tests/test_outputs.py::test_apply_macros_runs
+    - official/tests/test_outputs.py::test_input_equiv_expected
+    - official/tests/test_outputs.py::test_macros_nonempty_and_efficient
+  - text: Only retained workspace artifacts such as the script are available, without enough verifier evidence to establish the tested run's headless Vim exit status, post-run `expected.csv` generation, hash comparison result, and macro-count check result.
+    support:
+    - official/instruction.md::13-18
+    - official/tests/test_outputs.py::test_apply_macros_runs
+    - official/tests/test_outputs.py::test_input_equiv_expected
+    - official/tests/test_outputs.py::test_macros_nonempty_and_efficient
+stronger:
+  additional_conditions:
+  - id: macro_content_strictness
+    text: Retained `artifacts/apply_macros.vim` shows only the instruction-listed command lines, and each macro body stays within basic Vim editing keystrokes or essential Ex transformation commands; this is stronger than native because the released checker ignores comment lines and otherwise only blacklist-matches selected forbidden patterns inside macro strings.
+    rationale: The official instruction imposes a positive `ONLY`-commands and limited-macro-content requirement, but `_is_valid_line` drops comment lines before validation and `_is_valid_keystroke_sequence` accepts any macro text that does not match its forbidden regex list.
+    decisive_artifacts:
+    - artifact: artifacts/apply_macros.vim
+      question: Does the retained script contain only the allowed command lines, with no extra comment or other non-command lines, and do macro bodies remain within the instruction's basic-editing / essential-Ex scope?
+      support:
+      - official/instruction.md::5-12
+      - official/tests/test_outputs.py::_is_valid_line
+      - official/tests/test_outputs.py::_is_valid_keystroke_sequence
+    support:
+    - official/instruction.md::5-12
+    - official/tests/test_outputs.py::_is_valid_line
+    - official/tests/test_outputs.py::_is_valid_keystroke_sequence

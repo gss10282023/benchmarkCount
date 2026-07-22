@@ -1,0 +1,65 @@
+schema_version: case_checklist_v1
+case_unit_id: '765'
+domain: webarena_verified
+task_id: '765'
+native:
+  user_goal:
+    text: Show on the map the walking route from 401 Shady Ave, Pittsburgh to the closest Japanese food market, using the OSRM direction service.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success requires both released evaluator scores to equal 1.0: AgentResponseEvaluator must accept the response under its parse/normalize/compare rule for NAVIGATE and SUCCESS, and NetworkEventEvaluator must accept the last navigation event as a GET to __MAP__ with HTTP 200.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator; TaskEvalResult.create awards task score 1.0 only when every evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After the released parser and normalizer, does the response match the evaluator-visible NAVIGATE/SUCCESS response fields, with retrieved_data handled as null for this non-retrieve task, without assertions or errors?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the last qualifying document-navigation event normalize to GET __MAP__ with HTTP 200, producing no NetworkEventEvaluator assertion or error?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Success iff both official evaluator results score 1.0: the response passes AgentResponseEvaluator and the last navigation event passes NetworkEventEvaluator as GET __MAP__ with HTTP 200.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Failure iff either official evaluator does not score 1.0, including a response parse/normalization/comparison mismatch, no accepted final map navigation, a wrong URL or status, or an evaluator/orchestration error.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when evidence retention is incomplete or corrupted so the response or trace actually supplied for evaluation cannot be reconstructed and no official evaluator outcome is available; a retained invalid input or recorded evaluator error is failure, not undecided.
+    rationale: Absent retained evidence cannot establish what the released evaluators received, whereas evaluator-visible invalid inputs and errors have a defined native score of 0.
+stronger:
+  additional_conditions:
+  - id: task_intent_fidelity
+    text: Beyond native success, retained evidence must show that the final map displays an OSRM walking route from 401 Shady Ave, Pittsburgh to the closest Japanese food market.
+    rationale: The official intent requires the specified origin, destination category and proximity, walking mode, OSRM service, and a displayed route; the native checks accept a NAVIGATE/SUCCESS response plus a successful GET of the map root without validating those route details.
+    decisive_artifacts:
+    - artifact: final browser-state capture
+      question: Does the final map visibly show a walking route with 401 Shady Ave as the origin and a Japanese food market as the destination?
+      support:
+      - derived/task.json::intent
+    - artifact: network.har
+      question: Does the trace show OSRM directions-service traffic for that walking route and search/geocoding evidence sufficient to establish that the selected destination was the closest matching market?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/types/tracing.py::NetworkTrace
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria

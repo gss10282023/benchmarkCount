@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import hashlib
 import json
 import os
 import re
@@ -19,6 +20,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -30,6 +32,17 @@ ROOT_DIR = SCRIPT_DIR.parent
 PACKAGE_ROOT = ROOT_DIR.parent
 DRAFT_SCRIPT = SCRIPT_DIR / "draft_case_checklist.py"
 VALIDATOR_SCRIPT = SCRIPT_DIR / "checklist_validator.py"
+
+if str(PACKAGE_ROOT) not in sys.path:
+    sys.path.insert(0, str(PACKAGE_ROOT))
+
+from neurips_ed_track_minimal.scripts import draft_case_checklist as drafter  # noqa: E402
+
+
+def utc_now_iso() -> str:
+    """Return a high-resolution UTC timestamp for cross-phase ordering proofs."""
+
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 @dataclass(frozen=True)
@@ -43,6 +56,7 @@ class AttemptResult:
     attempt_index: int
     max_output_tokens: int
     http_timeout_seconds: int
+    codex_timeout_seconds: int
     returncode: int
     duration_seconds: float
     stderr: str
@@ -66,19 +80,22 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model",
-        default="openai/gpt-5.4",
-        help="OpenRouter model id (default: openai/gpt-5.4)",
+        default=None,
+        help=(
+            "Model id. Defaults to gpt-5.4 for Codex and "
+            "openai/gpt-5.4 for API providers"
+        ),
     )
     parser.add_argument(
         "--provider",
         default="auto",
-        choices=["auto", "openai", "openrouter"],
+        choices=["auto", "codex", "openai", "openrouter"],
         help="LLM provider for draft_case_checklist.py (default: auto)",
     )
     parser.add_argument(
         "--reasoning-effort",
-        default="high",
-        choices=["minimal", "low", "medium", "high", "xhigh"],
+        default=None,
+        choices=["minimal", "low", "medium", "high", "xhigh", "max"],
         help="Reasoning effort passed to draft_case_checklist.py",
     )
     parser.add_argument(
@@ -117,6 +134,30 @@ def parse_args() -> argparse.Namespace:
         help="HTTP timeout for oversized case packets (default: 480)",
     )
     parser.add_argument(
+        "--codex-timeout-seconds",
+        type=int,
+        default=1800,
+        help="Codex CLI timeout for regular-size case packets (default: 1800)",
+    )
+    parser.add_argument(
+        "--large-codex-timeout-seconds",
+        type=int,
+        default=3600,
+        help="Codex CLI timeout for oversized case packets (default: 3600)",
+    )
+    parser.add_argument(
+        "--codex-sandbox",
+        default="read-only",
+        choices=["read-only", "workspace-write", "danger-full-access"],
+        help="Sandbox mode for each Codex draft process (default: read-only)",
+    )
+    parser.add_argument(
+        "--prompt-supplement",
+        type=Path,
+        default=None,
+        help="Optional instructions appended to the frozen base drafting prompt",
+    )
+    parser.add_argument(
         "--sort-by",
         default="size",
         choices=["size", "name"],
@@ -135,10 +176,36 @@ def parse_args() -> argparse.Namespace:
         help="Optional heuristic warnings to compute after successful validation",
     )
     parser.add_argument(
+        "--appworld-v56-runtime-gate",
+        action="store_true",
+        help=(
+            "Before promotion, apply the frozen AppWorld GPT-5.6-Sol runtime/provenance "
+            "policy and quarantine every rejected attempt. Generic runs are unchanged "
+            "unless this flag is present."
+        ),
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
         help="Optional case limit for partial runs",
+    )
+    parser.add_argument(
+        "--case-ids",
+        default=None,
+        help=(
+            "Optional comma-separated exact case IDs. Under the AppWorld v56 gate this "
+            "is reserved for a lock-bound canary round; the formal 485-case run must omit it."
+        ),
+    )
+    parser.add_argument(
+        "--appworld-v56-canary-round",
+        default=None,
+        choices=["round_01", "round_02", "round_03"],
+        help=(
+            "Run one fresh lock-bound AppWorld canary round. Omit for the formal run. "
+            "Requires --appworld-v56-runtime-gate and the exact locked --case-ids set."
+        ),
     )
     parser.add_argument(
         "--force",
@@ -174,6 +241,19 @@ def parse_token_budgets(raw: str) -> list[int]:
     if not budgets:
         raise SystemExit("At least one token budget is required.")
     return budgets
+
+
+def parse_case_ids(raw: str | None) -> list[str] | None:
+    """Parse an exact, duplicate-free case selection without changing its order."""
+
+    if raw is None:
+        return None
+    values = [value.strip() for value in raw.split(",")]
+    if not values or any(not value for value in values):
+        raise SystemExit("--case-ids must be a nonempty comma-separated list without empty items.")
+    if len(set(values)) != len(values):
+        raise SystemExit("--case-ids contains a duplicate case ID.")
+    return values
 
 
 def discover_case_packets(case_packet_root: Path) -> list[CasePacketInfo]:
@@ -213,9 +293,15 @@ def load_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
-def run_validator(checklist_path: Path) -> tuple[bool, str]:
+def run_validator(checklist_path: Path, case_packet_path: Path) -> tuple[bool, str]:
     proc = subprocess.run(
-        [sys.executable, str(VALIDATOR_SCRIPT), str(checklist_path)],
+        [
+            sys.executable,
+            str(VALIDATOR_SCRIPT),
+            str(checklist_path),
+            "--case-packet",
+            str(case_packet_path),
+        ],
         capture_output=True,
         text=True,
         cwd=str(PACKAGE_ROOT),
@@ -223,6 +309,94 @@ def run_validator(checklist_path: Path) -> tuple[bool, str]:
     )
     combined = "\n".join(part for part in (proc.stdout.strip(), proc.stderr.strip()) if part).strip()
     return proc.returncode == 0, combined
+
+
+def run_appworld_v56_runtime_gate(
+    *,
+    case_packet_path: Path,
+    case_dir: Path,
+    attempt_prefix: str,
+    attempt_record: dict[str, Any],
+) -> dict[str, Any]:
+    """Dynamically invoke the single frozen AppWorld v56 policy implementation."""
+
+    from evidence_system.contracts.appworld_draft_acceptance_v56 import (
+        validate_appworld_v56_attempt_runtime_policy,
+    )
+
+    return validate_appworld_v56_attempt_runtime_policy(
+        case_packet_path=case_packet_path,
+        case_dir=case_dir,
+        attempt_prefix=attempt_prefix,
+        attempt_record=attempt_record,
+    )
+
+
+def appworld_v56_runtime_gate_rejection(
+    *, status: str, reason: str, error: BaseException | None = None
+) -> dict[str, Any]:
+    """Build a fail-closed gate result without duplicating policy constants here."""
+
+    from evidence_system.contracts.appworld_draft_acceptance_v56 import (
+        appworld_v56_runtime_gate_rejection as contract_rejection,
+    )
+
+    return contract_rejection(status=status, reason=reason, error=error)
+
+
+def classify_appworld_v56_infra_retry(
+    *,
+    case_packet_path: Path,
+    case_dir: Path,
+    attempt_prefix: str,
+    attempt_record: dict[str, Any],
+) -> dict[str, Any]:
+    """Invoke the frozen fail-closed infra-only retry classifier."""
+
+    from evidence_system.contracts.appworld_draft_acceptance_v56 import (
+        classify_appworld_v56_infra_retry as contract_classifier,
+    )
+
+    return contract_classifier(
+        case_packet_path=case_packet_path,
+        case_dir=case_dir,
+        attempt_prefix=attempt_prefix,
+        attempt_record=attempt_record,
+    )
+
+
+def is_appworld_v56_runtime_policy_error(error: BaseException) -> bool:
+    """Distinguish an expected policy rejection from runner/import/I/O defects."""
+
+    from evidence_system.contracts.common import ContractLifecycleError
+
+    return isinstance(error, ContractLifecycleError)
+
+
+def validate_appworld_v56_batch_start(config: dict[str, Any]) -> dict[str, Any]:
+    """Dynamically run the exact formal config/lock preflight."""
+
+    from evidence_system.contracts.appworld_draft_acceptance_v56 import (
+        validate_appworld_v56_batch_start as contract_batch_start,
+    )
+
+    return contract_batch_start(config, invocation_argv=list(sys.orig_argv))
+
+
+def finalize_appworld_v56_phase(
+    *, run_kind: str, canary_round: str | None, exit_code: int
+) -> dict[str, Any]:
+    """Seal a returned strict AppWorld phase outside its deletable output root."""
+
+    from evidence_system.contracts.appworld_draft_acceptance_v56 import (
+        finalize_appworld_v56_phase as contract_finalize,
+    )
+
+    return contract_finalize(
+        run_kind=run_kind,
+        round_id=canary_round,
+        exit_code=exit_code,
+    )
 
 
 def agentdojo_quality_warnings(checklist_path: Path) -> list[str]:
@@ -294,7 +468,14 @@ def canonical_case_dir(output_root: Path, case_packet_path: Path) -> Path:
     return output_root / case_packet_path.parent.name
 
 
-def has_existing_valid_output(case_dir: Path) -> bool:
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(PACKAGE_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def has_existing_valid_output(case_dir: Path, case_packet_path: Path) -> bool:
     checklist_path = case_dir / "checklist.yaml"
     if not checklist_path.exists():
         return False
@@ -305,7 +486,7 @@ def has_existing_valid_output(case_dir: Path) -> bool:
     ]
     if not all(path.exists() for path in required_sidecars):
         return False
-    ok, _ = run_validator(checklist_path)
+    ok, _ = run_validator(checklist_path, case_packet_path)
     return ok
 
 
@@ -329,6 +510,9 @@ def run_attempt(
     reasoning_effort: str,
     max_output_tokens: int,
     http_timeout_seconds: int,
+    codex_timeout_seconds: int,
+    codex_sandbox: str,
+    prompt_supplement: Path | None,
     attempt_index: int,
 ) -> AttemptResult:
     attempt_prefix = f"attempt_{attempt_index:02d}"
@@ -356,7 +540,13 @@ def run_attempt(
         str(max_output_tokens),
         "--http-timeout-seconds",
         str(http_timeout_seconds),
+        "--codex-timeout-seconds",
+        str(codex_timeout_seconds),
+        "--codex-sandbox",
+        codex_sandbox,
     ]
+    if prompt_supplement is not None:
+        cmd.extend(["--prompt-supplement", str(prompt_supplement)])
 
     start = time.time()
     proc = subprocess.run(
@@ -375,6 +565,7 @@ def run_attempt(
         attempt_index=attempt_index,
         max_output_tokens=max_output_tokens,
         http_timeout_seconds=http_timeout_seconds,
+        codex_timeout_seconds=codex_timeout_seconds,
         returncode=proc.returncode,
         duration_seconds=duration,
         stderr=proc.stderr,
@@ -398,6 +589,72 @@ def promote_attempt_outputs(case_dir: Path, attempt_prefix: str) -> None:
             shutil.copy2(source, case_dir / suffix)
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def quarantine_attempt_outputs(
+    *,
+    output_root: Path,
+    case_dir: Path,
+    case_unit_id: str,
+    attempt_prefix: str,
+    rejection_stage: str,
+    rejection_reason: str,
+    runtime_policy_gate: dict[str, Any],
+) -> dict[str, Any]:
+    """Move a rejected v56 attempt to an auditable sibling namespace."""
+
+    quarantine_root = output_root.parent / "quarantine"
+    quarantine_dir = quarantine_root / case_unit_id
+    quarantine_dir.mkdir(parents=True, exist_ok=True)
+    sources = sorted(case_dir.glob(f"{attempt_prefix}.*"), key=lambda path: path.name)
+    if not sources:
+        raise RuntimeError(f"rejected attempt has no artifacts to quarantine: {case_unit_id}/{attempt_prefix}")
+    artifacts: list[dict[str, Any]] = []
+    for source in sources:
+        if source.is_symlink() or not source.is_file():
+            raise RuntimeError(f"rejected attempt artifact is not a regular file: {source}")
+        destination = quarantine_dir / source.name
+        if destination.exists():
+            raise FileExistsError(f"quarantine destination already exists: {destination}")
+        artifacts.append(
+            {
+                "name": source.name,
+                "size_bytes": source.stat().st_size,
+                "sha256": _sha256_file(source),
+            }
+        )
+        os.replace(source, destination)
+
+    ledger = {
+        "schema_version": "appworld_v56_attempt_quarantine.v1",
+        "case_unit_id": case_unit_id,
+        "attempt_prefix": attempt_prefix,
+        "attempt_index": int(attempt_prefix.removeprefix("attempt_")),
+        "rejection_stage": rejection_stage,
+        "rejection_reason": rejection_reason,
+        "runtime_policy_gate": runtime_policy_gate,
+        "artifacts": artifacts,
+    }
+    ledger_path = quarantine_dir / f"{attempt_prefix}.quarantine.json"
+    with ledger_path.open("x", encoding="utf-8") as handle:
+        json.dump(ledger, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+    return {
+        "schema_version": "appworld_v56_attempt_quarantine_ref.v1",
+        "root": display_path(quarantine_root),
+        "ledger_path": display_path(ledger_path),
+        "ledger_sha256": _sha256_file(ledger_path),
+        "artifact_count": len(artifacts),
+        "artifact_sha256": {item["name"]: item["sha256"] for item in artifacts},
+    }
+
+
 def process_case(
     *,
     case_info: CasePacketInfo,
@@ -408,19 +665,23 @@ def process_case(
     reasoning_effort: str,
     token_budgets: list[int],
     http_timeout_seconds: int,
+    codex_timeout_seconds: int,
+    codex_sandbox: str,
+    prompt_supplement: Path | None,
     sleep_seconds: float,
     force: bool,
     warning_fn: Callable[[Path], list[str]],
+    appworld_v56_runtime_gate: bool = False,
 ) -> dict[str, Any]:
     case_packet_path = case_info.path
     case_dir = canonical_case_dir(output_root, case_packet_path)
     case_dir.mkdir(parents=True, exist_ok=True)
 
-    if not force and has_existing_valid_output(case_dir):
+    if not force and has_existing_valid_output(case_dir, case_packet_path):
         checklist_path = case_dir / "checklist.yaml"
         return {
             "case_unit_dir": case_packet_path.parent.name,
-            "case_packet": str(case_packet_path.relative_to(PACKAGE_ROOT)),
+            "case_packet": display_path(case_packet_path),
             "case_packet_size_bytes": case_info.size_bytes,
             "lane": lane,
             "status": "skipped_existing",
@@ -438,42 +699,118 @@ def process_case(
             reasoning_effort=reasoning_effort,
             max_output_tokens=max_output_tokens,
             http_timeout_seconds=http_timeout_seconds,
+            codex_timeout_seconds=codex_timeout_seconds,
+            codex_sandbox=codex_sandbox,
+            prompt_supplement=prompt_supplement,
             attempt_index=attempt_index,
         )
         attempt_record = {
             "attempt_index": attempt.attempt_index,
             "max_output_tokens": attempt.max_output_tokens,
             "http_timeout_seconds": attempt.http_timeout_seconds,
+            "codex_timeout_seconds": attempt.codex_timeout_seconds,
             "returncode": attempt.returncode,
             "duration_seconds": round(attempt.duration_seconds, 3),
             "stderr_tail": attempt.stderr.strip().splitlines()[-1] if attempt.stderr.strip() else "",
         }
+        if appworld_v56_runtime_gate:
+            attempt_record["runtime_policy_gate"] = appworld_v56_runtime_gate_rejection(
+                status="not_run",
+                reason="drafter_nonzero_or_checklist_missing",
+            )
         attempts.append(attempt_record)
 
         attempt_yaml = case_dir / f"{attempt.attempt_prefix}.checklist.yaml"
+        rejection_stage = "drafter"
+        rejection_reason = "drafter_nonzero_or_checklist_missing"
+        retry_allowed = True
         if attempt.returncode == 0 and attempt_yaml.exists():
-            ok, validator_output = run_validator(attempt_yaml)
+            ok, validator_output = run_validator(attempt_yaml, case_packet_path)
             attempt_record["validator"] = validator_output
             if ok:
-                promote_attempt_outputs(case_dir, attempt.attempt_prefix)
-                final_checklist = case_dir / "checklist.yaml"
-                return {
-                    "case_unit_dir": case_packet_path.parent.name,
-                    "case_packet": str(case_packet_path.relative_to(PACKAGE_ROOT)),
-                    "case_packet_size_bytes": case_info.size_bytes,
-                    "lane": lane,
-                    "status": "success",
-                    "attempts": attempts,
-                    "quality_warnings": warning_fn(final_checklist),
-                    "checklist_path": str(final_checklist.relative_to(PACKAGE_ROOT)),
-                }
+                gate_passed = True
+                if appworld_v56_runtime_gate:
+                    try:
+                        gate_result = run_appworld_v56_runtime_gate(
+                            case_packet_path=case_packet_path,
+                            case_dir=case_dir,
+                            attempt_prefix=attempt.attempt_prefix,
+                            attempt_record=attempt_record,
+                        )
+                        if gate_result.get("status") != "passed":
+                            raise RuntimeError("runtime policy helper returned a non-passed result")
+                        attempt_record["runtime_policy_gate"] = gate_result
+                    except Exception as exc:
+                        if not is_appworld_v56_runtime_policy_error(exc):
+                            raise
+                        gate_passed = False
+                        retry_allowed = False
+                        rejection_stage = "runtime_policy"
+                        rejection_reason = "runtime_policy_validation_failed"
+                        attempt_record["runtime_policy_gate"] = appworld_v56_runtime_gate_rejection(
+                            status="failed",
+                            reason=rejection_reason,
+                            error=exc,
+                        )
+                if gate_passed:
+                    promote_attempt_outputs(case_dir, attempt.attempt_prefix)
+                    final_checklist = case_dir / "checklist.yaml"
+                    return {
+                        "case_unit_dir": case_packet_path.parent.name,
+                        "case_packet": display_path(case_packet_path),
+                        "case_packet_size_bytes": case_info.size_bytes,
+                        "lane": lane,
+                        "status": "success",
+                        "attempts": attempts,
+                        "quality_warnings": warning_fn(final_checklist),
+                        "checklist_path": display_path(final_checklist),
+                    }
+            else:
+                retry_allowed = not appworld_v56_runtime_gate
+                rejection_stage = "checklist_validator"
+                rejection_reason = "checklist_validator_failed"
+                if appworld_v56_runtime_gate:
+                    attempt_record["runtime_policy_gate"] = appworld_v56_runtime_gate_rejection(
+                        status="not_run",
+                        reason=rejection_reason,
+                    )
 
+        if appworld_v56_runtime_gate and (
+            attempt.returncode != 0 or not attempt_yaml.exists()
+        ):
+            try:
+                retry_decision = classify_appworld_v56_infra_retry(
+                    case_packet_path=case_packet_path,
+                    case_dir=case_dir,
+                    attempt_prefix=attempt.attempt_prefix,
+                    attempt_record=attempt_record,
+                )
+            except Exception as exc:
+                if not is_appworld_v56_runtime_policy_error(exc):
+                    raise
+                retry_allowed = False
+            else:
+                retry_allowed = retry_decision.get("retryable") is True
+
+        if appworld_v56_runtime_gate:
+            attempt_record["quarantine"] = quarantine_attempt_outputs(
+                output_root=output_root,
+                case_dir=case_dir,
+                case_unit_id=case_packet_path.parent.name,
+                attempt_prefix=attempt.attempt_prefix,
+                rejection_stage=rejection_stage,
+                rejection_reason=rejection_reason,
+                runtime_policy_gate=attempt_record["runtime_policy_gate"],
+            )
+
+        if appworld_v56_runtime_gate and not retry_allowed:
+            break
         if attempt_index < len(token_budgets):
             time.sleep(compute_retry_sleep_seconds(attempt.stderr, sleep_seconds))
 
     return {
         "case_unit_dir": case_packet_path.parent.name,
-        "case_packet": str(case_packet_path.relative_to(PACKAGE_ROOT)),
+        "case_packet": display_path(case_packet_path),
         "case_packet_size_bytes": case_info.size_bytes,
         "lane": lane,
         "status": "failed",
@@ -493,28 +830,164 @@ def lane_counts_summary(case_packets: list[CasePacketInfo]) -> dict[str, int]:
     }
 
 
+def run_lane_bounded(
+    *,
+    lane_cases: list[CasePacketInfo],
+    max_parallel: int,
+    worker: Callable[[CasePacketInfo], dict[str, Any]],
+    record_result: Callable[[CasePacketInfo, dict[str, Any] | Exception], bool],
+    fail_fast: bool,
+) -> list[CasePacketInfo]:
+    """Run one lane without queuing more than ``max_parallel`` cases.
+
+    ``record_result`` is called exactly once for every submitted case, including
+    cases that finish after the first failure.  It returns ``True`` when the
+    recorded result is a failure.  In fail-fast mode, no new case is submitted
+    after that signal, but every already-submitted future is drained before the
+    function returns.  The return value is the ordered set of cases that were
+    never submitted.
+    """
+
+    if max_parallel <= 0:
+        raise ValueError("max_parallel must be positive")
+    next_index = 0
+    stop_submitting = False
+    pending: dict[
+        concurrent.futures.Future[dict[str, Any]], tuple[int, CasePacketInfo]
+    ] = {}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel) as executor:
+
+        def fill_available_slots() -> None:
+            nonlocal next_index
+            while (
+                not stop_submitting
+                and next_index < len(lane_cases)
+                and len(pending) < max_parallel
+            ):
+                case_info = lane_cases[next_index]
+                future = executor.submit(worker, case_info)
+                pending[future] = (next_index, case_info)
+                next_index += 1
+
+        fill_available_slots()
+        while pending:
+            done, _ = concurrent.futures.wait(
+                pending,
+                return_when=concurrent.futures.FIRST_COMPLETED,
+            )
+            # Stable input order makes simultaneous completions deterministic.
+            for future in sorted(done, key=lambda item: pending[item][0]):
+                _, case_info = pending.pop(future)
+                try:
+                    outcome: dict[str, Any] | Exception = future.result()
+                except Exception as exc:  # pragma: no cover - defensive handoff
+                    outcome = exc
+                if record_result(case_info, outcome) and fail_fast:
+                    stop_submitting = True
+            fill_available_slots()
+
+    return list(lane_cases[next_index:])
+
+
 def main() -> int:
     args = parse_args()
     args.case_packet_root = args.case_packet_root.resolve()
     args.output_root = args.output_root.resolve()
-    if (
-        not os.environ.get("OPENROUTER_DRAFT_API_KEY")
-        and not os.environ.get("OPENROUTER_API_KEY")
-        and not os.environ.get("OPENAI_API_KEY")
-        and not args.dry_run
-    ):
-        print(
-            "None of OPENROUTER_DRAFT_API_KEY, OPENROUTER_API_KEY, or OPENAI_API_KEY is set.",
-            file=sys.stderr,
-        )
-        return 2
+    if args.prompt_supplement is not None:
+        args.prompt_supplement = args.prompt_supplement.resolve()
+        if not args.prompt_supplement.is_file():
+            raise SystemExit(f"Prompt supplement is not a file: {args.prompt_supplement}")
+    provider = drafter.resolve_provider(args.provider, args.model)
+    model = drafter.resolve_model(provider, args.model)
+    reasoning_effort = drafter.resolve_reasoning_effort(provider, args.reasoning_effort)
+    positive_values = {
+        "--max-parallel": args.max_parallel,
+        "--large-max-parallel": args.large_max_parallel,
+        "--http-timeout-seconds": args.http_timeout_seconds,
+        "--large-http-timeout-seconds": args.large_http_timeout_seconds,
+        "--codex-timeout-seconds": args.codex_timeout_seconds,
+        "--large-codex-timeout-seconds": args.large_codex_timeout_seconds,
+    }
+    for flag, value in positive_values.items():
+        if value <= 0:
+            raise SystemExit(f"{flag} must be positive, got {value}.")
+
+    if not args.dry_run:
+        if provider == "codex":
+            if shutil.which("codex") is None:
+                print(
+                    "Could not find `codex` on PATH. Install Codex CLI and run `codex login` first.",
+                    file=sys.stderr,
+                )
+                return 2
+        else:
+            api_key, api_key_env, _, _ = drafter.resolve_provider_credentials(provider, model)
+            if not api_key:
+                print(f"{api_key_env} is not set for provider={provider}.", file=sys.stderr)
+                return 2
 
     token_budgets = parse_token_budgets(args.token_budgets)
-    case_packets = sort_case_packets(discover_case_packets(args.case_packet_root), args.sort_by)
+    selected_case_ids = parse_case_ids(args.case_ids)
+    if selected_case_ids is not None and args.limit is not None:
+        raise SystemExit("--case-ids and --limit are mutually exclusive.")
+    if args.appworld_v56_canary_round is not None:
+        if not args.appworld_v56_runtime_gate:
+            raise SystemExit("--appworld-v56-canary-round requires --appworld-v56-runtime-gate.")
+        if selected_case_ids is None:
+            raise SystemExit("--appworld-v56-canary-round requires the exact locked --case-ids set.")
+    elif args.appworld_v56_runtime_gate and selected_case_ids is not None:
+        raise SystemExit("The formal AppWorld v56 run must omit --case-ids.")
+
+    discovered = discover_case_packets(args.case_packet_root)
+    if selected_case_ids is not None:
+        selected_set = set(selected_case_ids)
+        discovered_ids = {info.path.parent.name for info in discovered}
+        missing = sorted(selected_set - discovered_ids)
+        if missing:
+            raise SystemExit(f"--case-ids contains IDs absent from the packet root: {missing}")
+        discovered = [info for info in discovered if info.path.parent.name in selected_set]
+        if len(discovered) != len(selected_case_ids):
+            raise SystemExit("--case-ids selection did not resolve one unique packet per case ID.")
+    case_packets = sort_case_packets(discovered, args.sort_by)
     if args.limit is not None:
         case_packets = case_packets[: args.limit]
     regular_cases, oversized_cases = split_lanes(case_packets, args.large_case_threshold_bytes)
     warning_fn = quality_warning_fn(args.quality_check)
+    runtime_batch_start_audit: dict[str, Any] = {}
+    if args.appworld_v56_runtime_gate:
+        runtime_batch_start_audit = validate_appworld_v56_batch_start(
+            {
+                "case_packet_root": str(args.case_packet_root),
+                "output_root": str(args.output_root),
+                "provider": provider,
+                "model": model,
+                "reasoning_effort": reasoning_effort,
+                "token_budgets": token_budgets,
+                "max_parallel": args.max_parallel,
+                "large_max_parallel": args.large_max_parallel,
+                "large_case_threshold_bytes": args.large_case_threshold_bytes,
+                "http_timeout_seconds": args.http_timeout_seconds,
+                "large_http_timeout_seconds": args.large_http_timeout_seconds,
+                "codex_timeout_seconds": args.codex_timeout_seconds,
+                "large_codex_timeout_seconds": args.large_codex_timeout_seconds,
+                "codex_sandbox": args.codex_sandbox,
+                "prompt_supplement": str(args.prompt_supplement) if args.prompt_supplement else None,
+                "sort_by": args.sort_by,
+                "sleep_seconds": args.sleep_seconds,
+                "quality_check": args.quality_check,
+                "limit": args.limit,
+                "case_ids": selected_case_ids,
+                "canary_round": args.appworld_v56_canary_round,
+                "run_kind": "canary" if args.appworld_v56_canary_round is not None else "formal",
+                "force": args.force,
+                "fail_fast": args.fail_fast,
+                "dry_run": args.dry_run,
+                "total_case_count": len(case_packets),
+                "regular_case_count": len(regular_cases),
+                "oversized_case_count": len(oversized_cases),
+            }
+        )
 
     if args.dry_run:
         print(f"discovered_case_count={len(case_packets)}")
@@ -526,24 +999,38 @@ def main() -> int:
             for info in lane_cases:
                 out_dir = canonical_case_dir(args.output_root, info.path)
                 print(
-                    f"[{lane_name}] {info.path.relative_to(PACKAGE_ROOT)} "
-                    f"size_bytes={info.size_bytes} -> {out_dir.relative_to(PACKAGE_ROOT)}"
+                    f"[{lane_name}] {display_path(info.path)} "
+                    f"size_bytes={info.size_bytes} -> {display_path(out_dir)}"
                 )
         return 0
 
-    args.output_root.mkdir(parents=True, exist_ok=True)
+    if args.appworld_v56_runtime_gate:
+        # Atomic namespace claim: a concurrent/restarted formal runner must fail.
+        if args.appworld_v56_canary_round is not None:
+            # Each round owns a fresh parent so its cases/quarantine namespace can
+            # never be resumed or mixed with another round.
+            args.output_root.parent.mkdir(parents=True, exist_ok=False)
+        args.output_root.mkdir(parents=False, exist_ok=False)
+    else:
+        args.output_root.mkdir(parents=True, exist_ok=True)
     progress_jsonl = args.output_root / "_batch_results.jsonl"
     summary_json = args.output_root / "_batch_summary.json"
     progress_lock = threading.Lock()
     summary_lock = threading.Lock()
 
-    started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    started_at = utc_now_iso()
     total = len(case_packets)
     completed = 0
     success_count = 0
     skipped_count = 0
     failed_count = 0
     warning_count = 0
+    runtime_gate_counts: dict[str, int] = {"passed": 0, "failed": 0, "not_run": 0}
+    runtime_gate_contract = (
+        appworld_v56_runtime_gate_rejection(status="not_run", reason="batch_initialization")
+        if args.appworld_v56_runtime_gate
+        else {}
+    )
     failure_seen = False
     lane_stats = {
         "regular": lane_counts_summary(regular_cases),
@@ -551,136 +1038,252 @@ def main() -> int:
     }
 
     print(
-        f"Starting draft batch: cases={total}, model={args.model}, "
-        f"provider={args.provider}, "
-        f"reasoning_effort={args.reasoning_effort}, token_budgets={token_budgets}, "
-        f"quality_check={args.quality_check}, output_root={args.output_root.relative_to(PACKAGE_ROOT)}",
+        f"Starting draft batch: cases={total}, model={model}, "
+        f"provider={provider}, "
+        f"reasoning_effort={reasoning_effort}, "
+        f"model_verbosity={drafter.DEFAULT_DRAFT_VERBOSITY}, "
+        f"token_budgets={token_budgets}, "
+        f"quality_check={args.quality_check}, "
+        f"prompt_supplement={display_path(args.prompt_supplement) if args.prompt_supplement else None}, "
+        f"output_root={display_path(args.output_root)}",
         flush=True,
     )
     print(
         f"regular_lane={lane_stats['regular']} max_parallel={args.max_parallel} "
-        f"http_timeout_seconds={args.http_timeout_seconds}",
+        f"http_timeout_seconds={args.http_timeout_seconds} "
+        f"codex_timeout_seconds={args.codex_timeout_seconds}",
         flush=True,
     )
     print(
         f"oversized_lane={lane_stats['oversized']} max_parallel={args.large_max_parallel} "
-        f"http_timeout_seconds={args.large_http_timeout_seconds}",
+        f"http_timeout_seconds={args.large_http_timeout_seconds} "
+        f"codex_timeout_seconds={args.large_codex_timeout_seconds}",
         flush=True,
     )
 
     lane_plans = [
-        ("regular", regular_cases, args.max_parallel, args.http_timeout_seconds),
-        ("oversized", oversized_cases, args.large_max_parallel, args.large_http_timeout_seconds),
+        (
+            "regular",
+            regular_cases,
+            args.max_parallel,
+            args.http_timeout_seconds,
+            args.codex_timeout_seconds,
+        ),
+        (
+            "oversized",
+            oversized_cases,
+            args.large_max_parallel,
+            args.large_http_timeout_seconds,
+            args.large_codex_timeout_seconds,
+        ),
     ]
+    not_run_case_ids: list[str] = []
+    recorded_case_ids: set[str] = set()
 
-    for lane_name, lane_cases, lane_parallel, lane_timeout in lane_plans:
+    def current_summary_payload() -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "started_at": started_at,
+            "updated_at": utc_now_iso(),
+            "total_cases": total,
+            "completed_cases": completed,
+            "success_cases": success_count,
+            "skipped_cases": skipped_count,
+            "failed_cases": failed_count,
+            "not_run_case_count": len(not_run_case_ids),
+            "not_run_case_ids": list(not_run_case_ids),
+            "warning_count": warning_count,
+            "provider": provider,
+            "model": model,
+            "reasoning_effort": reasoning_effort,
+            "model_verbosity": drafter.DEFAULT_DRAFT_VERBOSITY,
+            "codex_sandbox": args.codex_sandbox,
+            "prompt_supplement": (
+                display_path(args.prompt_supplement)
+                if args.prompt_supplement is not None
+                else None
+            ),
+            "token_budgets": token_budgets,
+            "sort_by": args.sort_by,
+            "quality_check": args.quality_check,
+            "large_case_threshold_bytes": args.large_case_threshold_bytes,
+            "lane_stats": lane_stats,
+            "output_root": display_path(args.output_root),
+        }
+        if args.appworld_v56_runtime_gate:
+            payload.update(
+                {
+                    "appworld_v56_runtime_gate": True,
+                    "runtime_policy_gate_schema": runtime_gate_contract["schema_version"],
+                    "runtime_policy_gate_policy": runtime_gate_contract["policy"],
+                    "runtime_policy_gate_counts": dict(runtime_gate_counts),
+                    "regular_max_parallel": args.max_parallel,
+                    "oversized_max_parallel": args.large_max_parallel,
+                    "parsed_config_semantic_sha256": runtime_batch_start_audit[
+                        "parsed_config_semantic_sha256"
+                    ],
+                    "batch_start_validation": runtime_batch_start_audit,
+                    "quarantined_attempt_count": (
+                        runtime_gate_counts["failed"]
+                        + runtime_gate_counts["not_run"]
+                    ),
+                    "quarantine_root": display_path(
+                        args.output_root.parent / "quarantine"
+                    ),
+                }
+            )
+        return payload
+
+    def record_completed_case(
+        case_info: CasePacketInfo,
+        outcome: dict[str, Any] | Exception,
+        *,
+        lane_name: str,
+    ) -> bool:
+        nonlocal completed, success_count, skipped_count
+        nonlocal failed_count, warning_count, failure_seen
+
+        if isinstance(outcome, Exception):
+            result: dict[str, Any] = {
+                "case_unit_dir": case_info.path.parent.name,
+                "case_packet": display_path(case_info.path),
+                "case_packet_size_bytes": case_info.size_bytes,
+                "lane": lane_name,
+                "status": "failed",
+                "attempts": [],
+                "quality_warnings": [f"batch_runner_exception: {outcome}"],
+            }
+        else:
+            result = outcome
+
+        case_id = case_info.path.parent.name
+        if case_id in recorded_case_ids:
+            raise RuntimeError(f"batch result recorded more than once: {case_id}")
+        if result.get("case_unit_dir") != case_id or result.get("lane") != lane_name:
+            raise RuntimeError(f"batch result identity/lane mismatch: {case_id}")
+        recorded_case_ids.add(case_id)
+
+        completed += 1
+        status = str(result["status"])
+        warnings = list(result.get("quality_warnings", []))
+        warning_count += len(warnings)
+        if args.appworld_v56_runtime_gate:
+            for attempt_record in result.get("attempts", []):
+                gate = attempt_record.get("runtime_policy_gate")
+                if (
+                    isinstance(gate, dict)
+                    and gate.get("status") in runtime_gate_counts
+                ):
+                    runtime_gate_counts[str(gate["status"])] += 1
+
+        failed = status not in {"success", "skipped_existing"}
+        if status == "success":
+            success_count += 1
+        elif status == "skipped_existing":
+            skipped_count += 1
+        else:
+            failed_count += 1
+            failure_seen = True
+
+        append_jsonl(progress_jsonl, result, progress_lock)
+        write_summary(summary_json, current_summary_payload(), summary_lock)
+
+        attempt_summary = ", ".join(
+            f"a{item['attempt_index']}@{item['max_output_tokens']}=>{item['returncode']}"
+            for item in result.get("attempts", [])
+        ) or "no-attempts"
+        warning_suffix = f" warnings={len(warnings)}" if warnings else ""
+        print(
+            f"[{completed}/{total}] lane={result['lane']} {status} "
+            f"{result['case_unit_dir']} size_bytes={result['case_packet_size_bytes']} "
+            f"({attempt_summary}){warning_suffix}",
+            flush=True,
+        )
+        for warning in warnings:
+            print(f"  warning: {warning}", flush=True)
+        return failed
+
+    for lane_index, (
+        lane_name,
+        lane_cases,
+        lane_parallel,
+        lane_http_timeout,
+        lane_codex_timeout,
+    ) in enumerate(lane_plans):
         if not lane_cases:
             continue
         print(
             f"Running lane={lane_name} cases={len(lane_cases)} max_parallel={lane_parallel} "
-            f"http_timeout_seconds={lane_timeout}",
+            f"http_timeout_seconds={lane_http_timeout} "
+            f"codex_timeout_seconds={lane_codex_timeout}",
             flush=True,
         )
-        with concurrent.futures.ThreadPoolExecutor(max_workers=lane_parallel) as executor:
-            future_map = {
-                executor.submit(
-                    process_case,
-                    case_info=case_info,
-                    lane=lane_name,
-                    output_root=args.output_root,
-                    provider=args.provider,
-                    model=args.model,
-                    reasoning_effort=args.reasoning_effort,
-                    token_budgets=token_budgets,
-                    http_timeout_seconds=lane_timeout,
-                    sleep_seconds=args.sleep_seconds,
-                    force=args.force,
-                    warning_fn=warning_fn,
-                ): case_info
-                for case_info in lane_cases
-            }
 
-            for future in concurrent.futures.as_completed(future_map):
-                case_info = future_map[future]
-                try:
-                    result = future.result()
-                except Exception as exc:  # pragma: no cover - defensive outer catch
-                    result = {
-                        "case_unit_dir": case_info.path.parent.name,
-                        "case_packet": str(case_info.path.relative_to(PACKAGE_ROOT)),
-                        "case_packet_size_bytes": case_info.size_bytes,
-                        "lane": lane_name,
-                        "status": "failed",
-                        "attempts": [],
-                        "quality_warnings": [f"batch_runner_exception: {exc}"],
-                    }
+        def lane_worker(case_info: CasePacketInfo) -> dict[str, Any]:
+            return process_case(
+                case_info=case_info,
+                lane=lane_name,
+                output_root=args.output_root,
+                provider=provider,
+                model=model,
+                reasoning_effort=reasoning_effort,
+                token_budgets=token_budgets,
+                http_timeout_seconds=lane_http_timeout,
+                codex_timeout_seconds=lane_codex_timeout,
+                codex_sandbox=args.codex_sandbox,
+                prompt_supplement=args.prompt_supplement,
+                sleep_seconds=args.sleep_seconds,
+                force=args.force,
+                warning_fn=warning_fn,
+                appworld_v56_runtime_gate=args.appworld_v56_runtime_gate,
+            )
 
-                completed += 1
-                status = result["status"]
-                warnings = result.get("quality_warnings", [])
-                warning_count += len(warnings)
-
-                if status == "success":
-                    success_count += 1
-                elif status == "skipped_existing":
-                    skipped_count += 1
-                else:
-                    failed_count += 1
-                    failure_seen = True
-
-                append_jsonl(progress_jsonl, result, progress_lock)
-                write_summary(
-                    summary_json,
-                    {
-                        "started_at": started_at,
-                        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                        "total_cases": total,
-                        "completed_cases": completed,
-                        "success_cases": success_count,
-                        "skipped_cases": skipped_count,
-                        "failed_cases": failed_count,
-                        "warning_count": warning_count,
-                        "provider": args.provider,
-                        "model": args.model,
-                        "reasoning_effort": args.reasoning_effort,
-                        "token_budgets": token_budgets,
-                        "sort_by": args.sort_by,
-                        "quality_check": args.quality_check,
-                        "large_case_threshold_bytes": args.large_case_threshold_bytes,
-                        "lane_stats": lane_stats,
-                        "output_root": str(args.output_root.relative_to(PACKAGE_ROOT)),
-                    },
-                    summary_lock,
-                )
-
-                attempt_summary = ", ".join(
-                    f"a{item['attempt_index']}@{item['max_output_tokens']}=>{item['returncode']}"
-                    for item in result.get("attempts", [])
-                ) or "no-attempts"
-                warning_suffix = f" warnings={len(warnings)}" if warnings else ""
-                print(
-                    f"[{completed}/{total}] lane={result['lane']} {status} "
-                    f"{result['case_unit_dir']} size_bytes={result['case_packet_size_bytes']} "
-                    f"({attempt_summary}){warning_suffix}",
-                    flush=True,
-                )
-                for warning in warnings:
-                    print(f"  warning: {warning}", flush=True)
-
-                if args.fail_fast and failure_seen:
-                    print("Fail-fast enabled; aborting after first failed case.", flush=True)
-                    executor.shutdown(wait=False, cancel_futures=True)
-                    break
+        unsubmitted = run_lane_bounded(
+            lane_cases=lane_cases,
+            max_parallel=lane_parallel,
+            worker=lane_worker,
+            record_result=lambda case_info, outcome: record_completed_case(
+                case_info,
+                outcome,
+                lane_name=lane_name,
+            ),
+            fail_fast=args.fail_fast,
+        )
+        not_run_case_ids.extend(info.path.parent.name for info in unsubmitted)
 
         if args.fail_fast and failure_seen:
+            for _, remaining_cases, _, _, _ in lane_plans[lane_index + 1 :]:
+                not_run_case_ids.extend(
+                    info.path.parent.name for info in remaining_cases
+                )
+            print(
+                "Fail-fast enabled; drained all submitted cases and left "
+                f"{len(not_run_case_ids)} cases not run.",
+                flush=True,
+            )
             break
+
+    if len(recorded_case_ids) != completed:
+        raise RuntimeError("completed counter differs from unique batch result rows")
+    if completed + len(not_run_case_ids) != total:
+        raise RuntimeError("completed and not-run case counts do not close the batch")
+    if recorded_case_ids.intersection(not_run_case_ids):
+        raise RuntimeError("a case cannot be both completed and not run")
+    write_summary(summary_json, current_summary_payload(), summary_lock)
 
     print(
         f"Finished draft batch: success={success_count}, skipped={skipped_count}, "
-        f"failed={failed_count}, warnings={warning_count}.",
+        f"failed={failed_count}, not_run={len(not_run_case_ids)}, "
+        f"warnings={warning_count}.",
         flush=True,
     )
-    return 1 if failed_count else 0
+    exit_code = 1 if failed_count else 0
+    if args.appworld_v56_runtime_gate:
+        finalize_appworld_v56_phase(
+            run_kind="canary" if args.appworld_v56_canary_round is not None else "formal",
+            canary_round=args.appworld_v56_canary_round,
+            exit_code=exit_code,
+        )
+    return exit_code
 
 
 if __name__ == "__main__":

@@ -1,0 +1,122 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "756",
+  "domain": "webarena_verified",
+  "task_id": "756",
+  "native": {
+    "user_goal": {
+      "text": "Create a private GitLab repository named \"11711_gitlab\" from the JEKYLL template.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success requires both configured evaluators to score 1.0: AgentResponseEvaluator must accept the final response and NetworkEventEvaluator must accept the selected network event. Any other component score makes TaskEvalResult.score 0.0.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator and NetworkEventEvaluator, then TaskEvalResult.create conjunctively composes their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "After official parsing and normalization, does the response have the expected structure with task_type MUTATE, status SUCCESS, and normalized retrieved_data null?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last matching POST evaluation event to __GITLAB__/projects have response status 302 and, under official normalization, project[name]=11711_gitlab, project[path]=11711_gitlab, project[namespace_id]=2505, project[template_name]=nfjekyll, and project[visibility_level]=0?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff the final response passes AgentResponseEvaluator and the HAR's last matching POST event passes NetworkEventEvaluator with the configured URL, status, and form values; both evaluator scores are then 1.0 and the task score is 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if AgentResponseEvaluator reports a mismatch or error for the retained final response; its non-1.0 score makes the conjunctive task score 0.0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "Fail if NetworkEventEvaluator finds no qualifying selected event, finds that the selected event mismatches any configured URL, method, status, or form value, or encounters an evaluator error; its non-1.0 score makes the conjunctive task score 0.0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when no retained evidence already proves either component failed, but agent_response.json or network.har is unavailable, unreadable, or too incomplete to apply its official comparison and therefore both required passes cannot be established.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persistent_project_state",
+        "text": "Beyond native scoring, retained post-run GitLab state must show that namespace 2505 contains a private project named and pathed \"11711_gitlab\" whose repository is initialized with the JEKYLL/nfjekyll scaffold.",
+        "rationale": "The official task claims creation of a private templated repository, while the released evaluator checks only the final response and a POST event returning 302; it does not inspect persisted GitLab project or repository state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run GitLab project metadata snapshot or API export",
+            "question": "Does persisted project metadata show namespace 2505, name and path 11711_gitlab, and private visibility?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.post_data"
+            ]
+          },
+          {
+            "artifact": "Post-run repository tree/content snapshot",
+            "question": "Does the persisted repository contain the JEKYLL scaffold produced by the nfjekyll template?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.post_data.project[template_name]"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

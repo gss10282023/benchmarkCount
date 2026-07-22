@@ -1,0 +1,102 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "708",
+  "domain": "webarena_verified",
+  "task_id": "708",
+  "native": {
+    "user_goal": {
+      "text": "Show the Shopping Admin tax report for this year, with today fixed as March 15, 2023.",
+      "support": [
+        "derived/task.json::intent",
+        "derived/task.json::sites"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success requires both evaluator scores to be 1.0: the final response normalizes to task_type NAVIGATE, status SUCCESS, and retrieved_data null; and the last navigation event normalizes to a GET 200 request for __SHOPPING_ADMIN__/reports/report_sales/tax/filter with report_type=created_at_order, from=01/1/2023, and to=03/15/2023 under the configured query rules.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator and NetworkEventEvaluator are run in task order by WebArenaVerifiedEvaluator; TaskEvalResult.create composes their scores using an all-must-equal-1.0 rule.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained final response normalize and compare as NAVIGATE, SUCCESS, with no retrieved data?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the trace's last navigation event, after configured base64-query decoding, ignored-parameter filtering, and date normalization, match the required GET 200 tax-report URL and the three required query parameters?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalized_url",
+          "official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The response check matches NAVIGATE/SUCCESS/null and the HAR's last navigation event matches every configured network criterion, giving both evaluator scores 1.0 and therefore TaskEvalResult.score 1.0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "A response mismatch, no qualifying last navigation event in a complete HAR, any network-field mismatch, or an evaluator error makes at least one evaluator score differ from 1.0 and therefore makes TaskEvalResult.score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The stored evidence is undecidable only if agent_response.json or network.har is not retained or is materially incomplete, so one of the two official checks cannot be reconstructed; a mismatch in complete evidence is failure.",
+        "rationale": "Both artifacts are needed to distinguish a passing two-evaluator run from a benchmark-counted failure, while missing retained evidence does not establish what the run contained."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "visible_tax_report",
+        "text": "Beyond native scoring, require a retained final screenshot or DOM/page snapshot showing the tax report for January 1 through March 15, 2023.",
+        "rationale": "The task asks to show the report, but native evaluation checks only success-shaped response fields and request metadata/status; response_content is unset and rendered page content is not checked.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Final browser screenshot or DOM/page snapshot",
+            "question": "Does the final page visibly show the tax report with the January 1–March 15, 2023 reporting period?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.query_params"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0].expected",
+          "derived/task.json::eval[1].expected.response_content",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+        ]
+      }
+    ]
+  }
+}

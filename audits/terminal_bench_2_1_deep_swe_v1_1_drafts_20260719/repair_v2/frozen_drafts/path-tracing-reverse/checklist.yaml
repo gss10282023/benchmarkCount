@@ -1,0 +1,90 @@
+case_unit_id: path-tracing-reverse
+domain: terminal_bench_2_1
+native:
+  benchmark_success:
+    support:
+    - official/tests/test.sh::18-30
+    - official/tests/test_outputs.py::test_image_c_exists
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_image_similarity
+    text: 'Native success is a zero-exit run of the task-specific pytest verifier on `/tests/test_outputs.py`: `/app/mystery.c` exists; `gcc -static -o /app/reverse /app/mystery.c -lm` succeeds and `zlib.compress(...)` of the source is shorter than 2100 bytes; and the reconstructed image has cosine similarity `>=0.995` to the original binary''s image.'
+  checked_by:
+    support:
+    - official/tests/test.sh::18-30
+    text: The task-specific shell verifier runs `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`; its released success mapping is based on that command returning zero. Released reward/result records remain comparison-only metadata for independent evidence review.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does a complete retained CTRF report establish the status of `test_image_c_exists`, `test_image_compiles`, and `test_image_similarity`, including details needed to distinguish a candidate-facing violation from an unrelated verifier problem?
+    support:
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::test_image_c_exists
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_image_similarity
+  - artifact: verifier/test-stdout.txt
+    question: Does a complete retained pytest report establish all three official test outcomes and any assertion or traceback relevant to the existence, compilation/size, or similarity criterion?
+    support:
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::test_image_c_exists
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_image_similarity
+  - artifact: verifier/test-stderr.txt
+    question: Does retained stderr independently expose a candidate-attributable failure in an official check, or instead show setup, command, or infrastructure noncompletion that leaves the native outcome unresolved?
+    support:
+    - official/tests/test.sh::18-30
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_image_similarity
+  fail_if:
+  - support:
+    - official/tests/test_outputs.py::test_image_c_exists
+    text: Retained non-label verifier evidence establishes that `test_image_c_exists` reached its assertion and failed because `/app/mystery.c` did not exist.
+  - support:
+    - official/tests/test_outputs.py::test_image_compiles
+    text: Retained non-label verifier evidence establishes that `test_image_compiles` failed because the specified static gcc command returned nonzero or because the measured `zlib.compress(...)` length was not below 2100 bytes.
+  - support:
+    - official/tests/test_outputs.py::test_image_similarity
+    text: Retained non-label verifier evidence establishes a candidate-attributable failure of `test_image_similarity`, such as failure of the reconstructed executable to produce the compared image or measured cosine similarity below 0.995.
+  success_if:
+  - support:
+    - official/tests/test.sh::18-30
+    - official/tests/test_outputs.py::test_image_c_exists
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_image_similarity
+    text: 'Retained non-label verifier evidence establishes that the task-specific pytest invocation completed successfully and all three official checks passed: source existence, static compilation with `zlib.compress(...) <2100`, and reconstructed-image cosine similarity `>=0.995`.'
+  undecided_if:
+  - support:
+    - case_packet.md::Native Evaluator Semantics
+    - case_packet.md::Measurement Boundary
+    - official/tests/test.sh::18-30
+    text: Retained non-label evidence does not establish either all-pass native success or a candidate-facing official test violation; this includes missing or ambiguous reports and verifier setup, command, collection, or infrastructure failures whose evidence does not establish that the candidate violated an official check.
+  user_goal:
+    support:
+    - official/instruction.md::1-1
+    text: Produce `/app/mystery.c`, a standalone C program whose compiled-and-run effect matches `/app/mystery`, stays under the stated compressed-size limit, does not invoke `./mystery`, and works in complete isolation.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: artifacts/**
+      question: If both original and reconstructed rendered outputs are retained, are they exactly identical rather than only similar enough for the native threshold?
+      support:
+      - official/instruction.md::1-1
+      - official/tests/test_outputs.py::test_image_similarity
+    id: exact-output-identity
+    rationale: The official instruction requires an identical operation, while the released verifier operationalizes approximate image similarity and therefore does not measure exact output identity.
+    support:
+    - official/instruction.md::1-1
+    - official/tests/test_outputs.py::test_image_similarity
+    text: Beyond native scoring, require retained evidence that the reconstructed program's rendered output is exactly identical to the original program's rendered output, rather than merely attaining cosine similarity `>=0.995`.
+  - decisive_artifacts:
+    - artifact: artifacts/**
+      question: If the submitted source and measurement output are retained, does the source satisfy the instruction's stated gzip-based `<2k` rule?
+      support:
+      - official/instruction.md::1-1
+      - official/tests/test_outputs.py::test_image_compiles
+    id: literal-gzip-under-2k
+    rationale: The official instruction states a `<2k` limit using a gzip pipeline, whereas the released verifier measures a zlib-compressed byte sequence against 2100; the verifier therefore does not operationalize the instruction's literal size measurement.
+    support:
+    - official/instruction.md::1-1
+    - official/tests/test_outputs.py::test_image_compiles
+    text: Beyond native scoring, require retained evidence that `/app/mystery.c` satisfies the instruction's literal gzip-based `<2k` compressed-size rule, rather than only the verifier's `zlib.compress(...) <2100` check.
+task_id: terminal-bench/path-tracing-reverse

@@ -1,0 +1,62 @@
+schema_version: case_checklist_v1
+case_unit_id: '644'
+domain: webarena_verified
+task_id: '644'
+native:
+  user_goal:
+    text: Post a notice in the Reddit games forum titled "Tears of Kingdom Meet up!" with details "virtual meetup for Tears of Kingdom on Dec 15th".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the selected Reddit submission event.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in configuration order, then conjunctively composes their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the official parser and normalizer produce a response matching task_type MUTATE, status SUCCESS, and retrieved_data null, with no structural comparison failure?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among evaluation events filtered to POST at __REDDIT__/submit or __REDDIT__/submit/gaming, does the last such event return 302 and contain submission[forum]=10048, submission[title]="Tears of Kingdom Meet up!", and submission[body]="virtual meetup for Tears of Kingdom on Dec 15th"?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+  success_if:
+  - text: Success iff the agent-response comparison has no assertions and the last matching network event satisfies the configured URL, POST method, response-302, and form-data comparison; both evaluator scores must therefore be 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Fail if either evaluator does not score 1.0: the final response is invalid or mismatched, no eligible submission event exists, the selected last event mismatches any required value, or either evaluator errors.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only if agent_response.json or network.har is absent, unreadable, truncated, or cannot be associated with the run, preventing reconstruction of one or both checks; a present parseable artifact with missing or mismatching contents is failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+stronger:
+  additional_conditions:
+  - id: persisted_post_state
+    text: Post-run Reddit state contains the notice in the games forum with the required title and body.
+    rationale: The stated task requires a posted notice, while the native evaluator checks only a success-formatted response and a matching submission request with a 302 response; it does not inspect persisted Reddit state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit state snapshot or exported post record
+      question: Does the retained state show a post in the games forum titled "Tears of Kingdom Meet up!" with body "virtual meetup for Tears of Kingdom on Dec 15th"?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

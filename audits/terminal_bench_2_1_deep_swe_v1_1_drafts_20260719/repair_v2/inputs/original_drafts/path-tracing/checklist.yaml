@@ -1,0 +1,75 @@
+schema_version: case_checklist_v1
+case_unit_id: path-tracing
+domain: terminal_bench_2_1
+task_id: terminal-bench/path-tracing
+native:
+  user_goal:
+    text: Write `image.c` so `gcc -static -o image image.c -lm && ./image` algorithmically produces `reconstructed.ppm` closely matching `/app/image.ppm` at 0.99 similarity, without reading `image.ppm`, while staying under the stated compressed-size limit and not relying on extra custom `.c`/`.h` includes.
+    support:
+    - official/instruction.md::1-6
+  benchmark_success:
+    text: 'Native success means the official verifier''s pytest run passes all five released checks: `/app/image.c` exists; `gcc -static -o /app/image /app/image.c -lm` succeeds and `len(zlib.compress(image.c_bytes)) < 2100`; `gcc -H /app/image.c -lm` succeeds with no `/app/` path in stdout or stderr; `chroot /jail /image` exits successfully and creates `/jail/reconstructed.ppm`; and the cosine similarity between `/app/image.ppm` and `/jail/reconstructed.ppm` is at least `0.99`.'
+    support:
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::test_image_c_exists
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_no_deps
+    - official/tests/test_outputs.py::test_runs_and_produces_output
+    - official/tests/test_outputs.py::test_image_similarity
+  checked_by:
+    text: The official verifier script runs `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`.
+    support:
+    - official/tests/test.sh::18-24
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does it record pass/fail outcomes for `test_image_c_exists`, `test_image_compiles`, `test_no_deps`, `test_runs_and_produces_output`, and `test_image_similarity`?
+    support:
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::test_image_c_exists
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_no_deps
+    - official/tests/test_outputs.py::test_runs_and_produces_output
+    - official/tests/test_outputs.py::test_image_similarity
+  - artifact: verifier/test-stdout.txt
+    question: Does the retained pytest stdout corroborate the collected tests, any assertion details, and the overall pass/fail summary when the CTRF report is missing or ambiguous?
+    support:
+    - official/tests/test.sh::18-24
+  success_if:
+  - text: 'Retained verifier evidence establishes that all five official tests passed: `test_image_c_exists`, `test_image_compiles`, `test_no_deps`, `test_runs_and_produces_output`, and `test_image_similarity`.'
+    support:
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::test_image_c_exists
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_no_deps
+    - official/tests/test_outputs.py::test_runs_and_produces_output
+    - official/tests/test_outputs.py::test_image_similarity
+  fail_if:
+  - text: Retained verifier evidence shows `test_image_c_exists` failed because `/app/image.c` was absent.
+    support:
+    - official/tests/test_outputs.py::test_image_c_exists
+  - text: Retained verifier evidence shows `test_image_compiles` or `test_no_deps` failed because compilation failed, `len(zlib.compress(image.c_bytes))` was not below `2100`, or the include check exposed an `/app/` dependency.
+    support:
+    - official/tests/test_outputs.py::test_image_compiles
+    - official/tests/test_outputs.py::test_no_deps
+  - text: Retained verifier evidence shows `test_runs_and_produces_output` failed because `chroot /jail /image` exited nonzero or `/jail/reconstructed.ppm` was not created.
+    support:
+    - official/tests/test_outputs.py::test_runs_and_produces_output
+  - text: Retained verifier evidence shows `test_image_similarity` failed because the computed cosine similarity between `/app/image.ppm` and `/jail/reconstructed.ppm` was below `0.99`.
+    support:
+    - official/tests/test_outputs.py::test_image_similarity
+  undecided_if:
+  - text: The retained non-label artifacts do not establish either that all five official tests passed or that any specific official test failed.
+    rationale: Native success or failure depends on retained verifier traces such as the CTRF report and pytest logs. If those traces are missing, truncated, or contradictory, the record cannot be resolved from stored evidence alone.
+stronger:
+  additional_conditions:
+  - id: literal_gzip_threshold
+    text: Beyond native success, retained source evidence should also show that the delivered `image.c` satisfies the instruction's literal `cat image.c | gzip | wc` size limit of less than `2000`; the released evaluator instead accepts `len(zlib.compress(image.c_bytes)) < 2100`.
+    rationale: 'This is a concrete instruction/evaluator measurement gap: the task text specifies a gzip-plus-wc threshold below 2k, while `test_image_compiles` substitutes a zlib-compressed byte count with slack.'
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: If a retained copy of `image.c` is present, does the instruction's literal `cat image.c | gzip | wc` measurement stay below `2000`?
+      support:
+      - official/instruction.md::6-6
+    support:
+    - official/instruction.md::6-6
+    - official/tests/test_outputs.py::test_image_compiles

@@ -1,0 +1,120 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "764",
+  "domain": "webarena_verified",
+  "task_id": "764",
+  "native": {
+    "user_goal": {
+      "text": "Show on the map the walking route from 401 Shady Ave, Pittsburgh to the closest Target, using the OSRM direction service.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured evaluator scores are 1.0: AgentResponseEvaluator passes its normalized comparison for task type NAVIGATE and status SUCCESS, and NetworkEventEvaluator accepts the selected last navigation event against URL __MAP__, method GET, and response status 200.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator; each evaluator receives score 1.0 only when it has no failed assertions or evaluator error, and TaskEvalResult applies an all-evaluators conjunction.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse, normalize, and compare successfully under AgentResponseEvaluator for task type NAVIGATE and status SUCCESS, with no failed assertion or evaluator error?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the retained HAR's selected last navigation event pass NetworkEventEvaluator's normalized comparison against __MAP__, GET, and response status 200?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff the complete retained inputs yield AgentResponseEvaluator.score = 1.0 and NetworkEventEvaluator.score = 1.0; their conjunction yields TaskEvalResult.score = 1.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail when the retained evaluator inputs are complete and either component fails or errors: the response does not pass the NAVIGATE/SUCCESS comparison, or the HAR has no accepted last navigation event matching __MAP__/GET/200. Any such component makes TaskEvalResult.score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided when retention loss leaves agent_response.json or network.har absent or incomplete and the corresponding evaluator input cannot be reconstructed; the remaining artifact cannot establish the required all-evaluator conjunction.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "route_semantics_and_osrm",
+        "text": "Require retained end-state and network evidence that the map actually displays a walking route from 401 Shady Ave, Pittsburgh to the closest Target and that the corresponding directions request used OSRM.",
+        "rationale": "The official instruction requires the specified origin, closest-Target selection, walking mode, visible route, and OSRM use. The released response check establishes only the declared NAVIGATE/SUCCESS outcome, while the navigate-specific network check selects the last navigation event and compares the base map GET/200; neither check establishes the requested route semantics.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Final browser screenshot and serialized map/DOM state",
+            "question": "Does the final map visibly show a walking route from 401 Shady Ave, Pittsburgh to a Target destination, with retained candidate or distance data establishing that destination as the closest Target?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          },
+          {
+            "artifact": "network.har",
+            "question": "Does the trace contain the corresponding OSRM directions request using walking mode between the evidenced origin and selected Target destination?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/types/tracing.py::NetworkTrace.from_har",
+              "official/src/webarena_verified/types/tracing.py::NetworkEvent.url"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0]",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

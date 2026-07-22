@@ -1,0 +1,87 @@
+schema_version: case_checklist_v1
+case_unit_id: llm-inference-batching-scheduler
+domain: terminal_bench_2_1
+task_id: terminal-bench/llm-inference-batching-scheduler
+native:
+  user_goal:
+    text: Produce `plan_b1.jsonl` and `plan_b2.jsonl` for the two request buckets so every request is assigned exactly once to a batch with a valid shape, using at most 8 unique shapes across both buckets, meeting the stated per-bucket cost, pad-ratio, p95-latency, and sequential-time thresholds, while leaving the input files unchanged.
+    support:
+    - official/instruction.md::1-48
+  benchmark_success:
+    text: 'Native success is the official verifier pytest run passing all six task tests: `test_output_files_exist`, `test_input_data_integrity`, `test_generate_and_schema`, `test_solution_shape_feasibility_and_batch_consistency`, `test_solution_coverage_no_duplicates`, and `test_performance_thresholds`.'
+    support:
+    - official/tests/test.sh::1-24
+    - official/tests/test_outputs.py::test_output_files_exist
+    - official/tests/test_outputs.py::test_input_data_integrity
+    - official/tests/test_outputs.py::test_generate_and_schema
+    - official/tests/test_outputs.py::test_solution_shape_feasibility_and_batch_consistency
+    - official/tests/test_outputs.py::test_solution_coverage_no_duplicates
+    - official/tests/test_outputs.py::test_performance_thresholds
+  checked_by:
+    text: Official verifier script `official/tests/test.sh` runs pytest on `official/tests/test_outputs.py`; native success is established by that test suite passing.
+    support:
+    - official/tests/test.sh::1-24
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: 'Does the retained CTRF report show pass/fail outcomes for the six official verifier tests that define native success: output existence, input integrity, schema/coverage, shape feasibility with batch consistency, no-duplicate coverage, and performance thresholds?'
+    support:
+    - official/tests/test.sh::1-24
+    - official/tests/test_outputs.py::test_output_files_exist
+    - official/tests/test_outputs.py::test_input_data_integrity
+    - official/tests/test_outputs.py::test_generate_and_schema
+    - official/tests/test_outputs.py::test_solution_shape_feasibility_and_batch_consistency
+    - official/tests/test_outputs.py::test_solution_coverage_no_duplicates
+    - official/tests/test_outputs.py::test_performance_thresholds
+  - artifact: artifacts/**
+    question: Do the retained artifacts include the emitted `plan_b1.jsonl` and `plan_b2.jsonl` contents needed to inspect request coverage, assigned shapes, batch consistency, and recompute the cost, padding, latency, and unique-shape metrics used by the verifier?
+    support:
+    - official/instruction.md::1-48
+    - official/tests/test_outputs.py::_plan_metrics
+    - official/tests/test_outputs.py::test_generate_and_schema
+    - official/tests/test_outputs.py::test_solution_shape_feasibility_and_batch_consistency
+    - official/tests/test_outputs.py::test_solution_coverage_no_duplicates
+    - official/tests/test_outputs.py::test_performance_thresholds
+    - official/tests/cost_model_for_tests.py::CostModel.plan_metrics
+  success_if:
+  - text: '`verifier/ctrf.json` records passes for `test_output_files_exist` and `test_input_data_integrity`.'
+    support:
+    - official/tests/test_outputs.py::test_output_files_exist
+    - official/tests/test_outputs.py::test_input_data_integrity
+  - text: '`verifier/ctrf.json` records passes for `test_generate_and_schema`, `test_solution_shape_feasibility_and_batch_consistency`, and `test_solution_coverage_no_duplicates`, establishing exact-once coverage of each bucket, valid aligned shapes, and identical shapes within each batch.'
+    support:
+    - official/tests/test_outputs.py::test_generate_and_schema
+    - official/tests/test_outputs.py::test_solution_shape_feasibility_and_batch_consistency
+    - official/tests/test_outputs.py::test_solution_coverage_no_duplicates
+  - text: '`verifier/ctrf.json` records a pass for `test_performance_thresholds`, establishing bucket 1 meets cost <= `3.0e11`, pad_ratio <= `0.055`, p95_latency_ms <= `2.1e6`, sequential_timecost <= `2.7e8`; bucket 2 meets cost <= `4.8e10`, pad_ratio <= `0.15`, p95_latency_ms <= `2.1e5`, sequential_timecost <= `3.2e7`; and the combined unique-shape count across both plans is <= `8`.'
+    support:
+    - official/tests/test_outputs.py::test_performance_thresholds
+    - official/tests/test_outputs.py::_plan_metrics
+    - official/tests/cost_model_for_tests.py::CostModel.plan_metrics
+  fail_if:
+  - text: '`verifier/ctrf.json` records a failure for `test_output_files_exist` or `test_input_data_integrity`.'
+    support:
+    - official/tests/test_outputs.py::test_output_files_exist
+    - official/tests/test_outputs.py::test_input_data_integrity
+  - text: '`verifier/ctrf.json` records a failure for `test_generate_and_schema`, `test_solution_shape_feasibility_and_batch_consistency`, or `test_solution_coverage_no_duplicates`; this covers missing or duplicate request_ids, invalid shape fields, seq-alignment violations, infeasible assigned shapes, inconsistent shapes within a batch, or per-bucket shape-count violations.'
+    support:
+    - official/tests/test_outputs.py::test_generate_and_schema
+    - official/tests/test_outputs.py::test_solution_shape_feasibility_and_batch_consistency
+    - official/tests/test_outputs.py::test_solution_coverage_no_duplicates
+  - text: '`verifier/ctrf.json` records a failure for `test_performance_thresholds`; this covers either bucket exceeding any configured cost, pad_ratio, p95_latency_ms, or sequential_timecost limit, or the combined unique-shape cap exceeding `8`.'
+    support:
+    - official/tests/test_outputs.py::test_performance_thresholds
+    - official/tests/test_outputs.py::_plan_metrics
+    - official/tests/cost_model_for_tests.py::CostModel.plan_metrics
+  undecided_if:
+  - text: Retained non-label evidence does not include a decisive verifier report for the official tests, and the retained plan artifacts are missing or incomplete, so neither full verifier success nor any specific verifier failure can be established.
+    support:
+    - official/tests/test.sh::1-24
+    - official/tests/test_outputs.py::test_output_files_exist
+    - official/tests/test_outputs.py::test_input_data_integrity
+    - official/tests/test_outputs.py::test_generate_and_schema
+    - official/tests/test_outputs.py::test_solution_shape_feasibility_and_batch_consistency
+    - official/tests/test_outputs.py::test_solution_coverage_no_duplicates
+    - official/tests/test_outputs.py::test_performance_thresholds
+    rationale: Native success and failure are defined by the official verifier tests; without retained outcomes for those tests or enough retained plan evidence to replay all of them, the case is undecidable.
+stronger:
+  additional_conditions: []

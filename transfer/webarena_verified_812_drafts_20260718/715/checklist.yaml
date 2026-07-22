@@ -1,0 +1,73 @@
+schema_version: case_checklist_v1
+case_unit_id: '715'
+domain: webarena_verified
+task_id: '715'
+native:
+  user_goal:
+    text: Downvote the two top all-time posts in the history forum.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when all three configured evaluator scores are 1.0: the response passes the MUTATE/SUCCESS response check, and the HAR passes the last-matching-event checks for downvote POSTs to both __REDDIT__/sv/58888.json and __REDDIT__/sv/41616.json.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs one AgentResponseEvaluator followed by two NetworkEventEvaluator instances, then composes their scores through TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response pass the AgentResponseEvaluator's parse, normalization, and structural comparison to the configured MUTATE/SUCCESS response?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: For each configured Reddit endpoint, does the last matching POST have normalized post_data choice "-1" and response status 200?
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.from_har
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: agent_response.json passes the configured AgentResponseEvaluator check for a MUTATE task with SUCCESS status.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: In network.har, the last evaluation event matching POST __REDDIT__/sv/58888.json has choice "-1" and response status 200.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+  - text: In network.har, the last evaluation event matching POST __REDDIT__/sv/41616.json has choice "-1" and response status 200.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+  fail_if:
+  - text: The retained response is present but the AgentResponseEvaluator returns failure or error instead of score 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: With a complete, readable HAR, the evaluator for __REDDIT__/sv/58888.json finds no matching POST or its selected last event fails the choice "-1" or response-status-200 comparison.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: With a complete, readable HAR, the evaluator for __REDDIT__/sv/41616.json finds no matching POST or its selected last event fails the choice "-1" or response-status-200 comparison.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  undecided_if:
+  - text: Retention does not establish the actual response or a complete HAR—for example, either artifact is absent, unreadable, or visibly truncated—so one or more configured checks cannot be reconstructed. An intact HAR with no matching event is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.from_har
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+stronger:
+  additional_conditions: []

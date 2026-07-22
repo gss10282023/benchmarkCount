@@ -1,0 +1,78 @@
+schema_version: case_checklist_v1
+case_unit_id: '47'
+domain: webarena_verified
+task_id: '47'
+native:
+  user_goal:
+    text: As of June 12, 2023, determine the number of complete shopping orders over the past months and total spend including shipping and handling, returning only an object with integer `order_count` and numeric `amount`.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: '`TaskEvalResult.score` is 1.0 iff the sole `AgentResponseEvaluator` scores 1.0: after evaluator parsing and schema normalization, the response has task type `RETRIEVE`, status `SUCCESS`, and retrieved data equal under unordered structural comparison to one object with `order_count` 0 and `amount` 0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArena-Verified evaluator dispatches the configured `AgentResponseEvaluator`, which parses and normalizes the response, recursively compares it with the configured value, and assigns the task score from all configured evaluator scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize to task type `RETRIEVE`, status `SUCCESS`, and an unordered singleton retrieved-data value containing `order_count` 0 and `amount` 0 under the configured number/currency schema?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Can the retained trace be parsed as the network-trace input required to construct and run the official task evaluation without an input or context error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+  success_if:
+  - text: Re-evaluation from the retained response and trace completes, the sole `AgentResponseEvaluator` finds no comparison assertions for normalized task type `RETRIEVE`, status `SUCCESS`, and retrieved data `[{"order_count":0,"amount":0}]` under unordered comparison, and therefore both its score and `TaskEvalResult.score` are 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The normalized response has a wrong or missing task type or status, missing/null retrieved data, or retrieved data that differs in value or cardinality from the configured singleton object; the resulting comparison assertion makes the evaluator and task scores 0.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: A response/trace parsing, validation, normalization, comparison, or orchestration error recorded for the run yields evaluator or task status `ERROR` and score 0.0, so it is native failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecided only when the retained response or trace is absent, unreadable, or insufficient to reconstruct what was supplied to the evaluator and no retained official evaluation result resolves the outcome; an explicit run-time evaluator error is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: exact_requested_payload_format
+    text: Beyond native scoring, require the retrieved result item to contain exactly `order_count` and `amount`, with `order_count` encoded as a JSON integer and no additional result fields or details.
+    rationale: The official instruction requires an integer count and only those two keys, while the evaluator schema types `order_count` merely as a number and normalization projects schema-declared object properties, allowing native comparison to overlook this stricter requested format.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Does the retrieved result item contain exactly the two requested fields, with `order_count` represented as a JSON integer and no additional result fields or details?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].results_schema
+      - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer.normalize_object
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer.normalize_object

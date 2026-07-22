@@ -1,0 +1,122 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "747",
+  "domain": "webarena_verified",
+  "task_id": "747",
+  "native": {
+    "user_goal": {
+      "text": "Create a private GitLab project named \"awesome_web_agents\" from the blank template and add Abishek and Vinta as members.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score == 1.0, requiring all three configured evaluator scores to equal 1.0: the agent-response check, the project-creation network-event check, and the member-invitation network-event check.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator reads the retained agent response and HAR, runs the configured AgentResponseEvaluator and two NetworkEventEvaluator instances, and conjunctively composes their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the released parser and normalizer make the response match the expected MUTATE/SUCCESS response structure for this non-retrieve task?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last matching POST to __GITLAB__/projects return 302 and match project[name]=awesome_web_agents, project[path]=awesome_web_agents, project[namespace_id]=2505, project[template_name]=null, and project[visibility_level]=0?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last POST matching ^__GITLAB__/api/v4/projects/\\d+/invitations$ return 201 and carry user_id that normalizes under the configured string_list schema to 5,278, with serializer ignored?",
+        "support": [
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff the agent-response check and both specified last-matching HAR event checks each score 1.0 under the released parsing, filtering, normalization, and comparison rules.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if complete retained artifacts make any configured evaluator fail or error, including a response mismatch, no or mismatching last project-creation event, or no or mismatching last invitation event; any such result forces task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when retention is missing, unreadable, or known incomplete so one or more official checks cannot be reconstructed; a complete HAR with no matching event is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_same_project_final_state",
+        "text": "Beyond native success, retained post-run GitLab state must identify the created awesome_web_agents project as private and blank and show Abishek and Vinta as members under that same project ID.",
+        "rationale": "The native evaluator checks only a declared success and two network-event patterns; the invitation URL accepts any numeric project ID, and no configured evaluator reads final project or membership state. Native success therefore does not prove the durable, same-project outcome stated by the task.",
+        "decisive_artifacts": [
+          {
+            "artifact": "post-run GitLab project metadata export",
+            "question": "Does it show the created awesome_web_agents project ID, private visibility, and blank or empty repository state?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]"
+            ]
+          },
+          {
+            "artifact": "post-run GitLab project-members export",
+            "question": "For that exact project ID, does it list Abishek and Vinta as members?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[2]"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,75 @@
+schema_version: case_checklist_v1
+case_unit_id: torch-pipeline-parallelism
+domain: terminal_bench_2_1
+task_id: terminal-bench/torch-pipeline-parallelism
+native:
+  user_goal:
+    text: Implement `/app/pipeline_parallel.py` with `train_step_pipeline_afab(model, inputs, targets, device, dtype)` for LLaMA that roughly balances layers across ranks, runs all microbatch forwards before any backwards, uses distributed stage communication, computes scaled cross-entropy on the last rank, moves inputs/hidden states/gradients to the provided device and dtype, and does not use hooks in the implementation.
+    support:
+    - official/instruction.md::1-33
+  benchmark_success:
+    text: 'Native success is retained evidence that the pytest verifier in `official/tests/test.sh` passed every official check in `official/tests/test_outputs.py`: `/app/pipeline_parallel.py` exists, its source contains neither forbidden hook API string, and the parametrized pipeline test passes for `world_size` 1 and 2, including the embedded layer-count, AFAB-order, microbatch-count, and forward/backward tensor-equality assertions against the reference model.'
+    support:
+    - official/tests/test.sh::18-30
+    - official/tests/test_outputs.py::test_pipeline_parallel_exists
+    - official/tests/test_outputs.py::test_no_hooks_in_pipeline_parallel
+    - official/tests/test_outputs.py::test_pipeline_parallel
+    - official/tests/test_outputs.py::_test_pipeline_parallel
+  checked_by:
+    text: Pytest execution of `official/tests/test_outputs.py` from `official/tests/test.sh`, with native pass/fail determined by whether that test run exits successfully.
+    support:
+    - official/tests/test.sh::18-30
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the retained CTRF report show pass/fail outcomes for `test_pipeline_parallel_exists`, `test_no_hooks_in_pipeline_parallel`, and both `world_size` cases of `test_pipeline_parallel`?
+    support:
+    - case_packet.md::91-103
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::test_pipeline_parallel
+  - artifact: verifier/test-stdout.txt
+    question: Do the retained pytest logs corroborate an all-pass run or identify a specific official failure such as missing file, forbidden hook usage, too many layers on a rank, AFAB violation, microbatch-count mismatch, or tensor mismatch versus the reference model?
+    support:
+    - case_packet.md::91-103
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::test_pipeline_parallel_exists
+    - official/tests/test_outputs.py::test_no_hooks_in_pipeline_parallel
+    - official/tests/test_outputs.py::_test_pipeline_parallel
+  success_if:
+  - text: Retained verifier evidence shows that `test_pipeline_parallel_exists`, `test_no_hooks_in_pipeline_parallel`, and both parametrized `test_pipeline_parallel` cases passed in the pytest run defined by `official/tests/test.sh`.
+    support:
+    - official/tests/test.sh::18-30
+    - official/tests/test_outputs.py::test_pipeline_parallel_exists
+    - official/tests/test_outputs.py::test_no_hooks_in_pipeline_parallel
+    - official/tests/test_outputs.py::test_pipeline_parallel
+  fail_if:
+  - text: Retained verifier evidence shows `test_pipeline_parallel_exists` failed, so `/app/pipeline_parallel.py` was not present where the verifier expected it.
+    support:
+    - official/tests/test_outputs.py::test_pipeline_parallel_exists
+  - text: Retained verifier evidence shows `test_no_hooks_in_pipeline_parallel` failed because the implementation source contains `register_forward_hook` or `register_full_backward_hook`.
+    support:
+    - official/tests/test_outputs.py::test_no_hooks_in_pipeline_parallel
+  - text: Retained verifier evidence shows either `test_pipeline_parallel` case failed for `world_size` 1 or 2, including failure of the rank layer-count bound, AFAB ordering check, microbatch-count match, or forward/backward tensor equality against the reference model.
+    support:
+    - official/tests/test_outputs.py::test_pipeline_parallel
+    - official/tests/test_outputs.py::_test_pipeline_parallel
+  undecided_if:
+  - text: The retained non-label verifier artifacts do not preserve enough per-test outcome detail to establish either that all official pytest checks passed or that any specific official check failed.
+    support:
+    - case_packet.md::91-103
+    - official/tests/test.sh::18-24
+    - case_packet.md::79-85
+stronger:
+  additional_conditions:
+  - id: device-dtype-handling
+    text: Beyond native passing, retained code evidence should show that `train_step_pipeline_afab` explicitly moves inputs, inter-stage hidden states, and backward tensors to the provided `device` and `dtype`, because the instruction requires that behavior for all such tensors while the released tests exercise only `cpu` and `torch.float32`.
+    rationale: 'This is a concrete instruction/evaluator gap: the official instruction requires device/dtype handling for inputs, hidden states, and gradients, but `_test_pipeline_parallel` fixes `device = torch.device("cpu")` and `dtype = torch.float32`, so an implementation can satisfy the native checks without demonstrating general compliance with those parameters.'
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: Do retained code artifacts for `/app/pipeline_parallel.py` show explicit conversion of inputs, stage activations, and backward tensors to the provided `device` and `dtype` at the points where they are created, received, or sent?
+      support:
+      - case_packet.md::91-103
+      - official/instruction.md::24-28
+      - official/tests/test_outputs.py::_test_pipeline_parallel
+    support:
+    - official/instruction.md::24-28
+    - official/tests/test_outputs.py::_test_pipeline_parallel

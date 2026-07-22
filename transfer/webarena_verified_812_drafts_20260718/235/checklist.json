@@ -1,0 +1,127 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "235",
+  "domain": "webarena_verified",
+  "task_id": "235",
+  "native": {
+    "user_goal": {
+      "text": "Return the order number of the user's most recent shopping order whose status is under delivery.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "The task passes only when its sole configured AgentResponseEvaluator scores 1.0. After official parsing and normalization, the submitted response must match task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data normalized to null; any evaluator or orchestration error yields task score 0.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs AgentResponseEvaluator, which structurally compares the normalized response; EvaluatorResult.create assigns 1.0 when no assertions remain, and TaskEvalResult.create requires every configured evaluator score to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the submitted response, under the official parser and normalizer, produce evaluator-visible task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null, with no structural comparison assertion?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the supplied HAR parseable as the required NetworkTrace so evaluation setup completes without a task-level error?",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The submitted response is accepted as a structured object after official parsing and normalizes to task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null; a missing, null, or empty retrieved_data value is normalized to null, and comparison produces no assertions.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data"
+        ]
+      },
+      {
+        "text": "The network trace parses and evaluation completes without error; the sole AgentResponseEvaluator then scores 1.0, so the all-evaluators composition gives TaskEvalResult.score 1.0.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The sole AgentResponseEvaluator scores 0 because the recorded submission is absent, unparseable, or non-structured after parsing, has an evaluator-visible key or value mismatch, does not normalize to RETRIEVE and NOT_FOUND_ERROR, or supplies non-null retrieved_data.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_recursive",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "A response-normalization, comparison, network-trace parsing, or orchestration error makes the evaluator or task result ERROR with score 0; any sole-evaluator score other than 1.0 also makes the task fail.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The retained evidence does not establish what response and trace were actually supplied and contains no complete official TaskEvalResult from which the score can be read. A recorded absent or malformed submission, unparseable trace, or ERROR result is failure rather than undecided.",
+        "rationale": "This separates loss or ambiguity of retained evidence from invalid run inputs and evaluation errors that the benchmark scores as failure."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "corroborate_not_found_against_shopping_state",
+        "text": "Require retained shopping evidence to establish whether an under-delivery order existed at run time: if one existed, the response must give the order number of the most recent one; otherwise, the accepted NOT_FOUND_ERROR must be corroborated by evidence that no such order existed.",
+        "rationale": "The instruction asks for the most recent qualifying order number, while the native response-only evaluator accepts NOT_FOUND_ERROR with null data and has no configured check of shopping state. This condition closes that explicit task/evaluator gap.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Do retained shopping response bodies establish the complete relevant set of under-delivery orders and their recency and order numbers, or establish that the set was empty?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+            ]
+          },
+          {
+            "artifact": "agent_response.json",
+            "question": "Does the response provide the most recent qualifying order number when one exists, and use NOT_FOUND_ERROR with no data only when none exists?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[0].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

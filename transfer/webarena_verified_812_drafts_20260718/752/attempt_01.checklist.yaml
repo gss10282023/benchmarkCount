@@ -1,0 +1,84 @@
+schema_version: case_checklist_v1
+case_unit_id: '752'
+domain: webarena_verified
+task_id: '752'
+native:
+  user_goal:
+    text: Create a private blank GitLab repository named "web_agent".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator on the final response and NetworkEventEvaluator on the network trace; any other score composition or evaluation error yields 0.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArena-Verified evaluator runs task 752's AgentResponseEvaluator and NetworkEventEvaluator and applies the all-evaluators-must-pass composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: 'Does the response parse and normalize without error to the expected compared object for this mutate task: task_type MUTATE, status SUCCESS, and retrieved_data None?'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the evaluator-selected last POST to the normalized GitLab /projects path have response status 302 and form values project[name]=web_agent, project[path]=web_agent, project[namespace_id]=2505, and project[visibility_level]=0?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: AgentResponseEvaluator reads agent_response.json, normalizes it to the expected MUTATE/SUCCESS response object, produces no failing assertion or evaluator error, and scores 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: NetworkEventEvaluator reads network.har and its last selected POST /projects event matches response status 302 and all four configured project form values under evaluator normalization, so it scores 1.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Both evaluator scores are 1.0 and no task-level evaluation error occurs, yielding TaskEvalResult.score 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: A complete retained agent response fails if AgentResponseEvaluator cannot parse or normalize it to the expected MUTATE/SUCCESS object, reports a mismatch, or encounters an evaluator error.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: A complete retained network trace fails if no eligible POST /projects event exists, the last selected event mismatches status 302 or any configured form value, or NetworkEventEvaluator errors.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: If either evaluator score is not 1.0, or task evaluation errors, the composed task score is 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Neither a retained official TaskEvalResult nor enough intact content from both evaluator inputs remains to apply the two checks, such as when agent_response.json or network.har is absent or retention-truncated.
+    rationale: Incomplete retained evidence cannot distinguish a passing run from a failing run; a complete but evaluator-invalid input is instead a native failure.
+stronger:
+  additional_conditions:
+  - id: verify_persisted_private_blank_project
+    text: Beyond native scoring, a post-run GitLab state capture must confirm that namespace 2505 contains a persisted project named and pathed "web_agent", that its visibility is private, and that its repository is blank with no initialized commit, branch, or files.
+    rationale: The task asks for an actually created private blank repository, while the native evaluator checks a self-reported success response and a 302 POST. Its POST normalization retains only configured keys and its comparison ignores extra actual fields, so initialization options or an incorrect resulting state can pass without post-run state verification.
+    decisive_artifacts:
+    - artifact: Post-run GitLab project-state capture containing project metadata and repository or branch listing
+      question: Does it show the web_agent project in namespace 2505 exists, is private, and has no initialized repository content?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

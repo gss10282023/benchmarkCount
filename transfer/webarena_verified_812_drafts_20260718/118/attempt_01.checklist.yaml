@@ -1,0 +1,69 @@
+schema_version: case_checklist_v1
+case_unit_id: '118'
+domain: webarena_verified
+task_id: '118'
+native:
+  user_goal:
+    text: Navigate to a shopping product page for an item that could alleviate the user's jaw bruxism.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the response as a successful NAVIGATE task, and NetworkEventEvaluator accepts the last navigation event as GET, status 200, with its normalized URL matching ^__SHOPPING__/[a-z0-9-]*(?:guard|mouth|teeth|night|dental|bruxism)[a-z0-9-]*\.html$.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator applies AgentResponseEvaluator to the retained agent response and NetworkEventEvaluator to the retained HAR, then composes their scores with an all-must-equal-1.0 rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Under the released parsing and normalization, is the response a structured object accepted with task_type NAVIGATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last non-static navigation event a GET with response status 200 whose site-normalized URL matches ^__SHOPPING__/[a-z0-9-]*(?:guard|mouth|teeth|night|dental|bruxism)[a-z0-9-]*\.html$?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: 'Both components pass in the same run: the response normalizes and compares successfully as NAVIGATE/SUCCESS, and the HAR''s last navigation event compares successfully to the configured GET/200/URL-regex specification; consequently both evaluator scores and TaskEvalResult.score equal 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: TaskEvalResult.score is 0.0 if either component is not 1.0, including a malformed or mismatching agent response, no last navigation event, a last navigation event with a nonmatching normalized URL/method/status, or an evaluator error.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only when post-run retention loss leaves agent_response.json or network.har unavailable or incomplete enough that the corresponding run-time evaluator input cannot be reconstructed. A retained malformed or empty response, or a retained HAR with no qualifying event, is failure rather than undecided.
+    rationale: Missing review evidence does not establish what the evaluator saw, whereas evaluator-visible invalid or absent values are ordinary benchmark-counted failures or errors.
+stronger:
+  additional_conditions:
+  - id: page_content_confirms_bruxism_relevance
+    text: Beyond native scoring, retained content for the final navigated page must identify a product whose stated purpose is helping with bruxism or teeth grinding, such as reducing grinding or protecting teeth with a night or mouth guard.
+    rationale: The native network check tests only GET status 200 and a URL slug containing a broad token such as mouth, teeth, or dental; it does not inspect page content, so it can accept an unrelated product despite the user's bruxism-alleviation goal.
+    decisive_artifacts:
+    - artifact: network.har (final document response body)
+      question: Does the response body associated with the last navigation identify a product and state that it is intended to help with bruxism or teeth grinding?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.url
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

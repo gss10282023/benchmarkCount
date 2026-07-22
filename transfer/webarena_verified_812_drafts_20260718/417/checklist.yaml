@@ -1,0 +1,68 @@
+schema_version: case_checklist_v1
+case_unit_id: '417'
+domain: webarena_verified
+task_id: '417'
+native:
+  user_goal:
+    text: 'On the merge request assigned to the user for the 404-link issue, reply according to the current last commenter: reply "Thank you" if that commenter is the merge-request author; otherwise tag the author as a reminder.'
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult scores 1.0 only if both configured checks score 1.0: AgentResponseEvaluator accepts the final response as a successful MUTATE, and NetworkEventEvaluator accepts the last matching GitLab notes POST with the configured target, body fields, and HTTP 200 response.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task-config order and composes their results with TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response normalize without error and match the configured successful MUTATE response under AgentResponseEvaluator?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the evaluator-selected last matching POST have the normalized GitLab notes URL with target_id=72560 and target_type=merge_request, HTTP 200, noteable type MergeRequest, and note text matching ^.*@Roshanjossey.*$?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff AgentResponseEvaluator scores 1.0 on agent_response.json and NetworkEventEvaluator scores 1.0 on network.har; both scores must equal 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: With agent_response.json present and readable, failure is established if AgentResponseEvaluator rejects or errors on the response, because its score is then not 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: With a complete readable network.har, failure is established if the selected event is absent or fails any configured URL, method, status, or body comparison, because NetworkEventEvaluator then does not score 1.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable if agent_response.json or the complete network.har is missing, unreadable, or truncated, because the two evaluator inputs cannot both be reconstructed from the retained evidence.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+stronger:
+  additional_conditions:
+  - id: verify_conditional_branch_context
+    text: In addition to native success, retained GitLab state must show that target 72560 is the merge request assigned to the user for the 404-link issue, that Roshanjossey is its author, and that the comment immediately preceding the run's reply was not by Roshanjossey, establishing that the evaluator-required tag was the correct conditional branch.
+    rationale: The official instruction conditions the reply on assignment, topic, merge-request authorship, and the previous commenter, while the released network check only validates a fixed POST whose note contains @Roshanjossey; it does not inspect those state facts.
+    decisive_artifacts:
+    - artifact: Retained GitLab merge-request/thread state for target 72560, such as a page snapshot or relevant network.har response bodies
+      question: Does the retained state establish the assignment, 404-link topic, Roshanjossey's authorship, and that the pre-reply last comment was by someone else?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

@@ -1,0 +1,74 @@
+schema_version: case_checklist_v1
+case_unit_id: portfolio-optimization
+domain: terminal_bench_2_1
+task_id: terminal-bench/portfolio-optimization
+native:
+  user_goal:
+    text: Complete the provided C-extension skeleton and Python wrapper so portfolio risk and return match the Python baseline within 1e-10 tolerance, achieve at least 1.2x speedup on portfolios with 5000 or more assets, and handle portfolios up to 8000 assets.
+    support:
+    - official/instruction.md::1-9
+  benchmark_success:
+    text: 'Native success is established when the official verifier''s pytest suite passes all six checks: `test_c_extension_exists`, `test_baseline_functionality`, `test_correctness_small`, and `test_performance_and_scalability` for `n=5000`, `6000`, and `8000`; those checks require a compiled `portfolio_optimized_c` module with both exported functions, correctness within 1e-10 for risk and return at the tested sizes, and `portfolio_risk_c` speedup of at least 1.2x at each large size.'
+    support:
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::34-132
+  checked_by:
+    text: Official verifier `official/tests/test.sh`, which runs `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`; the native verdict is the pass/fail status of that suite.
+    support:
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::34-132
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the retained CTRF report show pass/fail status for all six official pytest cases, and if any failed, which named case failed (`test_c_extension_exists`, `test_baseline_functionality`, `test_correctness_small`, or `test_performance_and_scalability` at `n=5000`, `6000`, or `8000`)?
+    support:
+    - case_packet.md::62-73
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::34-132
+  - artifact: verifier/test-stdout.txt
+    question: Does the retained pytest console output corroborate the same per-test outcomes and, for failures, identify whether the failure was missing compiled extension/functions, correctness beyond 1e-10, or risk speedup below 1.2x at a tested large size?
+    support:
+    - case_packet.md::62-73
+    - official/tests/test_outputs.py::34-132
+  success_if:
+  - text: 'Retained verifier evidence establishes that all six official pytest cases passed: the compiled `portfolio_optimized_c` extension imported successfully with `portfolio_risk_c` and `portfolio_return_c`; the protected baseline sanity check passed; correctness for both risk and return was within 1e-10 at `n=100`; and correctness for both risk and return plus `portfolio_risk_c` speedup of at least 1.2x passed at `n=5000`, `6000`, and `8000`.'
+    support:
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::34-132
+  fail_if:
+  - text: Retained verifier evidence shows `test_c_extension_exists` failed, including import failure of `portfolio_optimized_c`, a non-compiled module file, or missing `portfolio_risk_c`/`portfolio_return_c`.
+    support:
+    - official/tests/test_outputs.py::34-65
+  - text: Retained verifier evidence shows `test_baseline_functionality` or `test_correctness_small` failed, including protected-baseline sanity failure or risk/return mismatch exceeding 1e-10 at the small test size.
+    support:
+    - official/tests/test_outputs.py::68-102
+  - text: Retained verifier evidence shows any `test_performance_and_scalability` case for `n=5000`, `6000`, or `8000` failed because risk or return mismatched the protected baseline by at least 1e-10, or because `portfolio_risk_c` achieved less than 1.2x speedup versus `portfolio_risk_python`.
+    support:
+    - official/tests/test_outputs.py::105-132
+  undecided_if:
+  - text: The retained non-label verifier artifacts are missing, malformed, or too incomplete to determine whether each official pytest case passed or failed, and the available stdout does not reliably reconstruct the full six-case outcome set.
+    support:
+    - case_packet.md::62-73
+    - official/tests/test.sh::18-24
+    - official/tests/test_outputs.py::34-132
+stronger:
+  additional_conditions:
+  - id: return_speedup_also_verified
+    text: Beyond native scoring, retained evidence should also show `portfolio_return_c` achieves at least 1.2x speedup versus `portfolio_return_python` at the large portfolio sizes `5000`, `6000`, and `8000`, because the official task describes portfolio risk and return calculations meeting the speed target while the released evaluator times only risk.
+    rationale: 'This is a concrete task/evaluator gap: official task intent covers both portfolio calculations, but the native verifier''s performance measurement uses only `portfolio_risk_python` and `portfolio_risk_c`.'
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained command/output trace include large-portfolio timing measurements comparing `portfolio_return_c` with `portfolio_return_python`, and if so do those measurements show at least 1.2x speedup at `n=5000`, `6000`, and `8000`?
+      support:
+      - case_packet.md::62-68
+      - official/task.toml::4-7
+      - official/tests/test_outputs.py::123-129
+    - artifact: agent/*-stdout.txt
+      question: Do retained agent command logs report return-function timing results for `n=5000`, `6000`, and `8000` that corroborate at least 1.2x speedup over the Python baseline?
+      support:
+      - case_packet.md::62-68
+      - official/task.toml::4-7
+      - official/tests/test_outputs.py::123-129
+    support:
+    - official/task.toml::4-7
+    - official/instruction.md::1-4
+    - official/tests/test_outputs.py::123-129

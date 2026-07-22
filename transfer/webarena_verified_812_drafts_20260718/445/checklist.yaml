@@ -1,0 +1,66 @@
+schema_version: case_checklist_v1
+case_unit_id: '445'
+domain: webarena_verified
+task_id: '445'
+native:
+  user_goal:
+    text: Use GitLab's simple online file editor to update the current project's website code and commit to main so the browser tab title is "Hello".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: AgentResponseEvaluator and NetworkEventEvaluator must both score 1.0; any lower score or evaluation error makes the task score 0.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator applies AgentResponseEvaluator to the retained response and NetworkEventEvaluator to the retained network trace, then conjunctively aggregates their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize without error so AgentResponseEvaluator accepts task_type MUTATE, status SUCCESS, and the expected non-retrieve response structure with no comparison assertion?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last evaluation event matching POST to the GitLab path /byteblaze/gimmiethat.space/-/update/main/index.html have response status 302 and parsed post data _method=put, branch_name=main, original_branch=main, file_path=index.html, with content matching the configured anchored HTML regex containing <title>Hello</title>?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks score 1.0: agent_response.json is accepted by AgentResponseEvaluator as the expected successful mutation response, and the last configured GitLab update event in network.har matches the required URL, method, 302 status, post-data values, and content regex.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Native failure occurs if either evaluator scores below 1.0 or errors: the response is not accepted as the expected successful mutation response, or no selected last matching update event exists or that event differs from any required network criterion.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecided if agent_response.json or network.har was not retained, or retention damage prevents reconstructing the corresponding original evaluator input; a present malformed or mismatching input is instead native failure.
+    support:
+    - case_packet.md::Benchmark Task Summary
+stronger:
+  additional_conditions:
+  - id: durable_main_commit_state
+    text: Beyond native success, retained post-run repository state shows that main points to a commit whose index.html sets the resulting document title to exactly "Hello".
+    rationale: The task requires a committed change on main, while the released checks accept a successful response claim plus a matching update request with a 302 response and do not inspect the resulting branch, commit, or file tree.
+    decisive_artifacts:
+    - artifact: Post-run GitLab repository snapshot for byteblaze/gimmiethat.space, including the main ref and referenced commit tree
+      question: Does refs/heads/main resolve to a commit whose index.html produces the document title exactly "Hello"?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::start_urls
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

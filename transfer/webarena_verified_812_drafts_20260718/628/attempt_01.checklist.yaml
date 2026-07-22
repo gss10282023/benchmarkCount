@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '628'
+domain: webarena_verified
+task_id: '628'
+native:
+  user_goal:
+    text: Create a Reddit discussion post in a relevant forum titled "long distance relationship" with the prompt/body "your opinion".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both official evaluators score 1.0: AgentResponseEvaluator accepts the response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the last matching Reddit submit POST with response status 302 and expected title, body, and forum fields.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: Run the released AgentResponseEvaluator on agent_response.json and NetworkEventEvaluator on network.har; combine their scores with TaskEvalResult.create's all-scores-equal-1.0 rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response pass the released structural parsing, normalization, and comparison for task_type MUTATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last POST event matching __REDDIT__/submit or __REDDIT__/submit/relationship_advice have response status 302 and evaluator-normalized fields submission[title]="long distance relationship", submission[body]="your opinion", and submission[forum]="10075"?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both components score 1.0: the response passes AgentResponseEvaluator''s MUTATE/SUCCESS comparison, and the HAR''s last matching submit POST passes NetworkEventEvaluator''s URL, method, status, and expected-form-field comparison.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Fail if either component scores other than 1.0 or errors: the response fails the MUTATE/SUCCESS structural comparison, or no qualifying submit POST exists, or the last matching POST mismatches the accepted path, method, 302 status, or any expected title/body/forum field.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retention leaves too little of agent_response.json or network.har to evaluate a component and the available evidence does not already prove failure; a present malformed artifact or a recorded evaluator error is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: Incomplete retained evidence cannot reconstruct both required evaluator outcomes, whereas an artifact actually rejected by the released evaluator receives a non-success score.
+stronger:
+  additional_conditions:
+  - id: confirm_persisted_post
+    text: Beyond native acceptance of a matching 302 submit event, require retained post-run Reddit state to show that the created post persists in relationship_advice with title "long distance relationship" and body "your opinion".
+    rationale: The task intent claims creation of a discussion post, but the native NetworkEventEvaluator only compares a request/response event in the HAR and does not inspect persisted Reddit state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit post page or state export
+      question: Does a post attributable to this run persist in relationship_advice with the required title and body?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

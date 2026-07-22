@@ -1,0 +1,109 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "102",
+  "domain": "webarena_verified",
+  "task_id": "102",
+  "native": {
+    "user_goal": {
+      "text": "Navigate to the GitLab page listing open issues in the a11yproject/a11yproject.com repository whose labels are related to help wanted.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0, requiring all three configured evaluator scores to equal 1.0: the response matches NAVIGATE/SUCCESS with no retrieved data; the last navigation event is a 200 GET to the byteblaze/a11y-syntax-highlighting issues path with all query parameters ignored; and the last matching 200 POST to the GitLab GraphQL endpoint has the specified byteblaze issues-page referer with state=opened and label_name[]=help wanted, ignoring page and sort parameters.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator checks agent_response.json, two NetworkEventEvaluator instances check network.har in task order, and TaskEvalResult.create composes their scores conjunctively.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the submitted response normalize to task_type NAVIGATE, status SUCCESS, and retrieved_data null under the response evaluator's structural comparison?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the trace satisfy both network checks: the last navigation is a 200 GET to the configured byteblaze issues path, and the last matching GitLab GraphQL POST returns 200 with the configured filtered-issues referer?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "All three checks score 1.0 simultaneously: the response normalizes to NAVIGATE/SUCCESS with no retrieved data; the trace's last navigation is a 200 GET matching ^__GITLAB__/byteblaze/a11y-syntax-highlighting/-/issues.*$ after ignoring all query parameters; and the last qualifying 200 POST to __GITLAB__/api/graphql has referer __GITLAB__/byteblaze/a11y-syntax-highlighting/-/issues/?state=opened&label_name[]=help wanted after ignoring page and sort parameters.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure occurs if evaluation errors or any configured score is not 1.0, including a submitted response mismatch, a missing or mismatching final navigation event, or a missing or mismatching qualifying GraphQL POST or referer.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "A required artifact is absent from retained evidence and it is not established that the absence was the actual evaluator input, leaving at least one of the three checks unreconstructable.",
+        "rationale": "A retention gap cannot distinguish a benchmark-counted failing input from an otherwise unobserved passing input."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "requested_repository_alignment",
+        "text": "Beyond native success, retained final-navigation evidence must identify the open-issues page for a11yproject/a11yproject.com with the help wanted label filter applied.",
+        "rationale": "The official task requests a11yproject/a11yproject.com, but both released network checks target the unrelated byteblaze/a11y-syntax-highlighting repository; native success therefore does not establish navigation to the requested repository.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Does the final GitLab issues navigation, with its associated list-loading request if present, target a11yproject/a11yproject.com with state=opened and label_name[]=help wanted rather than byteblaze/a11y-syntax-highlighting?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::instantiation_dict",
+              "derived/task.json::eval[1].expected",
+              "derived/task.json::eval[2].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::instantiation_dict.repo",
+          "derived/task.json::eval[1].expected.url",
+          "derived/task.json::eval[2].expected.headers.referer"
+        ]
+      }
+    ]
+  }
+}

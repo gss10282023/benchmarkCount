@@ -1,0 +1,87 @@
+schema_version: case_checklist_v1
+case_unit_id: '213'
+domain: webarena_verified
+task_id: '213'
+native:
+  user_goal:
+    text: Return every Antonia Racer Tank review rated 3 stars or below as objects containing "title" and "rating".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 iff the sole AgentResponseEvaluator scores 1.0: the parsed final response has the expected normalized task type and status and its retrieved_data exactly matches the expected unordered array after schema normalization.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The sole scoring check is AgentResponseEvaluator; TaskEvalResult.create then requires every configured evaluator score—here, that one score—to equal 1.0.
+    support:
+    - derived/task.json::eval[0].evaluator
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response parse under the released response parser and normalize to RETRIEVE, SUCCESS, and exactly the expected unordered two-object retrieved_data without producing a structural comparison error?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the required trace present and parseable as a NetworkTrace so the task-evaluation context can be constructed?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+  success_if:
+  - text: The parsed response supplies task_type (or legacy performed_operation) and status that normalize to RETRIEVE and SUCCESS; for this task it omits an explicit error_details key, so normalization and top-level comparison produce no error or extra compared key.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+  - text: After schema/string normalization, retrieved_data is exactly the unordered two-element array [{"title":"Zero support/modesty","rating":"2"}, {"title":"Not for high impact","rating":"3"}], with neither missing nor extra elements or object fields.
+    support:
+    - derived/task.json::eval[0].expected.retrieved_data
+    - derived/task.json::eval[0].results_schema
+    - derived/task.json::eval[0].ordered
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: The required inputs are evaluable, the sole AgentResponseEvaluator returns score 1.0, and therefore the all-evaluators composition yields TaskEvalResult.score 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The evaluator input is affirmatively null, non-mapping after parsing, normalization raises an error, task_type/status do not normalize to RETRIEVE/SUCCESS, or an explicitly supplied error_details field causes an error or extra-key mismatch.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+  - text: retrieved_data is missing or empty, or its normalized unordered array has any missing, extra, duplicate, malformed, or unequal review object or field.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+  - text: The run record establishes that a required input, including network.har, was absent or unparseable and evaluation errored, or the sole evaluator otherwise scored below 1.0; either outcome makes TaskEvalResult.score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._create_eval_error_result
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Only screenshots, prose summaries, partial excerpts, or unattributed files are retained, so the exact submitted response or required HAR parseability cannot be established.
+    rationale: Such evidence does not determine what inputs the released evaluator actually received and therefore cannot establish its score.
+stronger:
+  additional_conditions:
+  - id: strict_final_response_json
+    text: The retained final response is itself a JSON object conforming to FinalAgentResponse, rather than markdown or code-fenced text accepted only after evaluator extraction.
+    rationale: The official response type calls for a valid JSON final response, while the released parser also extracts and accepts JSON embedded in code fences; native success therefore does not establish strict JSON serialization.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Before evaluator extraction or coercion, is the raw retained response syntactically a JSON object conforming to FinalAgentResponse?
+      support:
+      - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    support:
+    - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict

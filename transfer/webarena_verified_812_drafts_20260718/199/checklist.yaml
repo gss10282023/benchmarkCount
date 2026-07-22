@@ -1,0 +1,61 @@
+schema_version: case_checklist_v1
+case_unit_id: '199'
+domain: webarena_verified
+task_id: '199'
+native:
+  user_goal:
+    text: Return the order ID of the newest pending order.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: The case succeeds only when the sole configured AgentResponseEvaluator scores 1.0, making TaskEvalResult.score equal 1.0. This requires the evaluator-normalized response to match task_type RETRIEVE, status SUCCESS, and the unordered singleton numeric retrieved_data value 299.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator and assigns task success only when every configured evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response normalize to task_type RETRIEVE, status SUCCESS, and exactly one numeric retrieved_data item equal to 299 under the evaluator's unordered comparison?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the required network trace parseable as a NetworkTrace and, if environment-URL recovery is needed, sufficient for evaluation to reach the response comparison without a context/configuration error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: 'The retained response normalizes to the expected three-field comparison value: task_type RETRIEVE, status SUCCESS, and retrieved_data containing exactly the numeric value 299; the sole AgentResponseEvaluator therefore scores 1.0.'
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: Evaluation completes without an evaluator or orchestration error, so the sole evaluator's 1.0 score produces TaskEvalResult.score 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The supplied response is non-object, missing or null where data is expected, or its normalized task_type, status, or retrieved_data differs from RETRIEVE, SUCCESS, and the exact singleton numeric value 299; any missing, wrong, or extra retrieved-data item fails.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: Response or trace parsing, context validation, normalization, evaluator execution, or orchestration produces an error, because evaluator and task errors receive score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Retained artifacts are absent or truncated such that the reviewer cannot establish the response supplied to the evaluator or whether trace/context setup completed. A retained null, malformed, or mismatching input known to have been supplied is failure, not undecided.
+    rationale: This distinguishes evidence-retention loss from an evaluator-visible invalid input, which the released evaluator counts as failure or error.
+stronger:
+  additional_conditions: []

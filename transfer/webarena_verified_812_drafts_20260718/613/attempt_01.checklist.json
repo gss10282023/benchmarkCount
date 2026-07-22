@@ -1,0 +1,108 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "613",
+  "domain": "webarena_verified",
+  "task_id": "613",
+  "native": {
+    "user_goal": {
+      "text": "Create a review post titled \"Love story\" in f/books, then comment \"I cried\" on that newly created post.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only if all three configured evaluators score 1.0: the final-response check, the post-creation network-event check, and the comment network-event check.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator normalizes and structurally compares the final response. Two independent NetworkEventEvaluator instances filter the HAR by method and URL, select the last matching event, and compare configured fields; TaskEvalResult.create conjoins their scores.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and normalize to an object accepted for task_type MUTATE and status SUCCESS under the configured non-retrieve response comparison?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last POST matching __REDDIT__/submit or __REDDIT__/submit/books return 302 with submission[forum]=10037 and submission[title]=Love story, and does the last POST matching __REDDIT__/f/books/{{post_id}}/-/comment return 302 with reply_to_submission_{{post_id}}[comment]=I cried, under official normalization?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "All three evaluator scores are 1.0: the response is accepted as MUTATE/SUCCESS; the selected last creation POST is a 302 with forum 10037 and title Love story; and the selected last comment POST is a 302 with I cried in the configured {{post_id}} URL/form-key template.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Any of the three evaluators scores 0.0 or errors, including an unaccepted final response, a missing or mismatching selected creation event, or a missing or mismatching selected comment event; the resulting task score is 0.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecided only if agent_response.json or network.har is absent, unreadable, or demonstrably truncated so the official checks cannot be replayed. A readable response and complete HAR containing no qualifying event or a mismatch are native failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "link_comment_to_created_post",
+        "text": "Beyond the native independent event checks, retained HAR evidence must show that the qualifying creation POST precedes the comment POST and that the creation response's resulting post identifier is the identifier used in both the comment URL and its form key.",
+        "rationale": "The instruction requires commenting \"then\" on \"the created post,\" but the released network evaluators select and compare the two events independently, while the task scorer only conjoins their scores; no released check compares their order or binds the creation response identifier to the comment event.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "In trace order, does the qualifying creation POST precede the qualifying comment POST, and does its 302 redirect target identify the same post ID used in the comment URL and reply_to_submission_<id>[comment] key?",
+            "support": [
+              "derived/task.json::eval[1]",
+              "derived/task.json::eval[2]",
+              "official/src/webarena_verified/types/tracing.py::NetworkEvent.redirect_url",
+              "official/src/webarena_verified/types/tracing.py::NetworkEvent.post_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

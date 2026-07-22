@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '487'
+domain: webarena_verified
+task_id: '487'
+native:
+  user_goal:
+    text: Change the shopping-admin CMS page titled "Enable Cookies" so its page title is "Cookie monster coming to your place".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Task score is 1.0 only when both official evaluator scores are 1.0: AgentResponseEvaluator accepts the mutate-task success response, and NetworkEventEvaluator accepts the last matching save POST with the specified URL, form fields, and 302 response.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks the retained agent response, NetworkEventEvaluator checks the retained network trace, and TaskEvalResult.create requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: 'Does the response normalize and compare without assertions to the expected mutate-task response: task_type MUTATE, status SUCCESS, and no required retrieved result?'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last POST event matching the normalized shopping-admin path /cms/page/save/back/edit accepted with response status 302 and form values is_active=1, page_id=3, store_id[0]=0, and the specified new title?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks pass simultaneously: the agent response receives score 1.0 and the last matching save POST receives score 1.0 under the evaluator''s normalization and comparison rules.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if AgentResponseEvaluator scores below 1.0 or errors because the retained response is invalid or does not match the expected mutate-task success response; the all-evaluators composition then makes the task score 0.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Fail if NetworkEventEvaluator scores below 1.0 or errors because the matching save event is absent or its last matching occurrence fails any expected URL, method, form-field, or response-status comparison; the all-evaluators composition then makes the task score 0.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retention is incomplete enough that the original agent response or network events cannot be reconstructed; an intact artifact showing an invalid response, no matching event, or a mismatch is failure rather than undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: persisted_page_title
+    text: Beyond native scoring, retained post-run site-state evidence must show that CMS page_id 3 persisted with title exactly "Cookie monster coming to your place", rather than establishing only a matching save request and 302 response.
+    rationale: The official task claims an actual page-title change, while the released native evaluator inspects the response declaration and a network request/response event but does not read the resulting CMS page record.
+    decisive_artifacts:
+    - artifact: Post-run CMS page record or site-state export
+      question: Does the post-run record for page_id 3, formerly titled "Enable Cookies", contain the exact title "Cookie monster coming to your place"?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

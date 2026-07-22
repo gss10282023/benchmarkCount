@@ -1,0 +1,92 @@
+schema_version: case_checklist_v1
+case_unit_id: SimpleSmsSend
+domain: androidworld
+task_id: SimpleSmsSend
+native:
+  user_goal:
+    text: Send a text message in Simple SMS Messenger to the specified phone number with the specified message.
+    support:
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSend
+  benchmark_success:
+    text: 'Native benchmark success requires both: the episode finishes with `interaction_results.done = true`, and `SimpleSMSSendSms.is_successful` returns 1.0. That evaluator returns 1.0 only if the final sent-SMS query contains a row to the target number whose body matches the target message under the evaluator''s fuzzy-match rule and is dated within 5 minutes of the captured Android time, the foreground package is `com.simplemobiletools.smsmessenger`, and the final UI is not stuck on a `Sending` element.'
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  checked_by:
+    text: AndroidWorld's suite runner done-gate plus the `SimpleSMSSendSms` evaluator.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+  decisive_artifacts:
+  - artifact: Retained episode summary or step trace
+    question: Did the run finish with `interaction_results.done = true`?
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - artifact: Post-run sent-SMS dump with near-simultaneous Android-time capture
+    question: At evaluation time, is there a sent-SMS row whose normalized `address` equals the requested number, whose `body` matches the requested message under the evaluator's fuzzy-match rule, and whose `date` is within 5 minutes of the captured Android time?
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  - artifact: Final foreground-activity record and final UI hierarchy or screenshot
+    question: At evaluation time, is the foreground package `com.simplemobiletools.smsmessenger`, and does the final UI lack any element whose text starts with `Sending`?
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
+  success_if:
+  - text: The retained run evidence shows `interaction_results.done = true`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: A post-run sent-SMS dump paired with the evaluation-time Android clock shows a sent row to the requested number whose body matches the requested message under the evaluator's fuzzy-match rule and whose timestamp is within 5 minutes of evaluation time.
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  - text: The final foreground activity is Simple SMS Messenger and the final UI shows no text starting with `Sending`.
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
+  fail_if:
+  - text: The retained run evidence shows `interaction_results.done = false`, regardless of the evaluator-visible device state.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: The final sent-SMS dump and evaluation-time Android clock show no qualifying sent row to the requested number with a fuzzy-matching body within the evaluator's 5-minute window.
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  - text: The final evaluator-visible state shows either a foreground package other than `com.simplemobiletools.smsmessenger` or a UI element whose text starts with `Sending`.
+    support:
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::_check_if_stuck_at_sending
+  undecided_if:
+  - text: The native claim is undecided if the retained evidence is missing any official check input needed to apply the rules above, especially the episode done status, the evaluation-time sent-SMS dump plus Android-time capture, or the final activity/UI evidence.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+  - text: The native claim is undecided if the retained record shows only an evaluator/setup exception, because the runner stores an exception result instead of a 0/1 success decision.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/suite_utils.py::_create_failed_result
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.initialize_task
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::SimpleSMSSendSms.is_successful
+stronger:
+  additional_conditions:
+  - id: exact_sms_body_match
+    text: Beyond the native criterion, the retained sent-message row should show an exact body-text match to the requested `{message}`, not merely a fuzzy-match pass.
+    rationale: 'This closes a concrete measurement gap: the official task asks for the specified message, but the released evaluator accepts approximate body matches through `fuzzy_match`.'
+    decisive_artifacts:
+    - artifact: Post-run sent-SMS dump
+      question: Does the retained sent-message row's `body` exactly equal the requested `{message}` text?
+      support:
+      - official/install/android_world/task_evals/single/sms.py::SimpleSmsSend
+      - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+      - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+    support:
+    - official/install/android_world/task_evals/single/sms.py::SimpleSmsSend
+    - official/install/android_world/task_evals/common_validators/sms_validators.py::was_sent
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match

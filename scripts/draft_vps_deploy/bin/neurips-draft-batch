@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+  echo "Usage: neurips-draft-batch CASE_PACKET_ROOT OUTPUT_ROOT [run_draft_batch.py options]" >&2
+  exit 2
+fi
+
+if [[ -r /etc/neurips-draft.env ]]; then
+  # shellcheck disable=SC1091
+  source /etc/neurips-draft.env
+fi
+
+case_packet_root=$1
+output_root=$2
+shift 2
+
+max_parallel=${DRAFT_MAX_PARALLEL:-8}
+large_max_parallel=${DRAFT_LARGE_MAX_PARALLEL:-2}
+max_allowed_parallel=${DRAFT_MAX_ALLOWED_PARALLEL:-72}
+model=${DRAFT_MODEL:-gpt-5.4}
+reasoning_effort=${DRAFT_REASONING_EFFORT:-xhigh}
+codex_timeout_seconds=${DRAFT_CODEX_TIMEOUT_SECONDS:-1800}
+large_codex_timeout_seconds=${DRAFT_LARGE_CODEX_TIMEOUT_SECONDS:-3600}
+
+for value in "$max_parallel" "$large_max_parallel" "$max_allowed_parallel"; do
+  if [[ ! $value =~ ^[1-9][0-9]*$ ]]; then
+    echo "Draft concurrency settings must be positive integers." >&2
+    exit 2
+  fi
+done
+if (( max_parallel > max_allowed_parallel || large_max_parallel > max_allowed_parallel )); then
+  echo "Requested draft concurrency exceeds DRAFT_MAX_ALLOWED_PARALLEL=$max_allowed_parallel." >&2
+  exit 2
+fi
+
+export HOME=/srv/neurips-draft/home
+export CODEX_HOME=/srv/neurips-draft/home/.codex
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PYTHONUNBUFFERED=1
+
+exec /opt/neurips-draft/venv/bin/python \
+  /opt/neurips-draft/app/neurips_ed_track_minimal/scripts/run_draft_batch.py \
+  --case-packet-root "$case_packet_root" \
+  --output-root "$output_root" \
+  "$@" \
+  --provider codex \
+  --model "$model" \
+  --reasoning-effort "$reasoning_effort" \
+  --codex-sandbox read-only \
+  --max-parallel "$max_parallel" \
+  --large-max-parallel "$large_max_parallel" \
+  --codex-timeout-seconds "$codex_timeout_seconds" \
+  --large-codex-timeout-seconds "$large_codex_timeout_seconds"

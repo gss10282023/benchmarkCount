@@ -1,0 +1,97 @@
+schema_version: case_checklist_v1
+case_unit_id: '221'
+domain: webarena_verified
+task_id: '221'
+native:
+  user_goal:
+    text: From CMU Pittsburgh, identify the nearest USPS postal office and, using OSRM, return only a list of Walking, Driving, and Biking travel durations as HH:MM:SS values in objects with keys transportation_method and duration.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: Native success is TaskEvalResult.score = 1.0. Because task 221 has only AgentResponseEvaluator, the parsed response must normalize to task_type RETRIEVE, status SUCCESS, and an order-insensitive retrieved_data multiset exactly matching Walking/19min, Driving/2min, and Biking/7min; any evaluator score other than 1.0 makes the task score 0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator parses the submitted response, normalizes it with the configured result schema, and structurally compares retrieved_data with ordered=false. An assertion-free evaluation scores 1.0, after which TaskEvalResult applies the all-evaluators-must-score-1.0 rule.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After evaluator parsing and schema normalization, does the submitted response have task_type RETRIEVE, status SUCCESS, and exactly the unordered Walking/19min, Driving/2min, and Biking/7min retrieved-data objects, with no missing or extra retrieved item or object key?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  success_if:
+  - text: The complete retained response normalizes to RETRIEVE/SUCCESS and to exactly the three expected method-duration objects as an unordered multiset.
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].ordered
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: The resulting AgentResponseEvaluator has no failure or error assertions and scores 1.0, making the sole-evaluator TaskEvalResult score 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: A complete retained response shows a null, unparseable, or non-object submission, or a missing or mismatching normalized task_type or status; these are benchmark-counted failures or evaluator errors.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: Retrieved_data is missing or empty, or its normalized unordered contents differ in cardinality, transportation method, duration, or object keys, including any extra item or key.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+  - text: Any AgentResponseEvaluator or task-orchestration error, or an evaluator score of 0.0, yields TaskEvalResult.score = 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained evidence lacks a complete agent_response.json or does not preserve the exact submitted response; network.har alone cannot determine this response-only evaluator outcome.
+    support:
+    - derived/task.json::eval[0].evaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    rationale: Loss or truncation of the retained response is not evidence that the run itself submitted a null or malformed response.
+stronger:
+  additional_conditions:
+  - id: osrm_route_provenance
+    text: Beyond native success, network.har shows a CMU Pittsburgh origin, selection of the nearest USPS postal office, and OSRM route requests and responses for Walking, Driving, and Biking whose durations support the returned values.
+    rationale: The official task mandates the destination and OSRM method, while the sole configured evaluator reads only the agent response and compares fixed normalized values; native success therefore does not establish route provenance.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Do retained requests and responses identify CMU Pittsburgh as the origin, establish selection of the nearest USPS postal office, and contain OSRM routes for all three transportation methods with supporting durations?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].evaluator
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - artifact: agent_response.json
+      question: Are the reported method-duration values consistent with the OSRM responses retained in network.har?
+      support:
+      - derived/task.json::eval[0].expected.retrieved_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].evaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+  - id: literal_output_format
+    text: Beyond native success, the answer content is only the three two-key objects, with no prose or code fence, and the durations are literally 00:19:00 for Walking, 00:02:00 for Driving, and 00:07:00 for Biking.
+    rationale: The task requires list-only output and literal HH:MM:SS formatting, but the native evaluator can extract fenced JSON and compares schema-normalized durations against minute-form expected values rather than enforcing that presentation.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Does the exact submitted answer contain no surrounding prose or code fence and use only transportation_method and duration with the three literal HH:MM:SS values?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].expected.retrieved_data
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+      - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer.normalize_array
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected.retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer.normalize_array

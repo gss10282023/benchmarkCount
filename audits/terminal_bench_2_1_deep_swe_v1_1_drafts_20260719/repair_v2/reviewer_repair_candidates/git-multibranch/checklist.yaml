@@ -1,0 +1,108 @@
+case_unit_id: git-multibranch
+domain: terminal_bench_2_1
+native:
+  benchmark_success:
+    support:
+    - official/tests/test.sh::11-28
+    - official/tests/test_outputs.py::7-99
+    text: The released native criterion is a successful pytest run of `test_multi_branch_https_deploy`. That node reads stdout from `bash verify.sh` and passes exactly when the captured text contains `TEST PASSED`. On the verifier's ordinary path, verify.sh emits that text after its wait/retry loop observes exactly `main branch content` at `/index.html` and `dev branch content` at `/dev/index.html`. The Expect script does not assert successful completion of its clone and push child commands, so those operations are not separate native-success requirements.
+  checked_by:
+    support:
+    - official/tests/test.sh::11-28
+    - official/tests/test_outputs.py::7-99
+    text: Checked by `official/tests/test.sh` invoking `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`, specifically `test_multi_branch_https_deploy`; the pre-pytest working-directory guard can terminate the verifier first.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the retained CTRF report establish that `test_multi_branch_https_deploy` passed or failed?
+    support:
+    - case_packet.md::76-88
+    - official/tests/test.sh::17-21
+    - official/tests/test_outputs.py::7-99
+  - artifact: verifier/test-stdout.txt
+    question: Does the retained stdout unambiguously establish the working-directory guard or the final pytest outcome, including whether the test's captured verify.sh output contained `TEST PASSED`? Isolated clone or push errors are not independently decisive.
+    support:
+    - case_packet.md::76-88
+    - official/tests/test_outputs.py::67-99
+  - artifact: verifier/test-stderr.txt
+    question: Does the retained stderr contain a terminal pytest collection, invocation, or execution error that independently establishes that the official pytest criterion did not pass?
+    support:
+    - case_packet.md::76-88
+    - official/tests/test.sh::11-21
+  fail_if:
+  - support:
+    - official/tests/test.sh::11-15
+    text: Native failure if retained non-label evidence establishes that the `official/tests/test.sh` working-directory guard terminated verification before pytest.
+  - support:
+    - official/tests/test.sh::17-28
+    - official/tests/test_outputs.py::26-99
+    text: Native failure if retained non-label evidence establishes that the official pytest invocation did not pass, including a failed `test_multi_branch_https_deploy` assertion because captured verify.sh stdout lacked `TEST PASSED`, or a terminal collection/invocation error. An isolated clone or push error is insufficient unless the retained evidence also establishes the nonpassing pytest outcome.
+  success_if:
+  - support:
+    - official/tests/test.sh::17-28
+    - official/tests/test_outputs.py::67-99
+    text: Native success only if retained non-label verifier evidence establishes that `test_multi_branch_https_deploy` passed; under the released test this means the stdout captured from verify.sh contained `TEST PASSED`.
+  undecided_if:
+  - support:
+    - case_packet.md::76-88
+    - official/tests/test.sh::11-28
+    - official/tests/test_outputs.py::7-99
+    text: Undecided only if retained non-label evidence establishes neither native success nor native failure—for example, CTRF is missing or unreadable and stdout/stderr do not unambiguously establish the guard or final pytest outcome.
+  user_goal:
+    support:
+    - official/instruction.md::1-18
+    text: Set up `git@localhost:/git/project` to accept password-authenticated SSH with password `password`, and deploy `main` and `dev` branch `index.html` contents to `https://localhost:8443/index.html` and `https://localhost:8443/dev/index.html` via Nginx over self-signed HTTPS, with each push triggering deployment through a `post-receive` hook within 3 seconds.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: verifier/test-stdout.txt
+      question: Does the retained verifier transcript expose successful cloning and successful updates of both remote branches while the official Expect workflow supplies the specified password?
+      support:
+      - case_packet.md::76-88
+      - official/instruction.md::8-18
+      - official/tests/test_outputs.py::67-91
+    id: ssh_git_workflow
+    rationale: The instruction explicitly requires the SSH Git service and password authentication. Although the verifier attempts this workflow, its Expect script does not assert the spawned clone and push commands' exit statuses, so the released native predicate can pass without proving that workflow succeeded.
+    support:
+    - official/instruction.md::1-18
+    - official/tests/test_outputs.py::26-66
+    text: Beyond native success, retained evidence should establish that `git@localhost:/git/project` actually supports cloning and successful pushes of the `main` and `dev` branches using password authentication with `password`.
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained execution expose configuration and validation of a `hooks/post-receive` deployment path for both branches and timed results showing each endpoint update within 3 seconds of its push?
+      support:
+      - case_packet.md::76-88
+      - official/instruction.md::8-18
+      - official/tests/test_outputs.py::67-91
+    - artifact: artifacts/**
+      question: Do retained state files expose the operative post-receive hook and branch deployment configuration together with retained timing evidence for the three-second deadline?
+      support:
+      - case_packet.md::76-88
+      - official/instruction.md::8-18
+      - official/tests/test_outputs.py::67-91
+    id: post_receive_and_3s_deadline
+    rationale: The instruction explicitly requires `post-receive`-triggered deployment within 3 seconds of each push. The released verifier does not inspect the hook and permits correct content to appear after an initial three-second sleep plus additional retry delays.
+    support:
+    - official/instruction.md::8-18
+    - official/tests/test_outputs.py::67-91
+    text: Beyond native success, retained evidence should establish that each branch deployment is driven by a Git `post-receive` hook and updates its branch HTTPS endpoint within 3 seconds of the corresponding push.
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does retained execution output expose the active Nginx configuration and certificate inspection establishing a self-signed certificate for the tested endpoint?
+      support:
+      - case_packet.md::76-88
+      - official/instruction.md::8-18
+      - official/tests/test_outputs.py::67-91
+    - artifact: artifacts/**
+      question: Do retained configuration and certificate/state artifacts establish Nginx service of the required paths and the certificate's self-signed issuer/subject relationship?
+      support:
+      - case_packet.md::76-88
+      - official/instruction.md::8-18
+      - official/tests/test_outputs.py::67-91
+    id: nginx_and_self_signed_certificate
+    rationale: The instruction explicitly requires Nginx and a self-signed certificate. The released test uses `curl -sk` and checks only returned content, so it neither identifies the serving implementation nor validates that the certificate is self-signed.
+    support:
+    - official/instruction.md::4-10
+    - official/tests/test_outputs.py::69-91
+    text: Beyond native success, retained state evidence should establish that Nginx serves the two HTTPS endpoints and that the endpoint certificate is self-signed.
+task_id: terminal-bench/git-multibranch

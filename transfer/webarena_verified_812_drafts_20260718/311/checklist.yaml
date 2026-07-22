@@ -1,0 +1,80 @@
+schema_version: case_checklist_v1
+case_unit_id: '311'
+domain: webarena_verified
+task_id: '311'
+native:
+  user_goal:
+    text: Return the username(s) of the user(s) with the most commits to the Pytorch GAN project.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 iff the sole AgentResponseEvaluator scores 1.0: after released parsing and normalization, task_type matches RETRIEVE, status matches SUCCESS, and retrieved_data matches the exact unordered singleton collection ["eriklindernoren@live.se"]. Any evaluator failure or error makes the task score 0.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the task's sole AgentResponseEvaluator and composes its score through TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the exact submitted response parse and normalize to task_type RETRIEVE, status SUCCESS, and retrieved_data exactly matching the unordered singleton collection ["eriklindernoren@live.se"], without any comparison assertion or error?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].ordered
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Can the exact submitted trace be loaded and used to construct a valid evaluation context without a trace, configuration, or orchestration error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: Re-evaluation of the exact retained response and trace completes without error; the response matches RETRIEVE, SUCCESS, and the exact unordered singleton retrieved-data value "eriklindernoren@live.se"; therefore the sole evaluator and TaskEvalResult both score 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: An exact submitted response that is null, empty, non-structured, missing or mismatching task_type/status, contains missing, wrong, or extra retrieved data, or otherwise causes normalization/comparison failure yields an AgentResponseEvaluator score of 0.0 and native failure.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: A submitted HAR that cannot be loaded, or any trace/configuration/evaluation orchestration error, produces TaskEvalResult score 0.0 and native failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._create_eval_error_result
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored evidence is incomplete or truncated such that the exact response or trace supplied to evaluation cannot be recovered and the native result cannot be reconstructed.
+    rationale: This is an evidence-retention gap; a retained null, malformed, or error-producing submitted artifact is instead a benchmark-counted failure.
+stronger:
+  additional_conditions:
+  - id: username_semantics
+    text: Retained evidence shows that the returned identifier(s) are the GitLab account username(s) of the maximum-commit user(s) for Pytorch GAN, rather than merely the email-form value accepted by the native evaluator.
+    rationale: The official instruction requests username(s), while the native evaluator exact-matches the singleton email-form value "eriklindernoren@live.se" and does not verify that it is a GitLab username.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: What identifier(s) did the response return?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].expected.retrieved_data
+    - artifact: network.har
+      question: Do retained GitLab response bodies establish that the returned identifier(s) are account usernames belonging to the user(s) with the maximum commit count?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected.retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values

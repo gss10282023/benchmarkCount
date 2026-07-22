@@ -1,0 +1,94 @@
+case_unit_id: db-wal-recovery
+domain: terminal_bench_2_1
+native:
+  benchmark_success:
+    support:
+    - official/tests/test.sh::1-23
+    - official/tests/test_outputs.py::1-85
+    text: The task-specific pytest invocation in official/tests/test.sh exits with status 0. Its seven tests require /app/recovered.json to exist; parse as a non-empty JSON list; contain dictionary records with id, name, and value of the required types; have sorted, nonduplicate ids; contain exactly ids 1 through 11; contain values 150 and 250 for ids 1 and 2; contain the expected names for ids 3 through 11; and satisfy the redundant WAL-specific checks for more than five records and the checked id-1 update and id-6 insert.
+  checked_by:
+    support:
+    - official/tests/test.sh::1-23
+    - official/tests/test_outputs.py::1-85
+    text: official/tests/test.sh invokes pytest on official/tests/test_outputs.py and treats pytest exit status 0 as success and every nonzero status as failure.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the complete retained CTRF report show all seven official tests collected and passed, or show one or more tests failed?
+    support:
+    - official/tests/test.sh::--ctrf /logs/verifier/ctrf.json
+    - official/tests/test_outputs.py::test_recovered_json_exists
+    - official/tests/test_outputs.py::test_wal_was_decrypted
+  - artifact: verifier/test-stdout.txt
+    question: Does the retained verifier output explicitly establish successful completion of the official pytest invocation or a collection, execution, interruption, or internal-error failure?
+    support:
+    - official/tests/test_outputs.py::1-85
+  - artifact: verifier/test-stderr.txt
+    question: Does retained verifier stderr explicitly establish a collection, execution, interruption, or internal-error failure of the official pytest invocation?
+    support:
+    - official/tests/test.sh::1-23
+    - official/tests/test_outputs.py::1-85
+  - artifact: artifacts/**
+    question: Does provenance-preserving retained state establish that /app/recovered.json was absent, or retain its exact contents so the official file and content predicates can be evaluated directly?
+    support:
+    - official/tests/test_outputs.py::test_recovered_json_exists
+    - official/tests/test_outputs.py::test_recovered_json_is_valid
+    - official/tests/test_outputs.py::test_recovered_data_structure
+    - official/tests/test_outputs.py::test_recovered_data_sorted
+    - official/tests/test_outputs.py::test_recovered_data_completeness
+    - official/tests/test_outputs.py::test_no_duplicate_ids
+    - official/tests/test_outputs.py::test_wal_was_decrypted
+  fail_if:
+  - support:
+    - official/tests/test.sh::1-23
+    - official/tests/test_outputs.py::1-85
+    text: A retained CTRF report shows that any official test failed.
+  - support:
+    - official/tests/test_outputs.py::1-85
+    text: Or retained verifier stdout or stderr explicitly establishes that the pytest invocation ended nonzero because of collection, execution, interruption, or internal error.
+  - support:
+    - official/tests/test_outputs.py::test_recovered_json_exists
+    - official/tests/test_outputs.py::test_recovered_json_is_valid
+    - official/tests/test_outputs.py::test_recovered_data_structure
+    - official/tests/test_outputs.py::test_recovered_data_sorted
+    - official/tests/test_outputs.py::test_recovered_data_completeness
+    - official/tests/test_outputs.py::test_no_duplicate_ids
+    - official/tests/test_outputs.py::test_wal_was_decrypted
+    text: Or provenance-preserving retained state establishes that /app/recovered.json was absent or that its exact contents violate any predicate enforced by an official test. One established violation is sufficient for native failure.
+  success_if:
+  - support:
+    - official/tests/test.sh::1-23
+    - official/tests/test_outputs.py::1-85
+    text: A complete retained verifier report establishes that all seven official tests were collected and passed and that the pytest invocation completed successfully.
+  - support:
+    - official/tests/test_outputs.py::test_recovered_json_exists
+    - official/tests/test_outputs.py::test_recovered_json_is_valid
+    - official/tests/test_outputs.py::test_recovered_data_structure
+    - official/tests/test_outputs.py::test_recovered_data_sorted
+    - official/tests/test_outputs.py::test_recovered_data_completeness
+    - official/tests/test_outputs.py::test_no_duplicate_ids
+    - official/tests/test_outputs.py::test_wal_was_decrypted
+    text: Or provenance-preserving retained /app/recovered.json state independently satisfies every predicate enforced by all seven official tests.
+  undecided_if:
+  - rationale: U is limited to evidentiary insufficiency. Partial evidence that conclusively demonstrates even one official violation yields F, while success requires evidence sufficient to establish the complete native criterion.
+    text: Retained non-label evidence establishes neither complete native success nor any native test, output-predicate, or verifier-execution failure.
+  user_goal:
+    support:
+    - official/instruction.md::1-10
+    text: Repair the encrypted or corrupted WAL so SQLite can read it, recover all 11 database records including WAL changes, and write them as a JSON array sorted by id to /app/recovered.json.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Do retained commands together with their observed results establish modification of /app/main.db-wal followed by SQLite successfully reading the WAL-backed database and exposing the recovered changes?
+      support:
+      - official/instruction.md::1-10
+      - official/README.md::1-31
+    id: wal-file-actually-repaired
+    rationale: The official instruction requires fixing the WAL so SQLite can read it and extracting the WAL-backed data. The released tests only inspect /app/recovered.json and never inspect /app/main.db-wal or invoke SQLite against the repaired WAL, so this official requirement is not operationalized by the native evaluator.
+    support:
+    - official/instruction.md::1-10
+    - official/README.md::1-31
+    - official/tests/test_outputs.py::1-85
+    text: Beyond native scoring, retained evidence should establish that the agent actually repaired /app/main.db-wal into a state SQLite could read and used the WAL-backed database recovery, rather than only producing a correct recovered.json by another route.
+task_id: terminal-bench/db-wal-recovery

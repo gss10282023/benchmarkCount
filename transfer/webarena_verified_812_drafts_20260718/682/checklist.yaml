@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '682'
+domain: webarena_verified
+task_id: '682'
+native:
+  user_goal:
+    text: Find a GitLab repository related to chatGPT and create a URL post in the most relevant discussion forum, using the repository path as the title and "<number of commits> commit(s) already!" as the body.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score == 1.0, requiring both configured evaluator scores to equal 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS under its non-retrieve semantics, and NetworkEventEvaluator accepts the last matching Reddit-submit POST against the configured event specification.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator over the retained final response and NetworkEventEvaluator over the retained network trace; TaskEvalResult.create applies all-of score composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the final response pass the evaluator's parse, normalization, and structural comparison to task_type MUTATE and status SUCCESS under non-retrieve handling?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event matching a POST to the configured Reddit submit URL a 302 response whose post data matches body "193 commits already!", forum ^(10043|10018|10082|10078)$, mediaType "url", title "convexegg/chatgpt", and URL __GITLAB__/convexegg/chatgpt under evaluator normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Success iff both components pass: the final response compares as MUTATE/SUCCESS, and the last matching Reddit-submit POST has response status 302 and all five configured post-data values. Both evaluator scores, and therefore the task score, must be 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if either evaluator scores below 1.0 or errors. A response comparison failure, no matching Reddit-submit POST, or a mismatch in the last matching POST's response status or required post fields makes the task score 0 even when the other evaluator passes.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when post-run retention is incomplete or corrupt such that the contents actually supplied to either evaluator cannot be established. A present malformed response, a readable empty trace, or a readable trace with no qualifying event is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+stronger:
+  additional_conditions:
+  - id: persisted_post_confirmation
+    text: Beyond native success, retained post-run Reddit state confirms that the evaluated submission created a new persistent URL post in the submitted forum with title "convexegg/chatgpt", target __GITLAB__/convexegg/chatgpt after environment rendering, and body "193 commits already!".
+    rationale: The official intent requires creation of a post, while the native NetworkEventEvaluator only compares a POST/302 request-response event and does not inspect persisted Reddit state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit post record or forum-state snapshot
+      question: Does it identify a post created during the run, still present in the submitted forum, with the evaluated title, body, and target URL?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

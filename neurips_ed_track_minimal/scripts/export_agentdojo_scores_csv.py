@@ -30,7 +30,7 @@ class ExportScoresError(RuntimeError):
     """Raised when score export cannot proceed safely."""
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--output",
@@ -40,8 +40,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model",
-        default="gpt-5.5",
-        help="Model label used when resolving score bundle paths (default: gpt-5.5)",
+        default=scorer.DEFAULT_SCORE_MODEL,
+        help=(
+            "Model label used when resolving score bundle paths "
+            f"(default: {scorer.DEFAULT_SCORE_MODEL})"
+        ),
     )
     parser.add_argument(
         "--reasoning-effort",
@@ -49,7 +52,23 @@ def parse_args() -> argparse.Namespace:
         choices=["minimal", "low", "medium", "high", "xhigh"],
         help="Reasoning effort used when resolving score bundle paths (default: xhigh)",
     )
-    return parser.parse_args()
+    parser.add_argument("--draft-root", type=Path, default=batch.DEFAULT_DRAFT_ROOT)
+    parser.add_argument("--evidence-root", type=Path, default=batch.DEFAULT_EVIDENCE_ROOT)
+    parser.add_argument("--score-output-root", type=Path, default=None)
+    parser.add_argument("--run-dir-prefix", default=None)
+    parser.add_argument(
+        "--tasks-per-key",
+        type=int,
+        default=None,
+        help="Expected score tasks per slot; omit to infer from discovered tasks.",
+    )
+    parser.add_argument(
+        "--slot-count",
+        type=int,
+        default=batch.DEFAULT_SCORE_SLOT_COUNT,
+        help=f"Number of score slots (default: {batch.DEFAULT_SCORE_SLOT_COUNT}).",
+    )
+    return parser.parse_args(argv)
 
 
 def stringify_leaf(value: Any) -> str | int | float | bool | None:
@@ -69,20 +88,40 @@ def flatten_mapping(data: dict[str, Any], *, prefix: str = "") -> dict[str, Any]
     return flattened
 
 
-def build_rows(*, model: str, reasoning_effort: str) -> list[dict[str, Any]]:
+def build_rows(
+    *,
+    model: str,
+    reasoning_effort: str,
+    draft_root: Path,
+    evidence_root: Path,
+    score_output_root: Path | None,
+    run_dir_prefix: str | None,
+    tasks_per_key: int | None,
+    slot_count: int,
+) -> list[dict[str, Any]]:
+    if slot_count < 1:
+        raise ExportScoresError("slot_count must be at least 1")
+    if tasks_per_key is not None and tasks_per_key < 1:
+        raise ExportScoresError("tasks_per_key must be at least 1 when provided")
     tasks = batch.build_task_plan(
-        draft_root=batch.DEFAULT_DRAFT_ROOT,
-        evidence_root=batch.DEFAULT_EVIDENCE_ROOT,
-        tasks_per_key=100,
-        key_count=3,
+        draft_root=draft_root,
+        evidence_root=evidence_root,
+        run_dir_prefix=batch.infer_run_dir_prefix(evidence_root, run_dir_prefix),
+        tasks_per_key=tasks_per_key,
+        key_count=slot_count,
         model=model,
         reasoning_effort=reasoning_effort,
+        score_output_root=score_output_root.resolve() if score_output_root else None,
     )
 
     rows: list[dict[str, Any]] = []
     invalid_tasks: list[str] = []
     for task in tasks:
-        if not batch.existing_score_is_valid(task):
+        if not batch.existing_score_is_valid(
+            task,
+            expected_model=model,
+            expected_reasoning_effort=reasoning_effort,
+        ):
             invalid_tasks.append(task.run_dir_name)
             continue
 
@@ -120,8 +159,9 @@ def build_rows(*, model: str, reasoning_effort: str) -> list[dict[str, Any]]:
             f"Examples: {sample}"
         )
 
-    if len(rows) != 300:
-        raise ExportScoresError(f"Expected 300 AgentDojo score rows, found {len(rows)}")
+    expected_rows = (tasks_per_key * slot_count) if tasks_per_key is not None else len(tasks)
+    if len(rows) != expected_rows:
+        raise ExportScoresError(f"Expected {expected_rows} AgentDojo score rows, found {len(rows)}")
 
     return rows
 
@@ -180,7 +220,16 @@ def write_csv(output_path: Path, rows: list[dict[str, Any]]) -> None:
 
 def main() -> int:
     args = parse_args()
-    rows = build_rows(model=args.model, reasoning_effort=args.reasoning_effort)
+    rows = build_rows(
+        model=args.model,
+        reasoning_effort=args.reasoning_effort,
+        draft_root=args.draft_root,
+        evidence_root=args.evidence_root,
+        score_output_root=args.score_output_root,
+        run_dir_prefix=args.run_dir_prefix,
+        tasks_per_key=args.tasks_per_key,
+        slot_count=args.slot_count,
+    )
     write_csv(args.output, rows)
     print(f"wrote {len(rows)} rows to {args.output}")
     return 0

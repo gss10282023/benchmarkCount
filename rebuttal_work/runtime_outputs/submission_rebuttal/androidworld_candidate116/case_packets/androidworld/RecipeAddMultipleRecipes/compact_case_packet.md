@@ -1,0 +1,764 @@
+# AndroidWorld Compact Draft Packet
+
+This is the complete LLM-visible pre-run source packet for one contract draft. The full audit packet and frozen source closure remain available separately.
+
+```json
+{
+  "authority_rule": "Use canonical runtime goal/evaluator semantics. Treat task_metadata.json wording as descriptive only; every disagreement is retained in metadata_comparison and metadata_conflicts.",
+  "identity": {
+    "case_unit_id": "RecipeAddMultipleRecipes",
+    "domain": "androidworld",
+    "group": "official100",
+    "selection_rank": 65,
+    "task_id": "RecipeAddMultipleRecipes"
+  },
+  "integrity": {
+    "semantic_record_sha256": "72f23758560b18b3f7fdb5aabfa08f87cf52e9bc2f732c8f70625359b68da9a7",
+    "shared_source_snapshot_manifest_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/androidworld_source_snapshot_manifest.json",
+    "shared_source_snapshot_manifest_sha256": "cdc4c9543ac50fb88837feb787179d5e73b6651f167b0d50f64b2332473b62bf",
+    "source_closure_sha256": "57b4913d6722d6933a7731e63b303d5759af10926667118fad72e6881ad7ce98",
+    "source_commit": "d9c569f764b3a5629321858de03ff653d0f24056"
+  },
+  "schema_version": "androidworld_compact_draft_packet/v2",
+  "source_context": {
+    "available_post_run_artifact_types": [
+      "post_state",
+      "trace",
+      "screenshot",
+      "tool_log",
+      "message",
+      "native_evaluator_input",
+      "native_evaluator_output",
+      "file"
+    ],
+    "contract_template": {
+      "claim_scope": "native_aligned"
+    },
+    "evaluator_description": {
+      "canonical_module": "android_world.task_evals.single.recipe",
+      "definition": {
+        "definition_kind": "python_class",
+        "incidental_runtime_module_excluded": null,
+        "mro": [
+          {
+            "canonical_androidworld_source": true,
+            "module": "android_world.task_evals.single.recipe",
+            "qualname": "RecipeAddMultipleRecipes",
+            "source_ref": {
+              "ast_sha256": "3a863b102e346d121a5540ea289617f768addb424c0fd83305d7dfd0a6610518",
+              "end_line": 425,
+              "file_sha256": "3c3f389e510bef1f45ed192bbc1e57531dfd92fcb3fdec5f576091b434f21674",
+              "path": "android_world/task_evals/single/recipe.py",
+              "snippet_sha256": "153e2ef76d8fc986d7a4b4236cd33432d1f3e92096737dd5de49cf897c774d65",
+              "start_line": 420,
+              "symbol": "RecipeAddMultipleRecipes"
+            }
+          },
+          {
+            "canonical_androidworld_source": true,
+            "module": "android_world.task_evals.single.recipe",
+            "qualname": "_RecipeAddMultipleRecipes",
+            "source_ref": {
+              "ast_sha256": "156bdaa9ae3239cb930c30b61d108298244c4699a71abc56ce57dd5e28d90c1f",
+              "end_line": 409,
+              "file_sha256": "3c3f389e510bef1f45ed192bbc1e57531dfd92fcb3fdec5f576091b434f21674",
+              "path": "android_world/task_evals/single/recipe.py",
+              "snippet_sha256": "330821acc9713e2863d10092980f7f20a4a41b196dd7584ab85b7125fb94b603",
+              "start_line": 339,
+              "symbol": "_RecipeAddMultipleRecipes"
+            }
+          },
+          {
+            "canonical_androidworld_source": true,
+            "module": "android_world.task_evals.common_validators.sqlite_validators",
+            "qualname": "AddMultipleRows",
+            "source_ref": {
+              "ast_sha256": "2e801c534950f863ba825b6366be40b9679d4a4d48069ab04807b94018035d11",
+              "end_line": 323,
+              "file_sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5",
+              "path": "android_world/task_evals/common_validators/sqlite_validators.py",
+              "snippet_sha256": "7b415c9bb1ebc10ece14a0ed262889b4c4db0fbecd327dd2c5f8261d2523e13f",
+              "start_line": 271,
+              "symbol": "AddMultipleRows"
+            }
+          },
+          {
+            "canonical_androidworld_source": true,
+            "module": "android_world.task_evals.single.recipe",
+            "qualname": "_RecipeApp",
+            "source_ref": {
+              "ast_sha256": "d425a552f70acef4f36579d7bb60974857f9a8afea589833f5ac01bf06c5fb0b",
+              "end_line": 49,
+              "file_sha256": "3c3f389e510bef1f45ed192bbc1e57531dfd92fcb3fdec5f576091b434f21674",
+              "path": "android_world/task_evals/single/recipe.py",
+              "snippet_sha256": "d87ddd9bb7e710c085dbfe24049beb4ce64873771336a5827dffde9305148531",
+              "start_line": 38,
+              "symbol": "_RecipeApp"
+            }
+          },
+          {
+            "canonical_androidworld_source": true,
+            "module": "android_world.task_evals.common_validators.sqlite_validators",
+            "qualname": "SQLiteApp",
+            "source_ref": {
+              "ast_sha256": "44df368e12e9cf79cc0f4a5a3050a530e05ec7bd8341716c986019ffef8b5f7e",
+              "end_line": 268,
+              "file_sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5",
+              "path": "android_world/task_evals/common_validators/sqlite_validators.py",
+              "snippet_sha256": "18cd7e4fc846f3bcad8cd564f530cc0c286ffd7ea74dfa8c338f571b9a90b7ac",
+              "start_line": 200,
+              "symbol": "SQLiteApp"
+            }
+          },
+          {
+            "canonical_androidworld_source": true,
+            "module": "android_world.task_evals.task_eval",
+            "qualname": "TaskEval",
+            "source_ref": {
+              "ast_sha256": "85d1a56897097bc400580d972badbaf66e2063a3fb9ddf45bfa65bfe92d05f09",
+              "end_line": 190,
+              "file_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+              "path": "android_world/task_evals/task_eval.py",
+              "snippet_sha256": "555d49d2ef6e2fdd5d52484234181bdb3f7d874ac66bb5e068d01403f050351b",
+              "start_line": 30,
+              "symbol": "TaskEval"
+            }
+          },
+          {
+            "canonical_androidworld_source": false,
+            "qualname": "ABC",
+            "runtime_reported_module": "abc",
+            "source_ref": null
+          },
+          {
+            "canonical_androidworld_source": false,
+            "module": "builtins",
+            "qualname": "object",
+            "source_ref": null
+          }
+        ],
+        "runtime_reported_module": "android_world.task_evals.single.recipe",
+        "source_bindings": [
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/recipe.py",
+            "ast_sha256": "3a863b102e346d121a5540ea289617f768addb424c0fd83305d7dfd0a6610518",
+            "end_line": 425,
+            "owner_module": "android_world.task_evals.single.recipe",
+            "owner_qualname": "RecipeAddMultipleRecipes",
+            "sha256": "3c3f389e510bef1f45ed192bbc1e57531dfd92fcb3fdec5f576091b434f21674",
+            "snippet_sha256": "153e2ef76d8fc986d7a4b4236cd33432d1f3e92096737dd5de49cf897c774d65",
+            "start_line": 420
+          }
+        ]
+      },
+      "evaluator": {
+        "branches": [],
+        "method_chain": [
+          {
+            "branch_node_count": 1,
+            "direct_calls": [
+              "self.list_rows",
+              "self.validate_addition_integrity"
+            ],
+            "direct_parameter_reads": [],
+            "owner_class": "AddMultipleRows",
+            "owner_module": "android_world.task_evals.common_validators.sqlite_validators",
+            "source_ref": {
+              "ast_sha256": "f2751ca3568b387056d6f4fdec053268e79d42a6e48ba54bce1e094203f0e07a",
+              "end_line": 310,
+              "file_sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5",
+              "path": "android_world/task_evals/common_validators/sqlite_validators.py",
+              "snippet_sha256": "64097499692465a3a591ea95f000120ccced1957f73425ff2dc757e9ae1745c7",
+              "start_line": 304,
+              "symbol": "AddMultipleRows.is_successful"
+            }
+          },
+          {
+            "branch_node_count": 0,
+            "direct_calls": [
+              "self._check_is_initialized"
+            ],
+            "direct_parameter_reads": [],
+            "owner_class": "TaskEval",
+            "owner_module": "android_world.task_evals.task_eval",
+            "source_ref": {
+              "ast_sha256": "4ba02bae85e87232a171f4ab6decd0f081113181a5d2fcbd220a205512f58e16",
+              "end_line": 180,
+              "file_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+              "path": "android_world/task_evals/task_eval.py",
+              "snippet_sha256": "cb4c4fd2a9f4efa9fe8fb8328f459b54febf84903006338ae246acd0c445e098",
+              "start_line": 166,
+              "symbol": "TaskEval.is_successful"
+            }
+          }
+        ],
+        "runner_score_semantics": {
+          "display_success_threshold": "agent_successful > 0.5",
+          "done_gate": "task_successful if interaction_results.done else 0.0",
+          "source_ref": {
+            "ast_sha256": "6287c8b53ca1ea7313f4a186e885a27263c51c622f46921cbe7cc4433a04edaa",
+            "end_line": 289,
+            "file_sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b",
+            "path": "android_world/suite_utils.py",
+            "snippet_sha256": "b24c573174d61b7642dd5dd746911d21c904d793e37582c91e5972a73d634062",
+            "start_line": 223,
+            "symbol": "suite_utils._run_task"
+          },
+          "task_raw_score": "task.is_successful(env)"
+        },
+        "source_bindings": [
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/common_validators/sqlite_validators.py",
+            "ast_sha256": "f2751ca3568b387056d6f4fdec053268e79d42a6e48ba54bce1e094203f0e07a",
+            "end_line": 310,
+            "owner_module": "android_world.task_evals.common_validators.sqlite_validators",
+            "owner_qualname": "AddMultipleRows.is_successful",
+            "sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5",
+            "snippet_sha256": "64097499692465a3a591ea95f000120ccced1957f73425ff2dc757e9ae1745c7",
+            "start_line": 304
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+            "ast_sha256": "4ba02bae85e87232a171f4ab6decd0f081113181a5d2fcbd220a205512f58e16",
+            "end_line": 180,
+            "owner_module": "android_world.task_evals.task_eval",
+            "owner_qualname": "TaskEval.is_successful",
+            "sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+            "snippet_sha256": "cb4c4fd2a9f4efa9fe8fb8328f459b54febf84903006338ae246acd0c445e098",
+            "start_line": 166
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/suite_utils.py",
+            "ast_sha256": "6287c8b53ca1ea7313f4a186e885a27263c51c622f46921cbe7cc4433a04edaa",
+            "end_line": 289,
+            "owner_module": "android_world.suite_utils",
+            "owner_qualname": "suite_utils._run_task",
+            "sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b",
+            "snippet_sha256": "b24c573174d61b7642dd5dd746911d21c904d793e37582c91e5972a73d634062",
+            "start_line": 223
+          }
+        ]
+      },
+      "is_successful": {
+        "branches": [],
+        "live_evaluator_execution_performed": false,
+        "method_chain": [
+          {
+            "branch_node_count": 1,
+            "direct_calls": [
+              "self.list_rows",
+              "self.validate_addition_integrity"
+            ],
+            "direct_parameter_reads": [],
+            "owner_class": "AddMultipleRows",
+            "owner_module": "android_world.task_evals.common_validators.sqlite_validators",
+            "source_ref": {
+              "ast_sha256": "f2751ca3568b387056d6f4fdec053268e79d42a6e48ba54bce1e094203f0e07a",
+              "end_line": 310,
+              "file_sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5",
+              "path": "android_world/task_evals/common_validators/sqlite_validators.py",
+              "snippet_sha256": "64097499692465a3a591ea95f000120ccced1957f73425ff2dc757e9ae1745c7",
+              "start_line": 304,
+              "symbol": "AddMultipleRows.is_successful"
+            }
+          },
+          {
+            "branch_node_count": 0,
+            "direct_calls": [
+              "self._check_is_initialized"
+            ],
+            "direct_parameter_reads": [],
+            "owner_class": "TaskEval",
+            "owner_module": "android_world.task_evals.task_eval",
+            "source_ref": {
+              "ast_sha256": "4ba02bae85e87232a171f4ab6decd0f081113181a5d2fcbd220a205512f58e16",
+              "end_line": 180,
+              "file_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+              "path": "android_world/task_evals/task_eval.py",
+              "snippet_sha256": "cb4c4fd2a9f4efa9fe8fb8328f459b54febf84903006338ae246acd0c445e098",
+              "start_line": 166,
+              "symbol": "TaskEval.is_successful"
+            }
+          }
+        ],
+        "source_bindings": [
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/common_validators/sqlite_validators.py",
+            "ast_sha256": "f2751ca3568b387056d6f4fdec053268e79d42a6e48ba54bce1e094203f0e07a",
+            "end_line": 310,
+            "owner_module": "android_world.task_evals.common_validators.sqlite_validators",
+            "owner_qualname": "AddMultipleRows.is_successful",
+            "sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5",
+            "snippet_sha256": "64097499692465a3a591ea95f000120ccced1957f73425ff2dc757e9ae1745c7",
+            "start_line": 304
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+            "ast_sha256": "4ba02bae85e87232a171f4ab6decd0f081113181a5d2fcbd220a205512f58e16",
+            "end_line": 180,
+            "owner_module": "android_world.task_evals.task_eval",
+            "owner_qualname": "TaskEval.is_successful",
+            "sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+            "snippet_sha256": "cb4c4fd2a9f4efa9fe8fb8328f459b54febf84903006338ae246acd0c445e098",
+            "start_line": 166
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/suite_utils.py",
+            "ast_sha256": "6287c8b53ca1ea7313f4a186e885a27263c51c622f46921cbe7cc4433a04edaa",
+            "end_line": 289,
+            "owner_module": "android_world.suite_utils",
+            "owner_qualname": "suite_utils._run_task",
+            "sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b",
+            "snippet_sha256": "b24c573174d61b7642dd5dd746911d21c904d793e37582c91e5972a73d634062",
+            "start_line": 223
+          }
+        ]
+      },
+      "task_class": "RecipeAddMultipleRecipes"
+    },
+    "initialization": {
+      "device_execution_performed_during_extraction": false,
+      "method_chain": [
+        {
+          "branch_node_count": 0,
+          "direct_calls": [
+            "self.list_rows",
+            "super",
+            "super.initialize_task"
+          ],
+          "direct_parameter_reads": [],
+          "owner_class": "AddMultipleRows",
+          "owner_module": "android_world.task_evals.common_validators.sqlite_validators",
+          "source_ref": {
+            "ast_sha256": "eea233290c4a63c1a86fd0539bc8d92335bcdf7b2673badda11c990be2979db5",
+            "end_line": 283,
+            "file_sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5",
+            "path": "android_world/task_evals/common_validators/sqlite_validators.py",
+            "snippet_sha256": "57b20e4b7ef5cbeb3d74750a51770e8f57e2b74d5d33310c8bcabccd5b2f6654",
+            "start_line": 280,
+            "symbol": "AddMultipleRows.initialize_task"
+          }
+        },
+        {
+          "branch_node_count": 1,
+          "direct_calls": [
+            "self._clear_db",
+            "self.add_rows",
+            "super",
+            "super.initialize_task"
+          ],
+          "direct_parameter_reads": [],
+          "owner_class": "SQLiteApp",
+          "owner_module": "android_world.task_evals.common_validators.sqlite_validators",
+          "source_ref": {
+            "ast_sha256": "8ec142f52bd60efe8bf0eb5325d739d2511462452523437f3f96f9604aa5f8d1",
+            "end_line": 263,
+            "file_sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5",
+            "path": "android_world/task_evals/common_validators/sqlite_validators.py",
+            "snippet_sha256": "97320f8846ae2e43d66bdcaedf01c6c896901a39582cd8890390fcde9cbf4710",
+            "start_line": 257,
+            "symbol": "SQLiteApp.initialize_task"
+          }
+        },
+        {
+          "branch_node_count": 2,
+          "direct_calls": [
+            "RuntimeError",
+            "logging.info",
+            "random.seed",
+            "self._initialize_apps",
+            "self.initialize_device_time",
+            "self.params.get"
+          ],
+          "direct_parameter_reads": [
+            "seed"
+          ],
+          "owner_class": "TaskEval",
+          "owner_module": "android_world.task_evals.task_eval",
+          "source_ref": {
+            "ast_sha256": "789c520bbfefb2cf815434042709e7d9d74585ebb19c2598d02dfe9c38769b1c",
+            "end_line": 157,
+            "file_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+            "path": "android_world/task_evals/task_eval.py",
+            "snippet_sha256": "51c8fe9ebb14bc1362b24c3c53691dc666b9eaf949e8e6dc7251472e335f8c47",
+            "start_line": 142,
+            "symbol": "TaskEval.initialize_task"
+          }
+        }
+      ],
+      "source_bindings": [
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/common_validators/sqlite_validators.py",
+          "ast_sha256": "eea233290c4a63c1a86fd0539bc8d92335bcdf7b2673badda11c990be2979db5",
+          "end_line": 283,
+          "owner_module": "android_world.task_evals.common_validators.sqlite_validators",
+          "owner_qualname": "AddMultipleRows.initialize_task",
+          "sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5",
+          "snippet_sha256": "57b20e4b7ef5cbeb3d74750a51770e8f57e2b74d5d33310c8bcabccd5b2f6654",
+          "start_line": 280
+        },
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/common_validators/sqlite_validators.py",
+          "ast_sha256": "8ec142f52bd60efe8bf0eb5325d739d2511462452523437f3f96f9604aa5f8d1",
+          "end_line": 263,
+          "owner_module": "android_world.task_evals.common_validators.sqlite_validators",
+          "owner_qualname": "SQLiteApp.initialize_task",
+          "sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5",
+          "snippet_sha256": "97320f8846ae2e43d66bdcaedf01c6c896901a39582cd8890390fcde9cbf4710",
+          "start_line": 257
+        },
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+          "ast_sha256": "789c520bbfefb2cf815434042709e7d9d74585ebb19c2598d02dfe9c38769b1c",
+          "end_line": 157,
+          "owner_module": "android_world.task_evals.task_eval",
+          "owner_qualname": "TaskEval.initialize_task",
+          "sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+          "snippet_sha256": "51c8fe9ebb14bc1362b24c3c53691dc666b9eaf949e8e6dc7251472e335f8c47",
+          "start_line": 142
+        }
+      ]
+    },
+    "metadata_comparison": {
+      "canonical_templates": [],
+      "comparison_is_semantic_proof": false,
+      "differences": [],
+      "fixed_seed_sample_shape_matches": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "has_difference": false,
+      "matches_runtime": true,
+      "metadata_placeholders": [
+        "recipes"
+      ],
+      "metadata_template": "Add the following recipes into the Broccoli app: {recipes}",
+      "status": "fixed_seed_goal_shape_match"
+    },
+    "metadata_conflicts": [],
+    "native_sources": [
+      {
+        "owner_module": "android_world.task_evals.single.recipe",
+        "owner_qualname": "RecipeAddMultipleRecipes",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/recipe.py",
+        "source_sha256": "3c3f389e510bef1f45ed192bbc1e57531dfd92fcb3fdec5f576091b434f21674"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.recipe",
+        "owner_qualname": "_RecipeAddMultipleRecipes.goal",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/recipe.py",
+        "source_sha256": "3c3f389e510bef1f45ed192bbc1e57531dfd92fcb3fdec5f576091b434f21674"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.recipe",
+        "owner_qualname": "_RecipeApp.schema",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/recipe.py",
+        "source_sha256": "3c3f389e510bef1f45ed192bbc1e57531dfd92fcb3fdec5f576091b434f21674"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.recipe",
+        "owner_qualname": "_RecipeAddMultipleRecipes.generate_random_params",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/recipe.py",
+        "source_sha256": "3c3f389e510bef1f45ed192bbc1e57531dfd92fcb3fdec5f576091b434f21674"
+      },
+      {
+        "owner_module": "android_world.task_evals.common_validators.sqlite_validators",
+        "owner_qualname": "AddMultipleRows.initialize_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/common_validators/sqlite_validators.py",
+        "source_sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5"
+      },
+      {
+        "owner_module": "android_world.task_evals.common_validators.sqlite_validators",
+        "owner_qualname": "SQLiteApp.initialize_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/common_validators/sqlite_validators.py",
+        "source_sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5"
+      },
+      {
+        "owner_module": "android_world.task_evals.task_eval",
+        "owner_qualname": "TaskEval.initialize_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+        "source_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb"
+      },
+      {
+        "owner_module": "android_world.task_evals.common_validators.sqlite_validators",
+        "owner_qualname": "AddMultipleRows.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/common_validators/sqlite_validators.py",
+        "source_sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5"
+      },
+      {
+        "owner_module": "android_world.task_evals.task_eval",
+        "owner_qualname": "TaskEval.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+        "source_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb"
+      },
+      {
+        "owner_module": "android_world.suite_utils",
+        "owner_qualname": "suite_utils._run_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/suite_utils.py",
+        "source_sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b"
+      },
+      {
+        "owner_module": "android_world.task_evals.common_validators.sqlite_validators",
+        "owner_qualname": "AddMultipleRows.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/common_validators/sqlite_validators.py",
+        "source_sha256": "5c107b155910aafe590c88967f47ae069f5f68eb62319e7928ee7c5988dee1f5"
+      },
+      {
+        "owner_module": "android_world.task_evals.task_eval",
+        "owner_qualname": "TaskEval.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+        "source_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb"
+      },
+      {
+        "owner_module": "android_world.suite_utils",
+        "owner_qualname": "suite_utils._run_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/suite_utils.py",
+        "source_sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b"
+      }
+    ],
+    "official_policy": "AndroidWorld has no separate policy document. The frozen task class, parameter generator/schema, initialize_task implementation, runtime-dispatched goal, is_successful implementation, and suite runner are authoritative. task_metadata.json is descriptive and is not allowed to override conflicting runtime semantics.",
+    "parameter_schema": {
+      "observed_parameter_keys": [
+        "noise_row_objects",
+        "row_objects",
+        "seed",
+        "text_representation_type"
+      ],
+      "observed_parameter_types": {
+        "noise_row_objects": [
+          "builtins.list"
+        ],
+        "row_objects": [
+          "builtins.list"
+        ],
+        "seed": [
+          "builtins.int"
+        ],
+        "text_representation_type": [
+          "builtins.str"
+        ]
+      },
+      "runner_injected_parameters": [
+        "seed"
+      ],
+      "schema_completeness": "empty",
+      "source_bindings": [
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/recipe.py",
+          "ast_sha256": "d425a552f70acef4f36579d7bb60974857f9a8afea589833f5ac01bf06c5fb0b",
+          "end_line": 49,
+          "owner_module": "android_world.task_evals.single.recipe",
+          "owner_qualname": "_RecipeApp.schema",
+          "sha256": "3c3f389e510bef1f45ed192bbc1e57531dfd92fcb3fdec5f576091b434f21674",
+          "snippet_sha256": "d87ddd9bb7e710c085dbfe24049beb4ce64873771336a5827dffde9305148531",
+          "start_line": 38
+        },
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/recipe.py",
+          "ast_sha256": "2a5d3069256eea370ea839c172ad6b8c93ca31953af0eca028694a4364baa054",
+          "end_line": 409,
+          "owner_module": "android_world.task_evals.single.recipe",
+          "owner_qualname": "_RecipeAddMultipleRecipes.generate_random_params",
+          "sha256": "3c3f389e510bef1f45ed192bbc1e57531dfd92fcb3fdec5f576091b434f21674",
+          "snippet_sha256": "c4ee7efce5643f7669acf719651b05b7286238de1cdd5e4f78ee03cc0bd8dd16",
+          "start_line": 391
+        }
+      ],
+      "value": {}
+    },
+    "semantic_record": {
+      "path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/semantic_records/cases/RecipeAddMultipleRecipes/canonical_task_semantics.json",
+      "sha256": "72f23758560b18b3f7fdb5aabfa08f87cf52e9bc2f732c8f70625359b68da9a7"
+    },
+    "task_text": {
+      "benchmark": "AndroidWorld",
+      "canonical_goal": {
+        "authority": "runtime_goal_dispatched_by_android_world.suite_utils",
+        "branches": [],
+        "computed_expression": {
+          "branch_node_count": 0,
+          "direct_calls": [
+            "_get_rows_as_text"
+          ],
+          "direct_parameter_reads": []
+        },
+        "dispatch_phase": "after_initialize_task",
+        "generation_semantics": {
+          "computed_goal_semantics": {
+            "branch_node_count": 0,
+            "direct_calls": [
+              "_get_rows_as_text"
+            ],
+            "direct_parameter_reads": []
+          },
+          "runtime_samples": [
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Add the following recipes into the Broccoli app:\nRecipe: Chicken Alfredo Pasta\n description: A delicious and healthy choice for any time of the day.\n servings: 1 serving\n preparationTime: 1 hrs\n ingredients: n/a\n directions: Cook fettuccine pasta, toss with Alfredo sauce and grilled chicken strips. Serve with a sprinkle of Parmesan cheese. Garnish with fresh herbs for a more vibrant taste.\n\nRecipe: Stuffed Bell Peppers\n description: A delicious and healthy choice for any time of the day.\n servings: 6 servings\n preparationTime: 2 hrs\n ingredients: subject to change\n directions: Mix cooked quinoa, black beans, corn, tomato sauce, and spices. Stuff into bell peppers and bake until tender. Garnish with fresh herbs for a more vibrant taste.\n\nRecipe: Spinach and Feta Stuffed Chicken\n description: An ideal recipe for experimenting with different flavors and ingredients.\n servings: 2 servings\n preparationTime: 1 hrs\n ingredients: per individual taste\n directions: Stuff chicken breasts with a mixture of spinach, feta, garlic, and herbs. Bake until chicken is cooked through. Try adding a pinch of your favorite spices for extra flavor.\n",
+              "dispatch_goal_sha256": "0ab48bcfc33addc5a1220e134df982c455586f74b111d340968b3b8338b7937c",
+              "parameter_keys": [
+                "noise_row_objects",
+                "row_objects",
+                "seed",
+                "text_representation_type"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 0
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Add the following recipes into the Broccoli app:\ntitle|description|servings|preparationTime|ingredients|directions\nTurkey and Cheese Panini|An ideal recipe for experimenting with different flavors and ingredients.|1 serving|1 hrs|n/a|Layer turkey and cheese on bread, grill in a panini press until golden. Try adding a pinch of your favorite spices for extra flavor.\nButternut Squash Soup|A delicious and healthy choice for any time of the day.|6 servings|45 mins|n/a|Saut\u00e9 onions and garlic, add cubed butternut squash and broth. Puree until smooth and season with nutmeg, salt, and pepper. Try adding a pinch of your favorite spices for extra flavor.\nAvocado Toast with Egg|A delicious and healthy choice for any time of the day.|6 servings|10 mins|n/a|Toast bread, top with mashed avocado, a fried egg, salt, pepper, and chili flakes. Garnish with fresh herbs for a more vibrant taste.",
+              "dispatch_goal_sha256": "0e84675561e51a0fe208cb13606d7300af8b6880f09b82f66cbf48b420f86563",
+              "parameter_keys": [
+                "noise_row_objects",
+                "row_objects",
+                "seed",
+                "text_representation_type"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 1
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Add the following recipes into the Broccoli app:\ntitle|description|servings|preparationTime|ingredients|directions\nQuick Fried Rice|A quick and easy meal, perfect for busy weekdays.|1 serving|2 hrs|flexible ingredients|Saut\u00e9 cooked rice with vegetables, add soy sauce and scrambled eggs. Toss until hot. Try adding a pinch of your favorite spices for extra flavor.\nChickpea Vegetable Soup|A delicious and healthy choice for any time of the day.|8 servings|45 mins|see directions|Saut\u00e9 onions, carrots, and celery, add broth, canned tomatoes, and chickpeas. Simmer with spinach and seasonings. Garnish with fresh herbs for a more vibrant taste.\nLentil Soup|An ideal recipe for experimenting with different flavors and ingredients.|2 servings|3 hrs|optional ingredients|Cook onions, carrots, celery, garlic, and lentils in vegetable broth until lentils are tender. Season with thyme and bay leaves. Garnish with fresh herbs for a more vibrant taste.",
+              "dispatch_goal_sha256": "075e1994ff59f0aa64e5b69374dccdc8555b9f7ab76da26d7324f56367bf2a3c",
+              "parameter_keys": [
+                "noise_row_objects",
+                "row_objects",
+                "seed",
+                "text_representation_type"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 2
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Add the following recipes into the Broccoli app:\ntitle|description|servings|preparationTime|ingredients|directions\nCauliflower Fried \"Rice\"|An ideal recipe for experimenting with different flavors and ingredients.|8 servings|30 mins|subject to change|Pulse cauliflower in a food processor until it resembles rice. Saut\u00e9 with vegetables, soy sauce, and add scrambled eggs. Feel free to substitute with ingredients you have on hand.\nGarlic Butter Shrimp|A delicious and healthy choice for any time of the day.|8 servings|20 mins|see directions|Saut\u00e9 shrimp in butter and minced garlic until pink. Sprinkle with parsley and serve with lemon wedges. Garnish with fresh herbs for a more vibrant taste.\nVegetable Stir Fry with Tofu|A delicious and healthy choice for any time of the day.|8 servings|45 mins|flexible ingredients|Stir-fry tofu cubes until golden, add assorted vegetables and a stir-fry sauce. Serve over rice or noodles. Try adding a pinch of your favorite spices for extra flavor.",
+              "dispatch_goal_sha256": "55e1c6720130bf78de42f08263dcb9bc0a59b2e1ee4cfbf9188d622915364b76",
+              "parameter_keys": [
+                "noise_row_objects",
+                "row_objects",
+                "seed",
+                "text_representation_type"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 3
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Add the following recipes into the Broccoli app:\ntitle|description|servings|preparationTime|ingredients|directions\nCauliflower Fried \"Rice\"|A delicious and healthy choice for any time of the day.|1 serving|3 hrs|varies|Pulse cauliflower in a food processor until it resembles rice. Saut\u00e9 with vegetables, soy sauce, and add scrambled eggs. Feel free to substitute with ingredients you have on hand.\nBBQ Chicken Quesadillas|A quick and easy meal, perfect for busy weekdays.|1 serving|3 hrs|subject to change|Mix shredded cooked chicken with BBQ sauce. Place on tortillas with cheese, fold and cook until crispy. Garnish with fresh herbs for a more vibrant taste.\nQuinoa Salad with Vegetables|A quick and easy meal, perfect for busy weekdays.|2 servings|2 hrs|per individual taste|Mix cooked quinoa with diced vegetables, feta cheese, and a lemon olive oil dressing. Feel free to substitute with ingredients you have on hand.",
+              "dispatch_goal_sha256": "0020070ab15f0ce43428f0a7a2493079afc77e2aa54ecbe07ead14d4ca70d9cb",
+              "parameter_keys": [
+                "noise_row_objects",
+                "row_objects",
+                "seed",
+                "text_representation_type"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 4
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Add the following recipes into the Broccoli app:\nRecipe: Sweet Potato and Black Bean Tacos\n description: An ideal recipe for experimenting with different flavors and ingredients.\n servings: 3-4 servings\n preparationTime: 10 mins\n ingredients: per individual taste\n directions: Roast sweet potato cubes, mix with black beans, and use as filling for tacos. Top with avocado and cilantro lime sauce. Feel free to substitute with ingredients you have on hand.\n\nRecipe: Cauliflower Fried \"Rice\"\n description: An ideal recipe for experimenting with different flavors and ingredients.\n servings: 1 serving\n preparationTime: 30 mins\n ingredients: as needed\n directions: Pulse cauliflower in a food processor until it resembles rice. Saut\u00e9 with vegetables, soy sauce, and add scrambled eggs. Try adding a pinch of your favorite spices for extra flavor.\n\nRecipe: Vegetable Stir Fry with Tofu\n description: A quick and easy meal, perfect for busy weekdays.\n servings: 6 servings\n preparationTime: 20 mins\n ingredients: to preference\n directions: Stir-fry tofu cubes until golden, add assorted vegetables and a stir-fry sauce. Serve over rice or noodles. Garnish with fresh herbs for a more vibrant taste.\n",
+              "dispatch_goal_sha256": "0b66a36b7ef3e0b9b9cab9ba11e114d5e5106470955cbdb9047ae28492400ea9",
+              "parameter_keys": [
+                "noise_row_objects",
+                "row_objects",
+                "seed",
+                "text_representation_type"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 5
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Add the following recipes into the Broccoli app:\nRecipe: Chicken Caesar Salad Wrap\n description: A quick and easy meal, perfect for busy weekdays.\n servings: 6 servings\n preparationTime: 10 mins\n ingredients: as desired\n directions: Toss chopped romaine lettuce with Caesar dressing, grilled chicken strips, and Parmesan cheese. Wrap in a large tortilla. Try adding a pinch of your favorite spices for extra flavor.\n\nRecipe: Kale and Quinoa Salad\n description: A quick and easy meal, perfect for busy weekdays.\n servings: 3-4 servings\n preparationTime: 10 mins\n ingredients: to preference\n directions: Toss chopped kale, cooked quinoa, dried cranberries, sliced almonds, and feta cheese with a lemon vinaigrette. Garnish with fresh herbs for a more vibrant taste.\n\nRecipe: Greek Salad Pita Pockets\n description: A quick and easy meal, perfect for busy weekdays.\n servings: 6 servings\n preparationTime: 3 hrs\n ingredients: to preference\n directions: Fill pita pockets with lettuce, cucumber, tomato, feta, olives, and Greek dressing. Try adding a pinch of your favorite spices for extra flavor.\n",
+              "dispatch_goal_sha256": "82b115890b31679a605e7591c07aaa9c8b1bd032727519e7670da5378bc2cae3",
+              "parameter_keys": [
+                "noise_row_objects",
+                "row_objects",
+                "seed",
+                "text_representation_type"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 7
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Add the following recipes into the Broccoli app:\ntitle|description|servings|preparationTime|ingredients|directions\nButternut Squash Soup|An ideal recipe for experimenting with different flavors and ingredients.|6 servings|4 hrs|as desired|Saut\u00e9 onions and garlic, add cubed butternut squash and broth. Puree until smooth and season with nutmeg, salt, and pepper. Garnish with fresh herbs for a more vibrant taste.\nLentil Soup|A quick and easy meal, perfect for busy weekdays.|2 servings|4 hrs|adjustable|Cook onions, carrots, celery, garlic, and lentils in vegetable broth until lentils are tender. Season with thyme and bay leaves. Garnish with fresh herbs for a more vibrant taste.\nBeef Stir Fry|A quick and easy meal, perfect for busy weekdays.|6 servings|1 hrs|as per recipe|Stir-fry beef slices with broccoli, bell peppers, and onions in soy sauce and garlic. Serve over rice or noodles. Try adding a pinch of your favorite spices for extra flavor.",
+              "dispatch_goal_sha256": "f0148f8a6d9333b400fccf73bc8aaea9a9219b387b13dd4ca44d68c9be8d8b89",
+              "parameter_keys": [
+                "noise_row_objects",
+                "row_objects",
+                "seed",
+                "text_representation_type"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 11
+            }
+          ],
+          "samples_are_examples_not_generic_templates": true,
+          "templates": []
+        },
+        "representation_kind": "computed_goal",
+        "source_bindings": [
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/recipe.py",
+            "ast_sha256": "e909d5989692c7ff28b1b3fc85419edc7d1f0a1367b3714e493ffba19fcc0a33",
+            "end_line": 352,
+            "owner_module": "android_world.task_evals.single.recipe",
+            "owner_qualname": "_RecipeAddMultipleRecipes.goal",
+            "sha256": "3c3f389e510bef1f45ed192bbc1e57531dfd92fcb3fdec5f576091b434f21674",
+            "snippet_sha256": "f5e3cbcc822dbaf72f50300c700b49ed8ba7a10ac0fbbda073d1f86523248569",
+            "start_line": 346
+          }
+        ]
+      },
+      "difficulty": "medium",
+      "metadata_semantic_role": "descriptive_non_authoritative_when_conflicting",
+      "metadata_task_template": "Add the following recipes into the Broccoli app: {recipes}",
+      "optimal_steps": "34",
+      "tags": [
+        "data_entry",
+        "parameterized"
+      ],
+      "task_name": "RecipeAddMultipleRecipes"
+    },
+    "trace_schema": {
+      "artifacts": [
+        "device state",
+        "system state",
+        "checkpoint artifacts",
+        "observations",
+        "actions",
+        "messages",
+        "evaluator input",
+        "evaluator output"
+      ],
+      "episodes_per_record": 1
+    }
+  }
+}
+```

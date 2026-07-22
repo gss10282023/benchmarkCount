@@ -1,0 +1,100 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "541",
+  "domain": "webarena_verified",
+  "task_id": "541",
+  "native": {
+    "user_goal": {
+      "text": "Modify order #125's address to 654 Elm Drive, Apartment 12, Miami, FL 33101.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only if both configured checks score 1.0: AgentResponseEvaluator accepts the final response against the expected MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the selected address-update POST event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then TaskEvalResult.create composes their scores conjunctively.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Under AgentResponseEvaluator's parsing, normalization, and comparison rules, does the response match the expected task_type MUTATE and status SUCCESS response, including its non-retrieve retrieved_data handling?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last matching POST selected by NetworkEventEvaluator normalize to __SHOPPING_ADMIN__/sales/order/addressSave/address_id/249/, return HTTP 302, and contain city=Miami, country_id=US, postcode=33101, region=Florida, region_id=18, street[0]=654 Elm Drive, and street[1]=Apartment 12 after ignoring post-data keys matching ^form_key$?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both evaluator scores are 1.0: the retained final response passes AgentResponseEvaluator, and the HAR's last matching addressSave POST passes NetworkEventEvaluator with the configured URL, method, post-data values, ignored form_key rule, and 302 response status.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either evaluator does not score 1.0, including an invalid or mismatching final response, no qualifying POST, a mismatch in the selected last POST's configured fields, or any evaluator error.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The retained evidence does not reveal the exact agent response and complete HAR supplied for evaluation, and no retained official per-evaluator results resolve the missing input; an artifact affirmatively shown to be evaluator-invalid is failure, not undecided.",
+        "rationale": "Without the contents or results of both required evaluator inputs, the conjunctive native score cannot be reconstructed from stored evidence."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_order_address",
+        "text": "Require authoritative post-run shopping-admin state to show that order #125's stored address is 654 Elm Drive, Apartment 12, Miami, Florida (FL) 33101, United States.",
+        "rationale": "The native evaluator checks a matching POST that received HTTP 302 plus the agent's success response, but it does not inspect persisted order state or independently establish that address_id 249 is order #125. This is weaker than the task's claim that order #125 was actually modified.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Authoritative post-run order #125 state export or fresh order-detail response",
+            "question": "Does the record identify order #125 and show the requested address as its persisted post-run address?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+        ]
+      }
+    ]
+  }
+}

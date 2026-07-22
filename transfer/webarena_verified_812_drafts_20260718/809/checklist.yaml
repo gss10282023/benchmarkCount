@@ -1,0 +1,82 @@
+schema_version: case_checklist_v1
+case_unit_id: '809'
+domain: webarena_verified
+task_id: '809'
+native:
+  user_goal:
+    text: Create an issue in the a11yproject repository titled "404 for many URLs", assign it to the acting user, and set its due date to 2030-01-03.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring both official evaluator scores to equal 1.0: AgentResponseEvaluator must accept the response as a MUTATE with SUCCESS, and NetworkEventEvaluator must accept the last matching POST to the a11yproject issue-creation URL with response status 302 and the configured title, assignee ID 2330, and due date.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator over the agent response and NetworkEventEvaluator over the network trace; TaskEvalResult.create then applies the all-evaluator-scores-equal-1.0 rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the stored response parse and normalize under AgentResponseEvaluator to task_type MUTATE and status SUCCESS for this mutate task?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last evaluation event matching POST and the configured issue-collection path also match the normalized GitLab URL, response status 302, and extracted form fields issue[title]="404 for many URLs", issue[assignee_ids][]=2330, and issue[due_date]="2030-01-03"?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: The complete agent_response.json gives AgentResponseEvaluator score 1.0 by matching task_type MUTATE and status SUCCESS under its parsing, normalization, and structural comparison rules.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: The complete network.har gives NetworkEventEvaluator score 1.0 because the last POST event matching the configured issue path matches the expected normalized URL, 302 response status, title, assignee ID, and due date; together with the response-evaluator pass, both required scores are 1.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native failure occurs if AgentResponseEvaluator does not score 1.0, including an absent or invalid response, a task type other than MUTATE, a status other than SUCCESS, a structural mismatch, or an evaluator error.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Native failure occurs if NetworkEventEvaluator does not score 1.0, including no matching POST or any mismatch in the last path-matching POST's normalized URL, response status, or expected form fields; an earlier matching event does not rescue a nonmatching later event when last_event_only is true.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The evidence review is undecided if agent_response.json or network.har was not retained, or retention damage prevents reconstructing what was supplied to the corresponding evaluator. A complete response or HAR that lacks a passing value is failure, not undecided.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    rationale: Both retained artifacts are needed to determine the conjunctive native score; missing review evidence is distinct from a complete artifact that the evaluator rejects.
+stronger:
+  additional_conditions:
+  - id: verify_persisted_issue_state
+    text: Beyond native scoring, require a retained post-run GitLab issue record showing a newly created issue in a11yproject/a11yproject.com with title "404 for many URLs", due date 2030-01-03, and the acting user as assignee (configured assignee ID 2330).
+    rationale: The official intent requires an issue and its properties to exist, while the native evaluator observes only a self-reported SUCCESS response and a matching POST/302 network event; it does not inspect persisted post-run GitLab issue state.
+    decisive_artifacts:
+    - artifact: Post-run GitLab issue record, API export, or equivalent state snapshot
+      question: Does the retained record identify an issue newly created by the run in a11yproject/a11yproject.com with the exact requested title, due date, and acting-user assignee?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

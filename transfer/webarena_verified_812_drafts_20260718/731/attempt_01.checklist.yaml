@@ -1,0 +1,60 @@
+schema_version: case_checklist_v1
+case_unit_id: '731'
+domain: webarena_verified
+task_id: '731'
+native:
+  user_goal:
+    text: 'Edit the user''s Reddit post titled "Nvidia RTX 4090" by adding a new body line that reads "EDIT: This news aged well".'
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: The task succeeds only when both AgentResponseEvaluator and NetworkEventEvaluator score 1.0, yielding TaskEvalResult.score = 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator on the final response and NetworkEventEvaluator on the network trace, then applies all-evaluators-must-pass composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response pass the released normalization and structural comparison for the expected MUTATE/SUCCESS response?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: 'Does the last evaluation event matching POST to the normalized Reddit edit URL return 302 with title "Nvidia RTX 4090" and a body matching "^\s*Crazy device for ML!\s*EDIT: This news aged well\s*$"?'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks pass: agent_response.json satisfies the expected MUTATE/SUCCESS comparison, and network.har''s last matching edit POST satisfies the normalized URL, method, 302 status, title, and body-pattern comparison.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The benchmark score is 0.0 if either evaluator is not 1.0, including an invalid or mismatching final response, an evaluator error, no matching edit POST, or a last matching POST that fails any expected URL, method, status, title, or body check.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only if either retained artifact is absent or unreadable and no authoritative TaskEvalResult is retained, so the two evaluator inputs cannot be reconstructed.
+    rationale: This is an evidence-retention limitation; an input that the released evaluator itself observes as missing, invalid, or erroneous remains a native non-success.
+stronger:
+  additional_conditions:
+  - id: persisted_separate_line
+    text: 'A retained post-run view of the target Reddit post shows "Crazy device for ML!" followed on a separate line by "EDIT: This news aged well".'
+    rationale: The user requests an actual post edit adding a line, while the native evaluator checks only a POST/302 trace event and its \s* pattern permits zero or non-newline whitespace without inspecting persisted post state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit page/DOM capture for "Nvidia RTX 4090"
+      question: Does the persisted target-post body contain the requested text on its own line after the original body?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data.submission[body]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.post_data.submission[body]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

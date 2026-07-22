@@ -1,0 +1,65 @@
+schema_version: case_checklist_v1
+case_unit_id: '511'
+domain: webarena_verified
+task_id: '511'
+native:
+  user_goal:
+    text: Add a laundry detergent to the user's shopping wish list.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring both configured evaluator scores to equal 1.0: AgentResponseEvaluator accepts the successful MUTATE response and NetworkEventEvaluator accepts the configured wishlist-add event.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator checks the retained agent response, the released NetworkEventEvaluator checks the retained HAR, and WebArenaVerifiedEvaluator composes their results.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Under AgentResponseEvaluator parsing and normalization, does the response match task_type MUTATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: 'Does the last event matching POST to the rendered shopping path /wishlist/index/add/ have response status 302, post_data normalizing to {"qty": null}, and a URL-decoded mage-messages response cookie matching ^.*(?=.*laundry)(?=.*detergent).* has been added to your wish list.*$?'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.response_cookies
+  success_if:
+  - text: The AgentResponseEvaluator scores 1.0 for the normalized successful MUTATE response and the NetworkEventEvaluator scores 1.0 for the last matching wishlist-add POST satisfying every configured field; therefore all configured scores are 1.0 and TaskEvalResult.score is 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Failure occurs if either configured evaluator does not score 1.0: the response fails its normalized structural comparison, or the last matching wishlist-add POST is absent or mismatches any configured URL, method, status, post-data, or cookie criterion. Evaluator errors also yield TaskEvalResult.score 0.0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only if the stored review bundle lacks a complete agent response or HAR and retains no corresponding official evaluator result, so the original evaluator inputs or scores cannot be established.
+    rationale: An evidence-retention gap is non-decisive; an artifact known to have been supplied as missing, malformed, or mismatching is instead a native failure.
+stronger:
+  additional_conditions:
+  - id: verify_final_wishlist_state
+    text: Beyond native scoring, retained post-run shopping state shows at least one laundry-detergent product in the user's wish list.
+    rationale: The stated goal concerns the resulting wish-list state, while the native evaluators inspect only a success response and a matching add-request response, not the post-run wish list itself.
+    decisive_artifacts:
+    - artifact: Authenticated post-run wish-list state capture
+      question: Does the user's post-run wish list contain at least one laundry-detergent product?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

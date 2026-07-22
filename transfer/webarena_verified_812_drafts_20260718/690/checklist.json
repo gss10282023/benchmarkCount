@@ -1,0 +1,113 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "690",
+  "domain": "webarena_verified",
+  "task_id": "690",
+  "native": {
+    "user_goal": {
+      "text": "Populate the shop's contact form as a coupon request with the reason \"they promised me a coupon last time\" and leave it ready for review rather than submitting it.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when all three configured checks score 1.0: the AgentResponseEvaluator accepts a mutate-success response, the first NetworkEventEvaluator accepts the required dummy_bin POST, and the second NetworkEventEvaluator finds no shopping contact-submission POST.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs the three configured evaluators in order, and TaskEvalResult.create applies the all-evaluator-scores-equal-1.0 composition.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the released response parser and normalizer accept it as task_type MUTATE and status SUCCESS, with the mutate-task retrieved_data handling producing no comparison failure or evaluator error?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching POST to ^http://.*/dummy_bin$ have response status -1 and post fields name=Emma Lopez, email=emma.lopez@gmail.com, form_id=contact-form, and comment=\"they promised me a coupon last time\" under the released normalization and comparison rules?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Are there zero evaluation events matching method POST and the rendered __SHOPPING__/contact/index/post path? In should_not_exist mode, any such URL-and-method match fails regardless of its response status.",
+        "support": [
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "All three evaluator scores are 1.0: the response normalizes to the accepted MUTATE/SUCCESS result; the last matching dummy_bin POST matches the required status and form values; and no POST event matches the shopping contact-submission endpoint.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure occurs if any configured check scores 0 or errors: the response cannot be accepted as MUTATE/SUCCESS, the required dummy_bin POST is absent or its last matching event mismatches, or any POST event matches the shopping contact-submission endpoint.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Evidence review is undecided only when agent_response.json or network.har is unavailable or too incomplete to reconstruct one or more configured comparisons; a present, parseable artifact showing an absent or mismatching required event is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "derived/task.json::eval"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "final_form_ready_state",
+        "text": "In addition to native success, a retained final browser-state capture shows the shopping contact form still open and populated with Emma Lopez, emma.lopez@gmail.com, and the exact requested reason, with the request awaiting review.",
+        "rationale": "The official intent requires a final prepared form state, while the native checks inspect only the agent response and network events; those checks do not establish that the populated form remains visible and ready at the end of the run.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Final browser DOM or accessibility snapshot",
+            "question": "Does the final state show the shop contact form open with the expected name, email, and reason values and no submission-confirmation state?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.post_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "416",
+  "domain": "webarena_verified",
+  "task_id": "416",
+  "native": {
+    "user_goal": {
+      "text": "On the merge request assigned to the user for wcag, reply \"Thank you\" if its last comment is from the merge-request author; otherwise tag that author as a reminder.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured evaluators score 1.0: the agent response passes the MUTATE/SUCCESS comparison, and the last POST event matching the configured GitLab notes path passes the full comparison for target 72409, target type merge_request, note text \"Thank you\", noteable type MergeRequest, and response status 200.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator over the retained agent response and NetworkEventEvaluator over the retained network trace; TaskEvalResult.create applies the conjunction of their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and normalize so AgentResponseEvaluator scores 1.0 against the expected MUTATE/SUCCESS response?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last evaluation event that is a POST to the configured GitLab notes path a full normalized match for __GITLAB__/a11yproject/a11yproject.com/notes?target_id=72409&target_type=merge_request, with note.note=\"Thank you\", note.noteable_type=\"MergeRequest\", and response status 200?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both components pass: agent_response.json yields AgentResponseEvaluator score 1.0 for MUTATE/SUCCESS, and network.har yields NetworkEventEvaluator score 1.0 for the configured last-event-only POST carrying the \"Thank you\" MergeRequest note to target 72409 with response status 200.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Failure occurs if task evaluation errors or either component does not score 1.0, including a malformed or mismatching agent response, no matching POST event, or a selected last POST whose URL/query, note text or type, method, or response status fails the configured comparison.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecided only when agent_response.json or network.har is absent, truncated, or unreadable so its run contents cannot be established. A retained malformed or mismatching response, or a readable HAR with no qualifying event, is failure rather than undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_reply_branch_context",
+        "text": "Beyond native scoring, require retained GitLab state to show that target 72409 is the wcag merge request assigned to the user and that the comment immediately preceding the newly created \"Thank you\" reply was authored by that merge request's author.",
+        "rationale": "The official instruction makes target selection and the reply text depend on GitLab state, while the released evaluators accept a declared MUTATE/SUCCESS result plus a fixed \"Thank you\" POST without checking assignment, topic, or preceding-comment authorship.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Can the accepted POST to target 72409 be correlated by timing or request/response identifiers with the newly persisted \"Thank you\" note?",
+            "support": [
+              "derived/task.json::eval[1]",
+              "official/src/webarena_verified/types/tracing.py::NetworkEvent"
+            ]
+          },
+          {
+            "artifact": "Post-run GitLab merge-request snapshot or API export with assignee, MR metadata, author metadata, and ordered notes",
+            "question": "Does target 72409 identify the user's assigned wcag merge request and show the new \"Thank you\" reply immediately after a comment by the merge-request author?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

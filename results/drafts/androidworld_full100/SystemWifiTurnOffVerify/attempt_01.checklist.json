@@ -5,81 +5,96 @@
   "task_id": "SystemWifiTurnOffVerify",
   "native": {
     "user_goal": {
-      "text": "Verify that Wi‑Fi is already turned off.",
+      "text": "Turn wifi off.",
       "support": [
-        "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemWifiTurnOffVerify"
+        "derived/canonical_task_semantics.json::goal.runtime_samples[0].dispatch_goal_model",
+        "official/install/android_world/task_evals/single/system.py::SystemWifiTurnOffVerify.generate_random_params"
       ]
     },
     "benchmark_success": {
-      "text": "Benchmark success is a single official check: return 1.0 iff the final `settings get global wifi_on` value is exactly `0` for this `on_or_off='off'` case.",
+      "text": "Native success requires `done=true` and a final evaluator-visible `global wifi_on` value of `0`.",
       "support": [
-        "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful",
-        "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemWifiTurnOffVerify.generate_random_params",
-        "official/install/android_world/task_evals/task_eval.py::TaskEval.is_successful"
+        "derived/canonical_task_semantics.json::evaluator.runner_score_semantics.done_gate",
+        "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful"
       ]
     },
     "checked_by": {
-      "text": "Official evaluator read of Android global setting `wifi_on` after the run.",
+      "text": "AndroidWorld runner `done` gate plus `_SystemWifiToggle.is_successful`.",
       "support": [
-        "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful"
+        "derived/canonical_task_semantics.json::evaluator.runner_score_semantics.done_gate",
+        "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful"
       ]
     },
     "decisive_artifacts": [
       {
-        "artifact": "Post-run evaluator log or device-state capture containing the output of `settings get global wifi_on`",
-        "question": "Does the retained `wifi_on` value equal exactly `0` at evaluation time?",
+        "artifact": "Episode completion trace or runner record",
+        "question": "Does retained execution evidence show the episode finished with `done=true` or `done=false`?",
         "support": [
-          "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful",
-          "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemWifiTurnOffVerify.generate_random_params"
+          "derived/canonical_task_semantics.json::evaluator.runner_score_semantics.done_gate"
+        ]
+      },
+      {
+        "artifact": "Retained final evaluator-visible WiFi setting evidence",
+        "question": "What final value does retained evidence show for `settings get global wifi_on`, specifically `0` versus a nonzero value?",
+        "support": [
+          "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful"
         ]
       }
     ],
     "success_if": [
       {
-        "text": "Retained evaluator/device-state evidence shows the final `global wifi_on` value is exactly `0`.",
+        "text": "Retained evidence shows `done=true` and shows the final evaluator-visible `global wifi_on` value was `0`.",
         "support": [
-          "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful",
-          "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemWifiTurnOffVerify.generate_random_params"
+          "derived/canonical_task_semantics.json::evaluator.runner_score_semantics.done_gate",
+          "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful"
         ]
       }
     ],
     "fail_if": [
       {
-        "text": "Retained evaluator/device-state evidence shows the final `global wifi_on` value is anything other than `0`.",
+        "text": "Retained evidence shows `done=false`.",
         "support": [
-          "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful",
-          "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemWifiTurnOffVerify.generate_random_params"
+          "derived/canonical_task_semantics.json::evaluator.runner_score_semantics.done_gate"
+        ]
+      },
+      {
+        "text": "Retained evaluator-visible final device-state evidence shows `global wifi_on` was not `0`.",
+        "support": [
+          "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful"
         ]
       }
     ],
     "undecided_if": [
       {
-        "text": "No retained post-run evidence shows the evaluated `global wifi_on` value.",
-        "rationale": "The native decision depends on the exact value read by the evaluator; without that retained readout, success vs. failure cannot be verified from stored evidence."
+        "text": "Retained evidence does not establish the runner `done` result, and does not establish a decisive final evaluator-visible `global wifi_on` value; in particular, final `wifi_on=0` without `done` evidence is undecided.",
+        "support": [
+          "derived/canonical_task_semantics.json::evaluator.runner_score_semantics.done_gate",
+          "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful"
+        ]
       }
     ]
   },
   "stronger": {
     "additional_conditions": [
       {
-        "id": "preserve_preexisting_off_state",
-        "text": "Beyond native scoring, require evidence that Wi‑Fi was not turned on during the run, since this verification task starts with Wi‑Fi already off but the released evaluator checks only the final `wifi_on` value.",
-        "rationale": "`SystemWifiTurnOffVerify` is defined as verifying Wi‑Fi is already off and initializes the device with Wi‑Fi off, yet `_SystemWifiToggle.is_successful` would still pass a run that turns Wi‑Fi on and later back off.",
+        "id": "require_action_beyond_preset_off_state",
+        "text": "Because this verification case initializes WiFi off before the run, require retained trace evidence that the agent actually attempted to turn WiFi off or explicitly verified the WiFi control/state, rather than succeeding solely from the pre-set off state.",
+        "rationale": "The user-facing goal is \"Turn wifi off.\", but `SystemWifiTurnOffVerify.initialize_task` turns WiFi off before interaction and native scoring only checks final `wifi_on` plus `done`, so a no-op can satisfy the native criterion.",
         "decisive_artifacts": [
           {
-            "artifact": "Interaction log or time-stamped Wi‑Fi state trace",
-            "question": "Does the retained trace show Wi‑Fi stayed off throughout the run, with no intervening on state?",
+            "artifact": "Episode action/state trace",
+            "question": "Does the retained trace show interaction with WiFi or Settings controls, or an explicit WiFi-state check, before completion?",
             "support": [
-              "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemWifiTurnOffVerify",
-              "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemWifiTurnOffVerify.initialize_task",
-              "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful"
+              "official/install/android_world/task_evals/single/system.py::SystemWifiTurnOffVerify.initialize_task",
+              "derived/canonical_task_semantics.json::goal.runtime_samples[0].dispatch_goal_model"
             ]
           }
         ],
         "support": [
-          "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemWifiTurnOffVerify",
-          "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::SystemWifiTurnOffVerify.initialize_task",
-          "official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful"
+          "official/install/android_world/task_evals/single/system.py::SystemWifiTurnOffVerify.initialize_task",
+          "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful",
+          "derived/canonical_task_semantics.json::goal.runtime_samples[0].dispatch_goal_model",
+          "derived/canonical_task_semantics.json::evaluator.runner_score_semantics.done_gate"
         ]
       }
     ]

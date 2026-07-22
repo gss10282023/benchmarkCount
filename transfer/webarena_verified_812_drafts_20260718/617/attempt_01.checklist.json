@@ -1,0 +1,113 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "617",
+  "domain": "webarena_verified",
+  "task_id": "617",
+  "native": {
+    "user_goal": {
+      "text": "Re-post the Firework image from /f/pics to the news forum using the image URL and the title \"from /f/pics\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only if both configured evaluator scores are 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the selected last Reddit submission POST.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released AgentResponseEvaluator and NetworkEventEvaluator, composed by TaskEvalResult.create using an all-evaluator-scores-equal-1.0 rule.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained final response pass AgentResponseEvaluator's normalization and structural comparison against the configured MUTATE/SUCCESS response?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last matching POST to ^__REDDIT__/submit.*$ have response status 302 and the required forum, title, and image-URL form values under the evaluator's normalization rules?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both evaluator scores are 1.0: the final response passes the configured MUTATE/SUCCESS comparison, and the last POST matching ^__REDDIT__/submit.*$ has response 302 with submission[forum]=10064, submission[title]=\"from /f/pics\", and submission[url]=__REDDIT__/submission_images/92411be6af4e9ad5ccd3ccbaa01c10457bb00e704e99c58dd430de1a958307fd.jpg after normalization.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if a replayable final response makes AgentResponseEvaluator score below 1.0 or error; this component failure alone makes the conjunctive task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "Fail if a complete replayable HAR contains no qualifying submit POST, or if the selected last matching POST fails any configured URL, method, response-status, or form-value comparison; this component failure alone makes the task score 0.0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecided only when one or both run artifacts are absent, unreadable, or known incomplete, and the available evidence neither establishes both evaluator passes nor already establishes a failure in either component.",
+        "rationale": "Native success is conjunctive: incomplete evidence cannot prove success, while a decisive failure in either available component still proves native failure."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_repost_state",
+        "text": "Beyond the native request-trace check, require retained Reddit state evidence that the requested submission was actually created in the news forum with title \"from /f/pics\" and the Firework image URL.",
+        "rationale": "The official task asks for a re-posted forum item, but the released evaluator checks a matching POST with a 302 response and a self-reported success response without inspecting persisted Reddit state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Reddit submission record or state diff",
+            "question": "Does it show a newly created news-forum submission titled \"from /f/pics\" whose URL is __REDDIT__/submission_images/92411be6af4e9ad5ccd3ccbaa01c10457bb00e704e99c58dd430de1a958307fd.jpg?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.post_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

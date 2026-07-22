@@ -1,0 +1,77 @@
+schema_version: case_checklist_v1
+case_unit_id: reshard-c4-data
+domain: terminal_bench_2_1
+task_id: terminal-bench/reshard-c4-data
+native:
+  user_goal:
+    text: Create `/app/compress.py` and `/app/decompress.py` so the first reshards an input directory into an output directory with at most 30 items per directory and 15MB per file, the second restores the original files in place exactly, and the solution is packaged in `/app` as a uv project with `pyproject.toml`, developed against `c4_sample/` but intended for similar slices.
+    support:
+    - official/instruction.md::1-15
+  benchmark_success:
+    text: 'Native success is that the task-specific verifier in `official/tests/test.sh` exits successfully because the single pytest case `test_compress_decompress_workflow` passes: on generated unseen C4 shard data, `uv run /app/compress.py` creates the output directory, every output file is at most 15MB, every directory has at most 30 total entries, and `uv run /app/decompress.py` restores exactly the original basenames and SHA256-tracked file contents.'
+    support:
+    - official/tests/test.sh::9-15
+    - official/tests/test_outputs.py::85-184
+  checked_by:
+    text: '`official/tests/test.sh` running pytest against `official/tests/test_outputs.py` with CTRF reporting.'
+    support:
+    - official/tests/test.sh::9-15
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the retained CTRF report show whether `test_compress_decompress_workflow` passed, and if it failed, which official assertion failed?
+    support:
+    - official/tests/test.sh::9-15
+    - official/tests/test_outputs.py::85-184
+  - artifact: verifier/test-stdout.txt
+    question: Does verifier stdout show the `uv sync`, compress, and decompress steps and any printed timeout or assertion context for the official checks?
+    support:
+    - official/tests/test_outputs.py::94-99
+    - official/tests/test_outputs.py::101-121
+    - official/tests/test_outputs.py::139-184
+  - artifact: verifier/test-stderr.txt
+    question: Does verifier stderr contain subprocess or traceback output needed to confirm a non-zero return, timeout, or other official test failure?
+    support:
+    - official/tests/test_outputs.py::106-118
+    - official/tests/test_outputs.py::149-161
+  success_if:
+  - text: 'Retained verifier evidence establishes that `test_compress_decompress_workflow` passed: `uv run /app/compress.py` returned 0 within 600 seconds, created the output directory, every produced file was at most 15MB, every directory had at most 30 items, and `uv run /app/decompress.py` returned 0 within 600 seconds and restored exactly the original basenames and SHA256-tracked contents.'
+    support:
+    - official/tests/test_outputs.py::101-137
+    - official/tests/test_outputs.py::146-184
+  fail_if:
+  - text: Retained verifier evidence establishes failure if the official test shows `uv run /app/compress.py` or `uv run /app/decompress.py` timed out or returned a non-zero status.
+    support:
+    - official/tests/test_outputs.py::101-118
+    - official/tests/test_outputs.py::146-161
+  - text: Retained verifier evidence establishes failure if the official test shows the output directory was not created, any compressed file exceeded 15MB, any directory exceeded 30 total entries, the post-decompression basename set differed from the original, or any post-decompression file hash differed from the recorded original hash.
+    support:
+    - official/tests/test_outputs.py::120-137
+    - official/tests/test_outputs.py::163-181
+  undecided_if:
+  - text: Retained non-label evidence does not reliably establish whether `test_compress_decompress_workflow` passed or which official assertion determined the outcome, such as when the CTRF report is missing or incomplete and verifier stdout/stderr do not independently show a decisive pass or failure condition.
+    rationale: Native scoring is entirely determined by one pytest verifier case. If retained test-report and log artifacts do not let a reviewer determine that case's result or the decisive assertion, neither success nor failure is established from non-label evidence.
+stronger:
+  additional_conditions:
+  - id: uv_project_requirement
+    text: Beyond native success, retained artifacts establish that `/app` contains the required uv project metadata for the solution, `uv sync` succeeded in `/app`, and the run evidence does not show `uv run` installing additional dependencies.
+    rationale: The instruction explicitly requires a uv venv in `/app` and a `pyproject.toml` such that dependencies are installable via `uv sync` and later `uv run` does not install anything extra. The native verifier invokes `uv sync` but only prints a failure message if it fails, then continues to score only the compress/decompress behavior, so native success can miss this workflow requirement.
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: Do retained workspace artifacts include `/app/pyproject.toml` and the dependency metadata needed for the solution's uv project?
+      support:
+      - official/instruction.md::15-15
+    - artifact: verifier/test-stdout.txt
+      question: Does verifier stdout show that `uv sync` succeeded before script execution rather than merely logging a sync failure?
+      support:
+      - official/tests/test_outputs.py::94-99
+    - artifact: verifier/test-stderr.txt
+      question: Does verifier stderr avoid evidence that `uv run` installed extra dependencies during script execution?
+      support:
+      - official/instruction.md::15-15
+      - official/tests/test_outputs.py::106-107
+      - official/tests/test_outputs.py::149-150
+    support:
+    - official/instruction.md::15-15
+    - official/tests/test_outputs.py::94-99
+    - official/tests/test_outputs.py::106-107
+    - official/tests/test_outputs.py::149-150

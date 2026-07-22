@@ -1,0 +1,110 @@
+schema_version: case_checklist_v1
+case_unit_id: miniwob.email-inbox-forward
+domain: miniwob
+task_id: miniwob.email-inbox-forward
+native:
+  user_goal:
+    text: Complete the runtime-issued email task by finding the named sender's email and forwarding that email to the runtime-specified
+      recipient.
+    support:
+    - derived/drafting_context.json::task_text.runtime_goal_source
+    - official/install/miniwob/html/miniwob/email-inbox-forward.html::displayQuery
+    - official/install/miniwob/html/miniwob/email-inbox-forward.html::genProblem
+  benchmark_success:
+    text: Native success is a valid final MiniWoB validation with `done` true and binary reward `1.0`, computed as `float(RAW_REWARD_GLOBAL
+      > 0)`. For this task, the positive oracle branch checks that the entered forwarding recipient matches the episode recipient
+      and that the forward-text body matches the target email body; it does not independently verify which email record was
+      opened.
+    support:
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods.validate.content
+    - derived/official_source_excerpts.json::excerpts.core_reward_wiring.content
+    - official/install/miniwob/html/miniwob/email-inbox-forward.html::clickEmail
+  checked_by:
+    text: '`env.unwrapped.task.validate(page, chat_messages)` on the final page state; invalid page or URL immediately yields
+      reward `0` and `done` true, otherwise the validator reads WOB globals and returns binary reward plus `DONE_GLOBAL`.'
+    support:
+    - derived/drafting_context.json::released_evaluator.entrypoint
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods.validate.content
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods._get_info.content
+  decisive_artifacts:
+  - artifact: native_evaluator_output.json
+    question: 'Does the final native validation show `done: true` with reward `1.0`, or instead an invalid page/URL error
+      or non-positive outcome?'
+    support:
+    - derived/drafting_context.json::artifact_inventory.retained_artifacts[2]
+    - derived/drafting_context.json::released_evaluator.success_evidence_rule
+    - derived/drafting_context.json::released_evaluator.failure_evidence_rule
+  - artifact: task_context.json
+    question: What runtime goal was issued for this episode, including the named sender and forwarding recipient to interpret
+      the case intent?
+    support:
+    - derived/drafting_context.json::artifact_inventory.retained_artifacts[0]
+    - derived/drafting_context.json::task_text.runtime_goal_source
+  - artifact: trajectory/ and run_summary.json
+    question: Do concrete action/step records together with run-status metadata establish a benchmark-counted invalid action,
+      timeout, tool misuse, abort, or exhausted run budget after task start? Do not use a summary-only success/label field
+      by itself.
+    support:
+    - derived/drafting_context.json::artifact_inventory.retained_artifacts[4].path
+    - derived/drafting_context.json::artifact_inventory.retained_artifacts[7].path
+    - derived/drafting_context.json::released_evaluator.failure_evidence_rule
+    - derived/drafting_context.json::released_evaluator.summary_field_guard
+  success_if:
+  - text: '`native_evaluator_output.json` shows a valid final validation with `done` true and reward `1.0`, grounded in positive
+      `RAW_REWARD_GLOBAL` and no invalid page/URL error.'
+    support:
+    - derived/drafting_context.json::artifact_inventory.retained_artifacts[2]
+    - derived/drafting_context.json::released_evaluator.success_evidence_rule
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods.validate.content
+  fail_if:
+  - text: '`native_evaluator_output.json` shows the validator terminated for an invalid page or invalid URL.'
+    support:
+    - derived/drafting_context.json::released_evaluator.failure_evidence_rule
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods.validate.content
+  - text: '`native_evaluator_output.json` shows a completed final validation with reward `0.0` from non-positive `RAW_REWARD_GLOBAL`.'
+    support:
+    - derived/drafting_context.json::released_evaluator.failure_evidence_rule
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods.validate.content
+    - derived/official_source_excerpts.json::excerpts.core_reward_wiring.content
+  - text: Retained run-status together with concrete trace or evaluator-step evidence establishes another benchmark-counted
+      run failure, including an agent-caused invalid action, timeout, tool misuse, abort, or exhausted run budget after task
+      start.
+    support:
+    - derived/drafting_context.json::released_evaluator.failure_evidence_rule
+    - derived/drafting_context.json::artifact_inventory.retained_artifacts[2].path
+    - derived/drafting_context.json::artifact_inventory.retained_artifacts[4].path
+    - derived/drafting_context.json::artifact_inventory.retained_artifacts[7].path
+    - derived/drafting_context.json::released_evaluator.summary_field_guard
+  undecided_if:
+  - text: The retained evidence does not include a reliable final native validation result, and the remaining artifacts do
+      not independently establish whether the final validator reward was positive or non-positive.
+    support:
+    - derived/drafting_context.json::artifact_inventory.retained_artifacts[2]
+    - derived/drafting_context.json::released_evaluator.summary_field_guard
+    rationale: Native scoring is determined by the concrete final validator reward/done/info, not by summary-only fields or
+      the task source alone.
+stronger:
+  additional_conditions:
+  - id: forwarded_email_is_from_runtime_specified_sender
+    text: The message actually selected for forwarding is an email from the runtime-specified sender, rather than a different
+      email whose forward body was edited to match the target email body.
+    rationale: The official task requires finding the named sender's email and forwarding that email, while the positive forward
+      oracle checks only the entered recipient and forward-text body and does not verify the selected email's sender or identity.
+    decisive_artifacts:
+    - artifact: task_context.json
+      question: Which sender and forwarding recipient were specified by the runtime-issued goal?
+      support:
+      - derived/drafting_context.json::artifact_inventory.retained_artifacts[0].path
+      - derived/drafting_context.json::task_text.runtime_goal_source
+    - artifact: trajectory/ and browser_artifacts/
+      question: Do retained actions and page evidence establish that the email actually opened and selected for forwarding
+        was from the runtime-specified sender?
+      support:
+      - derived/drafting_context.json::artifact_inventory.retained_artifacts[4].path
+      - derived/drafting_context.json::artifact_inventory.retained_artifacts[5].path
+      - derived/drafting_context.json::stronger_measurement.required_additional_conditions[0].decisive_post_run_artifacts
+    support:
+    - official/install/miniwob/html/miniwob/email-inbox-forward.html::displayQuery
+    - official/install/miniwob/html/miniwob/email-inbox-forward.html::clickEmail
+    - official/install/miniwob/html/miniwob/email-inbox-forward.html::genProblem
+    - derived/official_source_excerpts.json::excerpts.base_validator.methods.validate.content

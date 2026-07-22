@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: '751'
+domain: webarena_verified
+task_id: '751'
+native:
+  user_goal:
+    text: Create a private GitLab project named "AGISite" from the JEKYLL template and add Rohan and Vinta as project members.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring all three configured evaluator results to score 1.0: the response matches MUTATE/SUCCESS with no retrieved data; the last matching project-creation POST has the configured AGISite, namespace 2505, path, jekyll, private-visibility fields and response 302; and, independently, the last matching invitations POST to a numeric project ID has user_id "2366,278" under string_list normalization and response 201.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs one AgentResponseEvaluator and two NetworkEventEvaluator configurations, then TaskEvalResult.create applies all-of score composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response score 1.0 against the configured MUTATE/SUCCESS result, with no retrieved data, under the official JSON parsing, normalization, and structural comparison?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: For each network check's last URL/method match, does the HAR show (a) POST __GITLAB__/projects with project[name] and project[path] "AGISite", namespace_id "2505", template_name "jekyll", visibility_level "0", and response 302, and (b) POST matching __GITLAB__/api/v4/projects/\d+/invitations with user_id matching "2366,278" as a string_list and response 201, with serializer ignored?
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'TaskEvalResult.score is 1.0 because all three configured results score 1.0: the agent-response check, the AGISite creation-event check, and the separate invitations-event check.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if any configured evaluator does not score 1.0 or errors, including an invalid or mismatching response, a missing or mismatching last project-creation event, or a missing or mismatching last invitations event; TaskEvalResult.score is then 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - derived/task.json::eval
+  undecided_if:
+  - text: Undecided only when the retained response or HAR is absent, unreadable, or incomplete enough that one or more official checks cannot be reconstructed; a readable mismatch or evaluator error is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: same_project_end_state
+    text: Beyond native success, retained post-run GitLab state must identify the private AGISite project and show Rohan and Vinta as current members of that exact project.
+    rationale: The task binds both members to AGISite, but the released checks independently evaluate project creation and an invitations URL matching any numeric project ID; they neither correlate the invitation target with AGISite nor inspect final membership state.
+    decisive_artifacts:
+    - artifact: Post-run GitLab project-state snapshot
+      question: At run end, does AGISite exist in the configured namespace with private visibility, and what is its project ID?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+    - artifact: Post-run GitLab membership snapshot
+      question: For that same AGISite project ID, are both Rohan and Vinta listed as current project members?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[2].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.url
+    - derived/task.json::eval[2].expected.url
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

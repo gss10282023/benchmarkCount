@@ -1,0 +1,76 @@
+schema_version: case_checklist_v1
+case_unit_id: '482'
+domain: webarena_verified
+task_id: '482'
+native:
+  user_goal:
+    text: Invite yjlou to the dotfiles repository as a Guest so he can inspect the configurations.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Both official checks must score 1.0: AgentResponseEvaluator must accept the reported MUTATE/SUCCESS outcome, and NetworkEventEvaluator must accept the configured GitLab membership-creation event.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator and NetworkEventEvaluator, composed all-of by TaskEvalResult.create.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the parsed and normalized response satisfy the evaluator's expected structure and values for task_type MUTATE and status SUCCESS, with retrieved_data not value-checked for this mutate task?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last POST event matching __GITLAB__/api/v4/projects/193/members accepted with post_data containing access_level 10 and user_id 168 and response status 201?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: AgentResponseEvaluator scores 1.0 because agent_response.json is accepted as the expected MUTATE/SUCCESS response.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: NetworkEventEvaluator scores 1.0 because network.har contains an accepted last matching POST to project 193's members endpoint with access_level 10, user_id 168, and response status 201.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: With both evaluator scores equal to 1.0, TaskEvalResult has score 1.0 and success status.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if the response check is rejected or errors, or if no qualifying POST exists or the last matching POST fails any configured URL, method, post-data, or response-status comparison; any evaluator score other than 1.0 makes the task score 0.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when agent_response.json or network.har is absent or too incomplete to reconstruct its official check; evaluator-visible rejection or error in retained evidence is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: verify_final_membership
+    text: A retained post-run GitLab membership snapshot or API response shows user_id 168 remains a member of project 193 with access_level 10.
+    rationale: The native network check accepts a matching successful POST but does not verify the final project-membership state, while the stated goal is to leave yjlou invited as a Guest.
+    decisive_artifacts:
+    - artifact: Post-run GitLab project 193 membership state
+      question: Does the final member list show user_id 168 with access_level 10?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

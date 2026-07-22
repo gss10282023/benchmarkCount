@@ -1,0 +1,74 @@
+schema_version: case_checklist_v1
+case_unit_id: '381'
+domain: webarena_verified
+task_id: '381'
+native:
+  user_goal:
+    text: Show on the map hotels near Carnegie Music Hall.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both the configured AgentResponseEvaluator and NetworkEventEvaluator must score 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the two configured evaluators and conjunctively composes their scores into the task result.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted response parse and normalize to the evaluator-expected mapping with task_type NAVIGATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last evaluator-visible navigation event normalize to a GET of __MAP__/search with query=["hotels near Carnegie Music Hall"] and response status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: 'Success iff both checks pass: the response normalizes to task_type NAVIGATE, status SUCCESS, and retrieved_data null, and the HAR''s last evaluator-visible navigation event matches the configured GET search URL, query, and 200 status.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Failure is established if the submitted response mismatches the expected normalized response or causes AgentResponseEvaluator to error; either outcome gives that component a score below 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Failure is established if the HAR lacks a matching last navigation event, that event mismatches the configured URL/query/method/status, or NetworkEventEvaluator errors; any such component score below 1.0 makes the task score 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only if at least one submitted artifact and its official evaluator outcome were not retained, while no retained component already establishes failure; the evidence then cannot establish that both checks scored 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+stronger:
+  additional_conditions:
+  - id: rendered_map_display
+    text: Beyond native success, retained final-browser evidence must show hotel results displayed in the map UI for the Carnegie Music Hall search.
+    rationale: The instruction requires results to be shown on the map, but the native checks only a declared successful navigation and a 200 GET search request; they do not inspect the rendered map or displayed results.
+    decisive_artifacts:
+    - artifact: Final-page screenshot or DOM/accessibility snapshot
+      question: Does the final map view visibly show hotel markers or listings associated with the search for hotels near Carnegie Music Hall, rather than merely showing the query text?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

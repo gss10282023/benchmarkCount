@@ -1,0 +1,74 @@
+schema_version: case_checklist_v1
+case_unit_id: '336'
+domain: webarena_verified
+task_id: '336'
+native:
+  user_goal:
+    text: Return the date of the user's most recent conditioner order in YYYY-MM-DD format, or null if unavailable, with no additional details.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: The case succeeds iff the sole AgentResponseEvaluator scores 1.0 and therefore TaskEvalResult.score is 1.0. This requires the parsed response to match task type RETRIEVE, status SUCCESS, and an unordered singleton retrieved_data value matching 01/16/2023 under the declared date normalization.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator; EvaluatorResult.create assigns score 1.0 when comparison produces no failing assertions, and TaskEvalResult.create requires every configured evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted response parse to evaluator-visible task type RETRIEVE, status SUCCESS, and exactly one retrieved date matching 01/16/2023 after date normalization?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: Retained official TaskEvalResult/evaluator record
+    question: Does it show AgentResponseEvaluator status success and score 1.0, TaskEvalResult status success and score 1.0, and no evaluator or orchestration error?
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  success_if:
+  - text: The response parses and normalizes to RETRIEVE, SUCCESS, and a singleton retrieved_data matching 01/16/2023 under the date schema, producing no failing assertion or evaluator error; the sole evaluator and task scores are both 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The submitted response is non-object or otherwise evaluator-invalid, has a mismatching or missing task type/status, or has missing, null, extra, or mismatching retrieved data after normalization; any such assertion makes the sole evaluator and task scores 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: An AgentResponseEvaluator error or task-evaluation orchestration error is failure because the released result constructors assign score 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Storage loss or truncation prevents establishing the submitted response and no complete official TaskEvalResult is retained. A retained malformed or missing-valued submission is failure, not undecided.
+    rationale: Absent evidence cannot establish evaluator-visible values, whereas an evaluator-visible bad submission is directly scored as failure.
+stronger:
+  additional_conditions:
+  - id: exact_requested_surface_format
+    text: The raw response presents the retrieved date as the literal string 2023-01-16 and contains no surrounding prose, code fence, or explanatory content.
+    rationale: The instruction requires YYYY-MM-DD with no additional details, while the native evaluator extracts JSON from code fences and compares a schema-normalized date, so native success does not enforce the requested raw presentation.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Before code-block extraction or date normalization, is the returned date written exactly as 2023-01-16 with no surrounding prose, code fence, or explanatory content?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].expected.retrieved_data
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected.retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer.normalize_array

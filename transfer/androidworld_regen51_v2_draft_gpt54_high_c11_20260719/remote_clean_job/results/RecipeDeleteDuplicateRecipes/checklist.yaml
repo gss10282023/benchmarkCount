@@ -1,0 +1,59 @@
+schema_version: case_checklist_v1
+case_unit_id: RecipeDeleteDuplicateRecipes
+domain: androidworld
+task_id: RecipeDeleteDuplicateRecipes
+native:
+  user_goal:
+    text: Delete exact-duplicate recipes in the Broccoli app so that only one instance of each duplicated recipe remains.
+    support:
+    - official/install/android_world/task_evals/single/recipe.py::RecipeDeleteDuplicateRecipes.goal
+  benchmark_success:
+    text: 'Native success requires both: retained execution evidence shows the episode ended with `done=true`, and evaluator-visible Broccoli `recipes` table evidence would make the task score 1.0 by showing exactly one of the pre-run duplicate recipe rows removed, the other duplicate preserved, every other pre-run row unchanged, and no new row added.'
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteMultipleRows.is_successful
+    - official/install/android_world/task_evals/single/recipe.py::RecipeDeleteDuplicateRecipes.validate_deletion_integrity
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::validate_rows_removal_integrity
+  checked_by:
+    text: AndroidWorld runner completion gate plus the `RecipeDeleteDuplicateRecipes` SQLite-table deletion-integrity evaluator.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteMultipleRows.is_successful
+    - official/install/android_world/task_evals/single/recipe.py::RecipeDeleteDuplicateRecipes.validate_deletion_integrity
+  decisive_artifacts:
+  - artifact: Retained episode trace or terminal transition record exposing whether the run ended with `done=true`
+    question: Does the retained execution evidence show the episode terminated with `done=true` rather than ending incomplete?
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - artifact: Retained before/after snapshots of the Broccoli `recipes` table, including `recipeId` and all recipe fields
+    question: Compared row-for-row, do the snapshots show exactly one member of the duplicate pair removed, the other duplicate still present, every non-target row unchanged, and no added rows?
+    support:
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteMultipleRows.initialize_task
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteDuplicateRows._validate_candidates
+    - official/install/android_world/task_evals/single/recipe.py::RecipeDeleteDuplicateRecipes.validate_deletion_integrity
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::validate_rows_removal_integrity
+  success_if:
+  - text: The retained execution evidence shows the episode ended with `done=true`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: The retained before/after `recipes` table snapshots show one, and only one, of the two duplicate pre-run recipe rows removed; the other duplicate row remains; all other pre-run rows remain unchanged; and no new row was added.
+    support:
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteMultipleRows.initialize_task
+    - official/install/android_world/task_evals/single/recipe.py::RecipeDeleteDuplicateRecipes.validate_deletion_integrity
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::validate_rows_removal_integrity
+  fail_if:
+  - text: The retained execution evidence shows the run did not end with `done=true`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: 'The retained before/after `recipes` table evidence proves the deletion-integrity check is false: for example, neither duplicate was removed, both duplicates were removed, any non-target row was altered or missing, or any new row was added.'
+    support:
+    - official/install/android_world/task_evals/single/recipe.py::RecipeDeleteDuplicateRecipes.validate_deletion_integrity
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::validate_rows_removal_integrity
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteMultipleRows.is_successful
+  undecided_if:
+  - text: Retained evidence does not reliably show whether the episode ended with `done=true`, and the remaining artifacts do not independently establish failure.
+    rationale: The native score is runner-gated on completion, so without usable completion evidence the native claim cannot be confirmed from stored artifacts alone.
+  - text: The retained database evidence is missing or unusable for a row-identity comparison across before and after state, such as lacking a usable pre-run snapshot, post-run snapshot, or `recipeId`-level row contents, and no other retained artifact independently establishes failure.
+    rationale: The evaluator decides success from before/after SQLite row integrity; if that comparison cannot be reconstructed from retained artifacts, success versus failure is not decidable.
+stronger:
+  additional_conditions: []

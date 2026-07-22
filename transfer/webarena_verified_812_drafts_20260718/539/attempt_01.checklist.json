@@ -1,0 +1,100 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "539",
+  "domain": "webarena_verified",
+  "task_id": "539",
+  "native": {
+    "user_goal": {
+      "text": "Modify the address of order #65 to 789 Pine Lane, San Francisco, CA 94102.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the selected network event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerified evaluator applies AgentResponseEvaluator to the agent response and NetworkEventEvaluator to the retained network trace, then composes their scores with an all-must-pass rule.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the released response parser and normalizer produce an assertion-free match to task_type MUTATE, status SUCCESS, and null normalized retrieved_data?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event filtered by POST and the normalized /sales/order/addressSave/address_id/130/ path also match the expected URL, response status 302, and post fields city=San Francisco, country_id=US, postcode=94102, region=California, region_id=12, and street[0]=789 Pine Lane under the evaluator's normalization and form_key-ignore rule?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both checks pass: the normalized agent response matches the expected MUTATE/SUCCESS response, and the last qualifying POST network event matches the configured endpoint, six address fields, and 302 response under the released comparison rules.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either check scores below 1.0 or errors, including a malformed or mismatching normalized response, no qualifying POST event, or a selected event whose normalized URL, required post fields, or 302 status does not match.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored-evidence review is undecided only if the retained copy of agent_response.json or network.har is missing or truncated so the evaluator-visible input cannot be determined; a retained but malformed or mismatching artifact is failure.",
+        "rationale": "Loss or truncation during evidence retention does not establish what the released evaluator would have observed, whereas malformed retained evaluator input is directly reviewable."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_persisted_order_address",
+        "text": "Beyond native scoring, retained post-run shopping-admin state must show that order #65's targeted address persisted as 789 Pine Lane, San Francisco, California (CA) 94102.",
+        "rationale": "The task asks for an address state change, but the released evaluator only matches a POST request and 302 response; it does not inspect the resulting order state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run order #65 detail/state capture",
+            "question": "Does a post-run order-detail snapshot or server-state export show the targeted address for order #65 with street 789 Pine Lane, city San Francisco, state/region California (CA), and postcode 94102?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

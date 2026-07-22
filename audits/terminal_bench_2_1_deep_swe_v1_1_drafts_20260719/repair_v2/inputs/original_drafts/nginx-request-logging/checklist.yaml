@@ -1,0 +1,81 @@
+schema_version: case_checklist_v1
+case_unit_id: nginx-request-logging
+domain: terminal_bench_2_1
+task_id: terminal-bench/nginx-request-logging
+native:
+  user_goal:
+    text: Set up Nginx on localhost:8080 to serve `/var/www/html` with the specified index and 404 pages, detailed access logging, configured error logging, rate limiting, the required config-file placement/default-site removal, a syntax check before start, and a displayed access-log path, while minimizing commands.
+    support:
+    - official/instruction.md::1-24
+  benchmark_success:
+    text: 'Native success is a completed official verifier run in which every pytest check in `/tests/test_outputs.py` passes: nginx is installed; localhost:8080 returns 200 with the exact index body; a nonexistent page returns 404 with the exact custom body; `nginx -t` succeeds; the required config-file/setting checks pass; and `/var/log/nginx/benchmark-access.log` exists with the log-format regex checks satisfied.'
+    support:
+    - official/tests/test.sh::17-25
+    - official/tests/test_outputs.py::test_nginx_installed
+    - official/tests/test_outputs.py::test_nginx_running
+    - official/tests/test_outputs.py::test_index_page_content
+    - official/tests/test_outputs.py::test_custom_404_page
+    - official/tests/test_outputs.py::test_nginx_config_syntax
+    - official/tests/test_outputs.py::test_nginx_config_settings
+    - official/tests/test_outputs.py::test_log_file_creation
+    - official/tests/test_outputs.py::test_log_file_format
+  checked_by:
+    text: The official shell verifier runs pytest against `/tests/test_outputs.py` and records the run in retained verifier report artifacts.
+    support:
+    - official/tests/test.sh::17-25
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the retained CTRF report show pass/fail status for each official pytest case from `/tests/test_outputs.py`?
+    support:
+    - official/tests/test.sh::17-22
+    - official/tests/test_outputs.py::11-178
+  - artifact: verifier/test-stdout.txt
+    question: Does verifier stdout show the pytest run for `/tests/test_outputs.py` completed, and if not, what concrete test or harness failure occurred?
+    support:
+    - official/tests/test.sh::17-25
+  - artifact: verifier/test-stderr.txt
+    question: Does verifier stderr contain setup, pytest, or `nginx -t` errors that establish a native failure when the CTRF report is missing or incomplete?
+    support:
+    - official/tests/test.sh::11-25
+    - official/tests/test_outputs.py::test_nginx_config_syntax
+  success_if:
+  - text: Retained verifier evidence establishes a completed run of the official pytest suite for `/tests/test_outputs.py` in which all eight named tests pass and none fail or error.
+    support:
+    - official/tests/test.sh::17-25
+    - official/tests/test_outputs.py::11-178
+  fail_if:
+  - text: Retained verifier evidence establishes that any official pytest case in `/tests/test_outputs.py` failed or errored.
+    support:
+    - official/tests/test.sh::17-25
+    - official/tests/test_outputs.py::11-178
+  - text: Retained verifier evidence establishes that the shell verifier did not complete a passing pytest run for `/tests/test_outputs.py`, such as a harness or setup failure before or during test execution.
+    support:
+    - official/tests/test.sh::11-25
+  undecided_if:
+  - text: The retained non-label verifier artifacts are missing, truncated, or mutually inconsistent enough that they do not establish either a completed all-pass run or a concrete verifier/test failure.
+    support:
+    - official/tests/test.sh::17-25
+stronger:
+  additional_conditions:
+  - id: instruction_only_nginx_directives
+    text: Beyond native success, retained evidence should also show the final Nginx setup writes `error_log /var/log/nginx/benchmark-error.log`, defines the rate-limit zone with 10MB storage, applies `limit_req` in the server block with burst 10, and removes `/etc/nginx/sites-enabled/default`; the released verifier does not check those instruction clauses.
+    rationale: The instruction makes these configuration details part of the task, but the released tests only require `benchmark-site.conf`, `listen 8080`, `root /var/www/html`, a `log_format` containing the four named fields, and a `limit_req_zone` match for `rate=10r/s`, plus the HTTP responses and access-log checks.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show final-file writes or file reads for `/etc/nginx/nginx.conf`, `/etc/nginx/conf.d/benchmark-site.conf`, and `/etc/nginx/sites-enabled/default` that establish these uncovered directives/removal?
+      support:
+      - official/instruction.md::4-13
+      - official/tests/test_outputs.py::test_nginx_config_settings
+    - artifact: agent/*-stdout.txt
+      question: Do retained agent stdout logs print the relevant Nginx config or filesystem state well enough to verify these uncovered instruction clauses?
+      support:
+      - official/instruction.md::4-13
+      - official/tests/test_outputs.py::test_nginx_config_settings
+    - artifact: artifacts/**
+      question: Do retained artifacts include copies or diffs of the final Nginx config files or default-site state that verify these uncovered instruction clauses?
+      support:
+      - official/instruction.md::4-13
+      - official/tests/test_outputs.py::test_nginx_config_settings
+    support:
+    - official/instruction.md::4-13
+    - official/tests/test_outputs.py::test_nginx_config_settings

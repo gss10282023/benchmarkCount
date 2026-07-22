@@ -1,0 +1,86 @@
+schema_version: case_checklist_v1
+case_unit_id: RetroSavePlaylist
+domain: androidworld
+task_id: RetroSavePlaylist
+native:
+  user_goal:
+    text: Create a Retro Music playlist with the episode's official `playlist_name`, containing the official songs in the specified order, then export that playlist to the device Downloads directory.
+    support:
+    - official/install/android_world/task_evals/single/retro_music.py::RetroSavePlaylist.goal
+  benchmark_success:
+    text: 'Native benchmark success requires retained evidence that the run finished with `done=true` and that the task score exceeded 0.5 under `suite_utils._run_task`; for this task that means both evaluator components are true: the Retro Music playlist database satisfies `verify_playlist` for the official playlist name and ordered songs, and `/storage/emulated/0/Download/<playlist_name>.m3u` exists.'
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/retro_music.py::RetroSavePlaylist.is_successful
+    - official/install/android_world/task_evals/single/retro_music.py::RetroCreatePlaylist.is_successful
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+    - official/install/android_world/env/device_constants.py::DOWNLOAD_DATA
+  checked_by:
+    text: The native claim is checked by the suite runner's `done` gate together with Retro Music playlist-db state and Downloads filesystem state.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/retro_music.py::RetroSavePlaylist.is_successful
+    - official/install/android_world/task_evals/single/retro_music.py::RetroCreatePlaylist.is_successful
+  decisive_artifacts:
+  - artifact: Retained episode trace or completion record
+    question: Does retained execution evidence show whether the episode ended with `done=true` or `done=false`?
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - artifact: Retro Music `playlist.db` snapshot or extracted playlist query result
+    question: Does retained playlist state satisfy `verify_playlist` for the official `playlist_name` and official ordered song titles?
+    support:
+    - official/install/android_world/task_evals/single/retro_music.py::_get_playlist_info_query
+    - official/install/android_world/task_evals/single/retro_music.py::RetroCreatePlaylist.is_successful
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+  - artifact: Downloads directory snapshot, listing, or file-presence evidence
+    question: Is `/storage/emulated/0/Download/<playlist_name>.m3u` present after the run?
+    support:
+    - official/install/android_world/task_evals/single/retro_music.py::RetroSavePlaylist.is_successful
+    - official/install/android_world/env/device_constants.py::DOWNLOAD_DATA
+  success_if:
+  - text: Retained evidence shows `done=true`, the Retro Music playlist database passes `verify_playlist` for the official playlist name and official ordered songs, and Downloads contains `<playlist_name>.m3u`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/retro_music.py::RetroSavePlaylist.is_successful
+    - official/install/android_world/task_evals/single/retro_music.py::RetroCreatePlaylist.is_successful
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+  fail_if:
+  - text: Retained execution evidence shows `done=false`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: Retained execution evidence shows `done=true`, but the Retro Music playlist database does not satisfy `verify_playlist` for the official playlist name and official ordered songs.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/retro_music.py::RetroCreatePlaylist.is_successful
+    - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+  - text: Retained execution evidence shows `done=true`, but `/storage/emulated/0/Download/<playlist_name>.m3u` is absent.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/retro_music.py::RetroSavePlaylist.is_successful
+    - official/install/android_world/env/device_constants.py::DOWNLOAD_DATA
+  undecided_if:
+  - text: The retained evidence does not reliably establish the runner `done` state, and no other retained evidence independently establishes a native fail condition.
+    rationale: The checklist lock says later scoring must rely on retained underlying execution evidence, and a recorded `done=false` can decide failure, but missing usable underlying evidence is undecided rather than decisive.
+  - text: The retained evidence is missing or unusable for one or both evaluator-visible post-run checks (playlist-db verification or Downloads file presence), and the available evidence does not otherwise establish success or failure.
+    rationale: The native claim depends on underlying playlist database state and Downloads filesystem state; summary labels or missing/errored evaluator outputs are non-decisive under the checklist instructions.
+  - text: Only summary metadata such as `is_successful`, `native_label`, `native_score`, or released-evaluator output is retained without the underlying trace/database/filesystem evidence needed to replay the native checks.
+    rationale: The checklist instructions explicitly treat summary success metadata as non-decisive and require the underlying evaluator-visible artifacts instead.
+stronger:
+  additional_conditions:
+  - id: exported_playlist_matches_created_playlist
+    text: Beyond the native benchmark, require the exported `Download/<playlist_name>.m3u` file to be present and to encode the same ordered songs as the created Retro Music playlist, not merely share the expected filename.
+    rationale: The official task goal is to export the created playlist to Downloads, but the released evaluator only checks filename existence in Downloads and never inspects the exported file contents. That creates a concrete reviewable gap between task intent and native acceptance.
+    decisive_artifacts:
+    - artifact: Exported `.m3u` file content from Downloads
+      question: Does the retained `Download/<playlist_name>.m3u` file parse as a playlist whose entries match the official ordered songs?
+      support:
+      - official/install/android_world/task_evals/single/retro_music.py::RetroSavePlaylist.goal
+      - official/install/android_world/task_evals/single/retro_music.py::RetroSavePlaylist.is_successful
+    - artifact: Retro Music `playlist.db` snapshot or extracted playlist query result
+      question: Does retained playlist-db state show the created Retro Music playlist with the official ordered songs for comparison against the exported file?
+      support:
+      - official/install/android_world/task_evals/single/retro_music.py::RetroCreatePlaylist.is_successful
+      - official/install/android_world/task_evals/common_validators/sqlite_validators.py::verify_playlist
+    support:
+    - official/install/android_world/task_evals/single/retro_music.py::RetroSavePlaylist.goal
+    - official/install/android_world/task_evals/single/retro_music.py::RetroSavePlaylist.is_successful

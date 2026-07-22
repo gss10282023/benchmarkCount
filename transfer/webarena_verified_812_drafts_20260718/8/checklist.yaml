@@ -1,0 +1,79 @@
+schema_version: case_checklist_v1
+case_unit_id: '8'
+domain: webarena_verified
+task_id: '8'
+native:
+  user_goal:
+    text: Find all international airports within 5 km driving distance of Carnegie Mellon University using OSRM, and return each airport's name, state, and postcode.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The official task score is 1.0: the sole AgentResponseEvaluator must accept the normalized response as task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null, and evaluation must complete without an error.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator; TaskEvalResult succeeds only when every configured evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After official parsing and normalization, does the response match task_type RETRIEVE, status NOT_FOUND_ERROR, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+  - artifact: network.har
+    question: Is the trace present and parseable so the official evaluation context can be constructed? Its event contents are not otherwise compared by this case's sole evaluator.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - derived/task.json::eval
+  success_if:
+  - text: The response parses as an object whose normalized evaluator-visible values match RETRIEVE, NOT_FOUND_ERROR, and null retrieved_data; omitted or empty retrieved_data also normalizes to null.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: The trace parses, the sole AgentResponseEvaluator returns score 1.0, and therefore TaskEvalResult.score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The evaluated response is absent, non-object, mismatches RETRIEVE or NOT_FOUND_ERROR, supplies non-null retrieved_data, or otherwise causes a comparison or normalization error, yielding evaluator score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The trace cannot be parsed, evaluation orchestration errors, or any configured evaluator score is not 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Retained evidence is undecidable only if agent_response.json or network.har is unavailable or corrupted after the run and no retained official result preserves the decision; a response or trace recorded as absent or invalid at evaluation time is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: substantiate_osrm_airport_result
+    text: 'Require the retained response and trace to substantiate the requested result: retrieved_data is a list, empty if none qualify, containing all and only international airports with OSRM driving distance at most 5 km from Carnegie Mellon University, with name, state, and postcode for every listed airport; the HAR must contain enough candidate-search and OSRM route evidence to review distances and completeness.'
+    rationale: The official instruction requires an airport list derived with OSRM, but the released configuration expects NOT_FOUND_ERROR with null data and uses only AgentResponseEvaluator, so native success does not establish that OSRM was used or that the claimed absence of qualifying airports was investigated.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Does retrieved_data contain the complete requested list, using name, state, and postcode for every nonempty item and an empty list if no airport qualifies?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse
+    - artifact: network.har
+      question: Does the trace retain airport-candidate discovery and OSRM directions responses sufficient to review every inclusion or exclusion against the 5 km driving-distance threshold?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values

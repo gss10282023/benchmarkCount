@@ -1,0 +1,96 @@
+schema_version: case_checklist_v1
+case_unit_id: '509'
+domain: webarena_verified
+task_id: '509'
+native:
+  user_goal:
+    text: Buy the best-rated qualifying product from the "Men's shoe" category, requiring at least five reviews and the least-expensive choice, and choose any available variant.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if all five configured checks score 1.0: the agent response passes the MUTATE/SUCCESS check, and the four independent network checks pass for adding product 65885, cart totals showing one Clarks Men''s Tunsil Lane Oxford, submitting payment information for customer 27, and reaching checkout success.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator applies one AgentResponseEvaluator and four NetworkEventEvaluator instances to the retained response and HAR, then conjunctively composes their scores in TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the released AgentResponseEvaluator normalize and compare the response successfully for task_type MUTATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: 'Under the configured URL normalization and last-event-only rules, does the HAR satisfy all four expected 200-response checks: add product 65885, totals naming Clarks Men''s Tunsil Lane Oxford with items_qty 1, payment-information with billingAddress.customerId 27, and GET checkout/onepage/success?'
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - derived/task.json::eval[4]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: The retained response passes the released evaluator's normalized structural comparison to MUTATE, SUCCESS, and null retrieved_data.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: The last matching POST add-to-cart event has a normalized URL matching the configured product/65885 pattern, post_data product 65885, and response status 200.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+  - text: The last matching GET carts/mine/totals event returns status 200 and response fields $.items[0].name = Clarks Men's Tunsil Lane Oxford and items_qty = 1.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_response_content_field
+  - text: The last matching POST carts/mine/payment-information event returns status 200 and has $.billingAddress.customerId = 27 in its post data.
+    support:
+    - derived/task.json::eval[3]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field
+  - text: The last matching GET checkout/onepage/success event returns status 200.
+    support:
+    - derived/task.json::eval[4]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  fail_if:
+  - text: The retained response fails the released AgentResponseEvaluator comparison for MUTATE/SUCCESS/null retrieved_data.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: Any configured network check has no matching event, or its selected last matching event differs in any expected URL, method, post-data, response-content, or status field.
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - derived/task.json::eval[4]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Any evaluator or task-level evaluation error yields score 0 and therefore native failure.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only when agent_response.json or network.har was not retained or is unreadable, so the released comparisons cannot be reconstructed; a retained artifact that is evaluator-invalid or mismatching is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: confirm_completed_order_state
+    text: Beyond native scoring, retained post-run shopping state must show a completed order attributable to this run containing exactly one unit of product 65885 (Clarks Men's Tunsil Lane Oxford) with a selected variant.
+    rationale: The native evaluator independently matches cart-add, cart-totals, payment-information, and success-page events, but it neither correlates those events to one order nor inspects final order state; matching events can therefore pass without directly proving that the target item was in the completed order.
+    decisive_artifacts:
+    - artifact: Post-run order record or order-confirmation response
+      question: Does it identify a completed order from this run whose line items contain exactly one unit of product 65885, named Clarks Men's Tunsil Lane Oxford, with a concrete selected variant?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - derived/task.json::eval[2]
+      - derived/task.json::eval[3]
+      - derived/task.json::eval[4]
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create

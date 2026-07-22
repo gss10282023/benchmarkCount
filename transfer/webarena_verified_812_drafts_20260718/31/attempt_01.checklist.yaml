@@ -1,0 +1,75 @@
+schema_version: case_checklist_v1
+case_unit_id: '31'
+domain: webarena_verified
+task_id: '31'
+native:
+  user_goal:
+    text: In the photoshopbattles forum, return the username and title of the most recent post and the count of its comments that are not by the post author and have more downvotes than upvotes, as a list of objects with keys "username", "post_title", and "count".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: Evaluation must complete and the sole AgentResponseEvaluator must score 1.0, which makes TaskEvalResult.score 1.0. After official parsing and schema normalization, the response must match task_type "RETRIEVE", status "SUCCESS", and an unordered retrieved-data collection containing exactly {"username":"Proud_Idiot","post_title":"UK Prime Minister Rishi Sunak looking at a pothole","count":0}.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs the task's single AgentResponseEvaluator, which parses the submitted response, normalizes it using the result schema, performs an unordered structural comparison, and supplies its score to TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted response parse and normalize to task_type "RETRIEVE", status "SUCCESS", and exactly the required username, post title, and numeric count, with retrieved-data order ignored?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the retained HAR parseable as the NetworkTrace required to construct the evaluation context, including providing a Reddit base URL if evaluator configuration requires the fallback?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: 'Evaluation completes with no comparison assertions: the submitted response''s normalized task type and status match "RETRIEVE" and "SUCCESS", and its normalized retrieved data is an unordered exact match to the single required result object. The sole evaluator therefore scores 1.0 and TaskEvalResult.score is 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The response is not evaluator-parseable as a structured object, omits or mismatches task_type or status, has missing or empty retrieved data, or its normalized retrieved data has any missing, extra, or mismatched item or object field; the AgentResponseEvaluator then scores 0.0 and the task score is 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_recursive
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Response, HAR, configuration, or evaluator processing produces an evaluation error; TaskEvalResult then has ERROR status and score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained evidence is truncated or unavailable such that neither the submitted response nor a conclusive official evaluation result can be reconstructed. An affirmatively null or malformed submitted response, or an invalid required HAR, is failure rather than undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    rationale: This reserves undecided for evidence-retention insufficiency, not for conditions that the released evaluator scores as failure or error.
+stronger:
+  additional_conditions:
+  - id: require_retrieved_data_list_shape
+    text: Beyond native scoring, require the submitted retrieved_data value itself to be a JSON list containing the result object, rather than a lone object coerced to a singleton collection by the evaluator.
+    rationale: The task explicitly requests a list of objects and the public response model types retrieved_data as a list, but the released evaluator wraps any non-list, non-tuple retrieved_data value into a singleton tuple before comparison.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Before evaluator coercion, is retrieved_data syntactically a JSON array containing the result object?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse.retrieved_data
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse.retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data

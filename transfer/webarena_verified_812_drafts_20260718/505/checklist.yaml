@@ -1,0 +1,72 @@
+schema_version: case_checklist_v1
+case_unit_id: '505'
+domain: webarena_verified
+task_id: '505'
+native:
+  user_goal:
+    text: Mark all Aeon capri as out of stock.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task scores 1.0 only if both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the last POST matching the configured product-save path for product ID 1861 with is_in_stock=0 and response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task-config order; TaskEvalResult.create requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After the released parser and normalizer, does the response satisfy the configured MUTATE/SUCCESS AgentResponseEvaluator comparison?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among non-static evaluation events, does the last POST matching ^__SHOPPING_ADMIN__/catalog/product/save/id/1861/type/configurable/store/0/set/\d+/back/edit$ have parsed product[quantity_and_stock_status][is_in_stock]=0 and response status 302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events
+  success_if:
+  - text: 'Both checks pass: AgentResponseEvaluator scores 1.0 on the retained response, and NetworkEventEvaluator scores 1.0 on the retained HAR''s last configured product-save POST; therefore every configured evaluator score is 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if AgentResponseEvaluator scores other than 1.0 because the complete retained response is invalid, does not normalize to MUTATE/SUCCESS, or causes an evaluator error.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Fail if NetworkEventEvaluator scores other than 1.0 because the complete HAR lacks the configured last POST, its checked stock value or 302 status differs, or evaluation errors; either evaluator's non-1.0 score makes the task score 0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable if retention loss leaves agent_response.json or network.har absent or incomplete so that what the evaluators received cannot be reconstructed; an artifact that is demonstrably complete but invalid is instead a native failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+    rationale: The two artifacts supply distinct evaluator inputs, so a storage gap alone does not establish either input's runtime value.
+stronger:
+  additional_conditions:
+  - id: verify_all_matching_catalog_state
+    text: Require a complete retained post-run catalog snapshot to show every shopping-admin product record matching Aeon capri as out of stock.
+    rationale: The stated goal covers all Aeon capri records, while the native evaluator checks only a single POST/302 for product ID 1861 and does not inspect complete persisted catalog state.
+    decisive_artifacts:
+    - artifact: Complete post-run shopping-admin catalog snapshot or export
+      question: Does it enumerate every product record matching Aeon capri and show each one as out of stock?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

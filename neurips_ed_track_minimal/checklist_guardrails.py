@@ -7,6 +7,14 @@ from typing import Any, Iterable
 
 
 SOURCE_POINTER_SPLIT = "::"
+FORBIDDEN_DRAFT_WORKSPACE_PATHS = frozenset(
+    {
+        "draft_instructions.md",
+        "template.yaml",
+        "output_schema.json",
+        "draft_body.json",
+    }
+)
 TRACE_LIKE_ARTIFACT_RE = re.compile(
     r"(?i)\b(trace|tool|message|action|trajectory|history|log|event)\b"
 )
@@ -136,7 +144,33 @@ def _iter_rule_texts(checklist: dict[str, Any]) -> Iterable[tuple[str, str, str]
         yield f"stronger.additional_conditions[{index}].text", str(condition.get("text", "")), mode
 
 
-def _validate_source_pointer(pointer: str, field_name: str, violations: list[str]) -> None:
+def case_packet_support_paths(case_packet_text: str) -> set[str]:
+    """Return the only source paths a draft may cite from one rendered packet."""
+
+    allowed = {"case_packet.md"}
+    in_inventory = False
+    for line in case_packet_text.splitlines():
+        if line == "## Source Inventory":
+            in_inventory = True
+            continue
+        if in_inventory and line.startswith("## "):
+            break
+        if in_inventory:
+            match = re.fullmatch(r"- `([^`]+)`", line.strip())
+            if match:
+                allowed.add(match.group(1).replace("\\", "/"))
+    if len(allowed) == 1:
+        raise ChecklistGuardrailError("Case packet has no parseable Source Inventory entries.")
+    return allowed
+
+
+def _validate_source_pointer(
+    pointer: str,
+    field_name: str,
+    violations: list[str],
+    *,
+    allowed_source_paths: set[str] | None,
+) -> None:
     normalized = pointer.strip().replace("\\", "/")
     if not normalized:
         violations.append(f"{field_name} contains an empty support pointer")
@@ -154,10 +188,20 @@ def _validate_source_pointer(pointer: str, field_name: str, violations: list[str
     if path_part.startswith("/"):
         violations.append(f"{field_name} must not use absolute-path support pointers: {pointer}")
 
-    trimmed = path_part.lstrip("./")
-    if trimmed.startswith("evidence/"):
+    path_segments = path_part.split("/")
+    if ".." in path_segments:
+        violations.append(f"{field_name} must not traverse outside packet sources: {pointer}")
+    if any(segment in FORBIDDEN_DRAFT_WORKSPACE_PATHS for segment in path_segments):
+        violations.append(
+            f"{field_name} must not cite drafter workspace instructions/templates/schema: {pointer}"
+        )
+    if path_part.startswith("evidence/"):
         violations.append(
             f"{field_name} must point to packet/source material, not run evidence: {pointer}"
+        )
+    if allowed_source_paths is not None and path_part not in allowed_source_paths:
+        violations.append(
+            f"{field_name} must cite case_packet.md or an exact Source Inventory path: {pointer}"
         )
 
 
@@ -191,12 +235,21 @@ def _validate_decisive_artifact(
             )
 
 
-def collect_checklist_guardrail_violations(checklist: dict[str, Any]) -> list[str]:
+def collect_checklist_guardrail_violations(
+    checklist: dict[str, Any],
+    *,
+    allowed_source_paths: set[str] | None = None,
+) -> list[str]:
     violations: list[str] = []
 
     for field_name, pointers in _iter_support_pointer_lists(checklist):
         for index, pointer in enumerate(pointers):
-            _validate_source_pointer(pointer, f"{field_name}[{index}]", violations)
+            _validate_source_pointer(
+                pointer,
+                f"{field_name}[{index}]",
+                violations,
+                allowed_source_paths=allowed_source_paths,
+            )
 
     stronger = checklist.get("stronger", {}).get("additional_conditions", [])
     condition_ids = [str(condition.get("id", "")) for condition in stronger]
@@ -221,8 +274,15 @@ def collect_checklist_guardrail_violations(checklist: dict[str, Any]) -> list[st
     return violations
 
 
-def validate_checklist_guardrails(checklist: dict[str, Any]) -> None:
-    violations = collect_checklist_guardrail_violations(checklist)
+def validate_checklist_guardrails(
+    checklist: dict[str, Any],
+    *,
+    allowed_source_paths: set[str] | None = None,
+) -> None:
+    violations = collect_checklist_guardrail_violations(
+        checklist,
+        allowed_source_paths=allowed_source_paths,
+    )
     if violations:
         raise ChecklistGuardrailError(
             "Checklist failed deterministic guardrails:\n- " + "\n- ".join(violations)

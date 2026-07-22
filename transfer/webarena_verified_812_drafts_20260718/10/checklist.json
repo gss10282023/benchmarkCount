@@ -1,0 +1,119 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "10",
+  "domain": "webarena_verified",
+  "task_id": "10",
+  "native": {
+    "user_goal": {
+      "text": "Use the OSRM direction service to identify every US international airport within 60 km driving distance of Niagara Falls, returning each airport's name, state, and postcode.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "The sole AgentResponseEvaluator scores 1.0, so TaskEvalResult.score is 1.0: after released parsing and normalization, the response has task type RETRIEVE, status SUCCESS, and exactly the two configured airport objects in any order.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator; an assertion-free evaluation scores 1.0, and the task succeeds only when every configured evaluator scores 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "After the released code-block/JSON parsing and schema normalization, does the response match RETRIEVE/SUCCESS and the configured unordered airport-object array exactly?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The retained response parses to a mapping whose evaluator-normalized task_type and status match RETRIEVE and SUCCESS without a structural/value assertion or evaluator error.",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "retrieved_data matches, after schema normalization and ignoring array order, exactly {name: Niagara Falls International Airport, state: New York, postcode: 14304} and {name: Buffalo Niagara International Airport, state: New York, postcode: 14225}; the sole evaluator and task scores are therefore both 1.0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "A non-mapping or malformed supplied response, a task_type/status mismatch, or any parsing, normalization, evaluator, or orchestration error yields an evaluator or task score of 0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "Missing, null, empty, incorrectly structured, or nonmatching retrieved_data—including any missing, extra, duplicated, or value-mismatched airport object—fails the unordered exact comparison and makes the task score 0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The stored evidence is undecidable only if it does not preserve the exact response supplied to the evaluator and no complete evaluator result is retained; a retained null or malformed response is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ],
+        "rationale": "Loss or corruption of the evidence record prevents reconstruction of the evaluator input, whereas an invalid input actually supplied is benchmark-counted failure."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_osrm_distance_calls",
+        "text": "Beyond native scoring, require network.har to show successful OSRM direction-service calls corresponding to Niagara Falls-to-airport routes, with a returned driving distance no greater than 60 km for each reported airport.",
+        "rationale": "The official instruction explicitly requires OSRM, but the released task config contains only AgentResponseEvaluator, which evaluates the final response rather than verifying any OSRM request; native success therefore does not establish compliance with the required service-use method.",
+        "decisive_artifacts": [
+          {
+            "artifact": "agent_response.json",
+            "question": "Which airport objects were reported and therefore require corresponding OSRM route evidence?",
+            "support": [
+              "derived/task.json::eval[0].expected.retrieved_data"
+            ]
+          },
+          {
+            "artifact": "network.har",
+            "question": "Does the trace contain successful OSRM direction requests for Niagara Falls-to-each-reported-airport routes whose responses report distances at or below 60 km?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

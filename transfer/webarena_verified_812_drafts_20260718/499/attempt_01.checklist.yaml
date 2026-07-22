@@ -1,0 +1,64 @@
+schema_version: case_checklist_v1
+case_unit_id: '499'
+domain: webarena_verified
+task_id: '499'
+native:
+  user_goal:
+    text: 'Update order #304 with USPS tracking number 13849373987.'
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if both configured checks score 1.0: AgentResponseEvaluator accepts the MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the configured last matching shipment-save POST for order 304.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in configuration order; TaskEvalResult.create AND-composes their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize without error to the evaluator's MUTATE and SUCCESS expectation?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last evaluator-filtered POST to __SHOPPING_ADMIN__/admin/order_shipment/save/order_id/304/ contain tracking[1][carrier_code]=usps and tracking[1][number]=13849373987 and receive status 302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks pass: agent_response.json matches the MUTATE/SUCCESS response expectation, and network.har''s last matching shipment-save POST matches the configured URL, method, two tracking fields, and 302 response status; therefore both evaluator scores are 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: With complete evaluator-readable artifacts, the agent-response check scores 0 due to mismatch or evaluator error, or the network check scores 0 because no qualifying event exists, the selected last event mismatches, or evaluation errors; either makes TaskEvalResult.score 0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  undecided_if:
+  - text: Either required retained artifact is missing, truncated, or uninterpretable enough that one or both official checks cannot be reconstructed.
+    rationale: The native claim composes two checks over separate artifacts, so incomplete retention is non-decisive rather than evidence that a particular check passed or failed.
+stronger:
+  additional_conditions:
+  - id: persisted_order_tracking
+    text: 'Retained post-run order-state evidence shows that order #304 actually contains USPS tracking number 13849373987.'
+    rationale: The stated task requires updating the order, while the native network check establishes only that a matching POST received status 302 and does not inspect the resulting stored order state.
+    decisive_artifacts:
+    - artifact: 'Post-run order #304 detail-state capture or state export'
+      question: 'Does the saved order state show carrier USPS and tracking number 13849373987 for order #304?'
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

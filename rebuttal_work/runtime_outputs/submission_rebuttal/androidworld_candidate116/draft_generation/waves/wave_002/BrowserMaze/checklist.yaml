@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: BrowserMaze
+domain: androidworld
+task_id: BrowserMaze
+native:
+  user_goal:
+    text: Open task.html from Downloads in the file manager, open it with Chrome if prompted, and use the direction buttons to move the X to the bottom-right cell.
+    support:
+    - case_packet.md::source_context.task_text.canonical_goal.generation_semantics.runtime_samples[0].dispatch_goal_model
+  benchmark_success:
+    text: 'Native success requires all three layers: the raw task.is_successful(env) result reports success under BrowserTask''s foreground-activity/package and UI-state check; interaction_results.done is true so the score is not forced to 0.0; and the resulting displayed agent_successful score is > 0.5.'
+    support:
+    - case_packet.md::source_context.evaluator_description.evaluator.method_chain[0]
+    - case_packet.md::source_context.evaluator_description.evaluator.runner_score_semantics
+  checked_by:
+    text: BrowserTask.is_successful reads the current activity/package and environment state after TaskEval's initialization check; suite_utils._run_task then applies the done gate and > 0.5 display threshold.
+    support:
+    - case_packet.md::source_context.evaluator_description.evaluator.method_chain
+    - case_packet.md::source_context.evaluator_description.evaluator.runner_score_semantics
+  decisive_artifacts:
+  - artifact: Bound final device/UI post-state and current-activity tool log
+    question: What foreground package/activity and UI state were supplied to BrowserTask.is_successful, and are they bound to this run's raw result?
+    support:
+    - case_packet.md::source_context.evaluator_description.evaluator.method_chain[0].direct_calls
+  - artifact: Bound native evaluator and suite-runner output
+    question: What were task.is_successful(env), interaction_results.done, the gated agent_successful score, and the displayed > 0.5 decision?
+    support:
+    - case_packet.md::source_context.evaluator_description.evaluator.runner_score_semantics
+  success_if:
+  - text: The bound output shows a successful raw task.is_successful(env) result, interaction_results.done=true, and a resulting gated agent_successful score > 0.5.
+    support:
+    - case_packet.md::source_context.evaluator_description.evaluator.runner_score_semantics
+  fail_if:
+  - text: The raw task.is_successful(env) result does not report success.
+    support:
+    - case_packet.md::source_context.evaluator_description.evaluator.runner_score_semantics.task_raw_score
+  - text: interaction_results.done=false, causing the runner to force the score to 0.0.
+    support:
+    - case_packet.md::source_context.evaluator_description.evaluator.runner_score_semantics.done_gate
+  - text: The gated agent_successful score is at or below 0.5, so displayed success is false.
+    support:
+    - case_packet.md::source_context.evaluator_description.evaluator.runner_score_semantics.display_success_threshold
+  undecided_if:
+  - text: The retained evidence is missing, corrupt, contradictory, or not bound to the run, preventing determination of the raw result, done gate, or gated displayed score.
+    rationale: Only evidence-integrity defects are non-decisive; ordinary evaluator, done-gate, and threshold failures count as native failure.
+stronger:
+  additional_conditions:
+  - id: goal_file_open_provenance
+    text: Beyond native scoring, a bound retained trace must show task.html was opened from Downloads through the file manager and, if an app-choice prompt appeared, Chrome was selected.
+    rationale: The runtime goal requires this provenance, while the native evaluator reads only the final current activity/package and UI state and therefore does not establish the earlier file-opening path or conditional chooser action.
+    decisive_artifacts:
+    - artifact: Bound action/observation trace with relevant screenshots
+      question: Does the trace show task.html opened from Downloads through the file manager and Chrome selected if an app-choice prompt appeared?
+      support:
+      - case_packet.md::source_context.trace_schema.artifacts
+      - case_packet.md::source_context.available_post_run_artifact_types
+    support:
+    - case_packet.md::source_context.task_text.canonical_goal.generation_semantics.runtime_samples[0].dispatch_goal_model
+    - case_packet.md::source_context.evaluator_description.evaluator.method_chain[0].direct_calls
+  - id: goal_direction_button_method
+    text: Beyond native scoring, a bound retained interaction trace must show that movement of the X was performed through the displayed direction buttons.
+    rationale: The runtime goal specifies the input method, but the native evaluator examines final foreground/UI state without reading the action trace, so native success alone does not verify how movement was performed.
+    decisive_artifacts:
+    - artifact: Bound maze action/observation trace
+      question: Do the recorded UI observations and actions show that every movement input used a displayed direction button?
+      support:
+      - case_packet.md::source_context.trace_schema.artifacts
+      - case_packet.md::source_context.available_post_run_artifact_types
+    support:
+    - case_packet.md::source_context.task_text.canonical_goal.generation_semantics.runtime_samples[0].dispatch_goal_model
+    - case_packet.md::source_context.evaluator_description.evaluator.method_chain[0].direct_calls

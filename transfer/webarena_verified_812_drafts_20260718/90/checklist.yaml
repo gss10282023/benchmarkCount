@@ -1,0 +1,91 @@
+schema_version: case_checklist_v1
+case_unit_id: '90'
+domain: webarena_verified
+task_id: '90'
+native:
+  user_goal:
+    text: Retrieve the relation IDs of every U.S. state bordering Pennsylvania and return only a list of integers, without additional details.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0: the sole AgentResponseEvaluator scores 1.0 after the submitted response normalizes to task_type RETRIEVE, status SUCCESS, and exactly the six configured relation IDs as an unordered multiset.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator parses and normalizes the final response, structurally compares task type and status, and compares retrieved_data under the configured unordered number-array rule; TaskEvalResult then requires every configured evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted response parse under the evaluator and normalize to RETRIEVE, SUCCESS, and the exact unordered multiset [162061, 162112, 175905, 224951, 162110, 162068] without a compared-structure mismatch?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the required network trace present and parseable so evaluation-context construction completes without error? No network-event content is otherwise scored by this task's sole evaluator.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - derived/task.json::eval
+  success_if:
+  - text: 'The sole AgentResponseEvaluator completes without error or assertions: the compared response structure has evaluator-normalized task_type RETRIEVE and status SUCCESS, and retrieved_data is an exact unordered match to [162061, 162112, 175905, 224951, 162110, 162068].'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: Evaluation orchestration completes without error and, because AgentResponseEvaluator is the only configured evaluator, its 1.0 score yields TaskEvalResult.score 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The AgentResponseEvaluator returns any failure assertion or evaluator error, including an unparseable or non-object response, missing or wrong compared task_type/status, missing or null retrieved_data, or any missing, extra, or unequal element in the normalized unordered relation-ID array.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Any trace-parsing, context-construction, or task-orchestration error, or any configured evaluator score other than 1.0, makes TaskEvalResult.score 0.0 rather than native success.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only when post-run retention is missing or corrupted so it does not establish the response or trace actually supplied. Evidence that the run itself supplied an absent, malformed, or unparseable input is a benchmark-counted failure, not undecided.
+    rationale: This distinguishes loss of review evidence from an evaluator-visible invalid submission, which receives score 0.0.
+stronger:
+  additional_conditions:
+  - id: raw_integer_elements
+    text: Require every raw retrieved_data element to be a JSON integer; equality only after the evaluator's broader number normalization is insufficient.
+    rationale: The task explicitly requests integers, while the evaluator schema declares array items as number and compares normalized values, so native success does not directly verify raw integer typing.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Are all six raw retrieved_data elements JSON integers rather than floats, strings, or other number-normalizable representations?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].results_schema
+      - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer.normalize_array
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+  - id: no_additional_details
+    text: Require the raw final response to contain no explanatory prose, code-fence wrapper, or fields beyond the benchmark response protocol around the relation-ID payload.
+    rationale: The task requests no additional details, but the evaluator can extract JSON from a fenced response and normalizes only expected protocol fields, allowing surrounding text or unrelated raw fields to escape comparison.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Apart from the benchmark response-protocol fields, is the raw submission free of surrounding prose, code fences, and unrelated fields?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value

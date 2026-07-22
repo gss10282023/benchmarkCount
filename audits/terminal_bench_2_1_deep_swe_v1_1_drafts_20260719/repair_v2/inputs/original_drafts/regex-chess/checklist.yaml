@@ -1,0 +1,82 @@
+schema_version: case_checklist_v1
+case_unit_id: regex-chess
+domain: terminal_bench_2_1
+task_id: terminal-bench/regex-chess
+native:
+  user_goal:
+    text: Produce `/app/re.json` as a JSON list of `[regex, replacement]` pairs under 100,000 pairs and under 10 MB that, when applied sequentially to white-to-move FEN strings, returns all legal next FEN positions with queen-only promotion, correct castling-right tracking, and en-passant handling; halfmove and fullmove counts may be incorrect.
+    support:
+    - official/instruction.md::1-27
+  benchmark_success:
+    text: 'Native success means the official verifier''s pytest run passes all four checks in `/tests/test_outputs.py`: `test_immortal_game`, `test_game_of_century`, and `test_naroditsky_ivanchuk` all satisfy `verify_legal_moves` on every tested position under the evaluator''s comparison rule, and `test_not_long` passes the file-size and pair-count limits.'
+    support:
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::verify_legal_moves
+    - official/tests/test_outputs.py::test_immortal_game
+    - official/tests/test_outputs.py::test_game_of_century
+    - official/tests/test_outputs.py::test_naroditsky_ivanchuk
+    - official/tests/test_outputs.py::test_not_long
+  checked_by:
+    text: Official verifier `official/tests/test.sh`, which runs `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`.
+    support:
+    - official/tests/test.sh::18-23
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the CTRF report show pass/fail status for `test_immortal_game`, `test_game_of_century`, `test_naroditsky_ivanchuk`, and `test_not_long`?
+    support:
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::test_immortal_game
+    - official/tests/test_outputs.py::test_game_of_century
+    - official/tests/test_outputs.py::test_naroditsky_ivanchuk
+    - official/tests/test_outputs.py::test_not_long
+  - artifact: verifier/test-stdout.txt
+    question: Does the pytest transcript corroborate the suite outcome and, on failure, identify the offending move-generation assertion, tested position, or size-limit assertion?
+    support:
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::verify_legal_moves
+    - official/tests/test_outputs.py::test_not_long
+  success_if:
+  - text: Retained verifier evidence shows `test_immortal_game`, `test_game_of_century`, and `test_naroditsky_ivanchuk` all passed, so every generated move on each tested white-to-move position satisfied the evaluator's acceptance rule and the generated move count matched the python-chess legal-move count after excluding underpromotions.
+    support:
+    - official/tests/test_outputs.py::verify_legal_moves
+    - official/tests/test_outputs.py::test_immortal_game
+    - official/tests/test_outputs.py::test_game_of_century
+    - official/tests/test_outputs.py::test_naroditsky_ivanchuk
+  - text: Retained verifier evidence shows `test_not_long` passed, so `/app/re.json` was under 10e6 bytes and parsed to fewer than 1e5 regex pairs.
+    support:
+    - official/tests/test_outputs.py::test_not_long
+  fail_if:
+  - text: Retained verifier evidence shows the official pytest suite on `/tests/test_outputs.py` failed or errored before all three PGN-based move-generation tests passed under `verify_legal_moves`; this includes any generated move rejected by the evaluator's membership rule, any move-count mismatch on a tested position, or a suite error before those checks completed.
+    support:
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::verify_legal_moves
+    - official/tests/test_outputs.py::test_immortal_game
+    - official/tests/test_outputs.py::test_game_of_century
+    - official/tests/test_outputs.py::test_naroditsky_ivanchuk
+  - text: Retained verifier evidence shows `test_not_long` failed or errored, or otherwise establishes that `/app/re.json` was at least 10e6 bytes or contained at least 1e5 regex pairs.
+    support:
+    - official/tests/test_outputs.py::test_not_long
+  undecided_if:
+  - text: The retained non-label evidence is missing or too incomplete to determine whether the official pytest suite finished with all three PGN-based move-generation tests and `test_not_long` passing, and it does not separately establish any suite failure or size-limit violation.
+    rationale: Native success is defined by the official pytest composition. If retained artifacts do not reliably show whether that composition passed, and they also do not independently prove a native failure condition, neither success nor failure is established from stored evidence.
+stronger:
+  additional_conditions:
+  - id: exact-en-passant-field
+    text: Beyond native scoring, the generated FENs should match the correct en-passant field exactly on the official tested positions; native scoring is weaker because it also accepts a generated move after replacing its final FEN field with `-`.
+    rationale: The official instruction requires a fully correct move generator including en-passant, but `verify_legal_moves` accepts a generated four-field FEN `x` when either `x` exactly matches a python-chess legal move or `x` with its final field forced to `-` matches. That leaves a concrete measurement gap for incorrect en-passant targets.
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: Does the retained solution artifact include `/app/re.json`, allowing exact replay of the official tested FENs with the source-defined substitution loop and strict four-field comparison?
+      support:
+      - official/instruction.md::1-8
+      - official/tests/test_outputs.py::run_solution
+    - artifact: verifier/test-stdout.txt
+      question: Does the verifier transcript confirm the replay scope is the official three PGN-based test positions exercised by the native suite?
+      support:
+      - official/tests/test_outputs.py::do_test_game
+      - official/tests/test_outputs.py::test_immortal_game
+      - official/tests/test_outputs.py::test_game_of_century
+      - official/tests/test_outputs.py::test_naroditsky_ivanchuk
+    support:
+    - official/instruction.md::20-25
+    - official/tests/test_outputs.py::verify_legal_moves

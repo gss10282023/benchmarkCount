@@ -1,0 +1,82 @@
+schema_version: case_checklist_v1
+case_unit_id: '108'
+domain: webarena_verified
+task_id: '108'
+native:
+  user_goal:
+    text: Report the monthly counts of completed orders from January through May 2023 as a list of objects containing only a month name and an integer count, with no additional details.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Task 108 succeeds iff its sole AgentResponseEvaluator scores 1.0 and therefore TaskEvalResult.score is 1.0: after released parsing and schema normalization, the response has task_type RETRIEVE, status SUCCESS, and an order-insensitive exact match to [{"month":"January","count":12},{"month":"February","count":7},{"month":"March","count":5},{"month":"April","count":9},{"month":"May","count":5}].'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the sole AgentResponseEvaluator, which parses and schema-normalizes the response, recursively compares its normalized fields and unordered retrieved-data array, and contributes the only score to TaskEvalResult.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Under the released parsing and schema-normalization rules, does the submitted response yield task_type RETRIEVE, status SUCCESS, and exactly the five specified month/count objects, with retrieved-data order ignored?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the retained trace parseable and sufficient for the released evaluator to construct and validate its evaluation context without an orchestration error? No trace event content is otherwise scored by this task's evaluator configuration.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+  success_if:
+  - text: The retained response parses and normalizes to task_type RETRIEVE and status SUCCESS, with retrieved_data exactly matching, as an unordered array, January 12, February 7, March 5, April 9, and May 5 in objects having the schema-defined month and count fields.
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].ordered
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: The required trace and evaluation context are usable, evaluation completes without error, and the sole AgentResponseEvaluator score is 1.0, yielding TaskEvalResult.score 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: A retained submitted response is null, empty, non-object, unparseable as accepted response JSON, has a missing or mismatched task_type or status, or its normalized retrieved_data has any missing, extra, or mismatched month/count object.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: The released evaluation records an evaluator or orchestration error, cannot parse the run artifacts or construct its context, or otherwise gives the sole evaluator or TaskEvalResult a score other than 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: One or more required run artifacts were not retained, rather than being retained as an explicitly empty or invalid submission, and no retained official TaskEvalResult establishes what the released evaluator scored.
+    rationale: An omission from the evidence bundle does not prove that the run submitted a null response or invalid trace; without the missing artifact or evaluator result, the native outcome cannot be reconstructed.
+stronger:
+  additional_conditions:
+  - id: raw_output_format
+    text: Beyond native scoring, require the raw final response to be bare JSON with no code fences or prose, no fields other than task_type, status, retrieved_data, and optional null error_details, and retrieved_data containing only month/count objects whose count values are serialized as JSON integers.
+    rationale: The task text requires a list of month/count objects with integer counts and no additional details. The released evaluator can extract JSON from code blocks, normalizes only configured response fields so unrelated raw fields need not be compared, and declares count as number rather than integer; native success therefore does not fully verify the requested raw presentation.
+    decisive_artifacts:
+    - artifact: agent_response.json (raw pre-normalization content)
+      question: Is the raw response bare JSON without code fences, prose, or unscored fields, and are all count values encoded as JSON integers in month/count-only retrieved-data objects?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].results_schema
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse

@@ -1,0 +1,111 @@
+case_unit_id: tune-mjcf
+domain: terminal_bench_2_1
+native:
+  benchmark_success:
+    support:
+    - official/tests/test.sh::18-29
+    - official/tests/test_outputs.py::test_model_ref_unchanged
+    - official/tests/test_outputs.py::test_tuned_model_exists
+    - official/tests/test_outputs.py::test_correctness
+    - official/tests/test_outputs.py::test_model_speed
+    text: The task-specific native criterion is satisfied when official/tests/test.sh runs pytest over official/tests/test_outputs.py and that pytest command returns status 0; under the supplied test source this requires successful completion of test_model_ref_unchanged, test_tuned_model_exists, test_correctness, and test_model_speed.
+  checked_by:
+    support:
+    - official/tests/test.sh::18-29
+    text: official/tests/test.sh running pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the retained CTRF report establish the outcomes of the four official tests and whether the official pytest run completed successfully?
+    support:
+    - case_packet.md::62-74
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::test_model_ref_unchanged
+    - official/tests/test_outputs.py::test_tuned_model_exists
+    - official/tests/test_outputs.py::test_correctness
+    - official/tests/test_outputs.py::test_model_speed
+  - artifact: verifier/test-stdout.txt
+    question: Does retained pytest stdout establish successful completion or a failed test summary and, where relevant, expose the printed final-state-difference and time-percentage measurements?
+    support:
+    - case_packet.md::62-74
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::test_correctness
+    - official/tests/test_outputs.py::test_model_speed
+  - artifact: verifier/test-stderr.txt
+    question: Does retained stderr establish a collection, import, model-load, or runtime problem that caused the official pytest run not to complete successfully?
+    support:
+    - case_packet.md::62-74
+    - official/tests/test.sh::18-29
+  fail_if:
+  - support:
+    - official/tests/test.sh::18-29
+    text: Retained non-label verifier evidence establishes that the official pytest command returned a nonzero status or otherwise did not satisfy the four-test native success criterion.
+  - support:
+    - official/tests/test_outputs.py::test_model_ref_unchanged
+    - official/tests/test_outputs.py::test_tuned_model_exists
+    text: This includes any retained failure or error in test_model_ref_unchanged or test_tuned_model_exists, without inferring a more specific cause than the retained output exposes.
+  - support:
+    - official/tests/test_outputs.py::simulate_model
+    - official/tests/test_outputs.py::test_correctness
+    text: This includes any retained failure or error in test_correctness, such as model-load failure, a NaN/Inf assertion, incompatible state data, or failure of np.allclose with atol=1e-5 and its default rtol.
+  - support:
+    - official/tests/test_outputs.py::simulate_model
+    - official/tests/test_outputs.py::simulation_time
+    - official/tests/test_outputs.py::drop_extreme_percentiles
+    - official/tests/test_outputs.py::test_model_speed
+    text: This includes any retained failure or error in test_model_speed, such as a model-load, simulation, or finiteness failure, or measured mean(times_model/times_model_ref) greater than 0.6 after the specified percentile filtering.
+  - support:
+    - official/tests/test.sh::18-29
+    text: This also includes retained evidence of collection, import, or other pytest-level failure that produced a nonzero pytest status before successful completion of the four tests.
+  success_if:
+  - support:
+    - official/tests/test.sh::18-29
+    text: Retained non-label verifier evidence establishes that the official pytest command completed with status 0 and all four official tests passed.
+  - support:
+    - official/tests/test_outputs.py::test_model_ref_unchanged
+    - official/tests/test_outputs.py::test_tuned_model_exists
+    text: The passing reference check establishes that /app/model_ref.xml text matched the verifier's reference copy, and the passing existence check establishes that /app/model.xml existed.
+  - support:
+    - official/tests/test_outputs.py::simulate_model
+    - official/tests/test_outputs.py::test_correctness
+    text: The passing correctness check establishes that both models loaded and, for one shared random seed, each was stepped int(2.0/model.opt.timestep) times; both final full-physics states were finite and np.allclose(final_state, final_state_ref, atol=1e-5) held with NumPy's default rtol.
+  - support:
+    - official/tests/test_outputs.py::simulate_model
+    - official/tests/test_outputs.py::simulation_time
+    - official/tests/test_outputs.py::drop_extreme_percentiles
+    - official/tests/test_outputs.py::test_model_speed
+    text: The passing speed check establishes that each model underwent 20 timed simulations, each timing array was separately retained within its inclusive 5th-to-95th percentile bounds, and mean(times_model/times_model_ref) was at most 0.6; all finiteness assertions encountered during those simulations also passed.
+  undecided_if:
+  - support:
+    - case_packet.md::62-74
+    - official/tests/test.sh::18-29
+    text: Retained non-label evidence is insufficient to establish either successful status-0 completion of the official pytest command or a benchmark-counted nonzero outcome.
+  user_goal:
+    support:
+    - official/instruction.md::1-6
+    - official/README.md::Task Requirements
+    text: Produce /app/model.xml that simulates the same 2.0-second MuJoCo scene in at most 60% of the reference runtime, reaches the same final full-physics state under the stated atol=1e-5 requirement without NaN or Inf, preserves the bodies' physical properties, and leaves /app/model_ref.xml unchanged.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: artifacts/**
+      question: Does retained output include the final tuned model.xml or an equivalent state artifact permitting its body physical-property definitions to be compared with the reference model?
+      support:
+      - case_packet.md::62-74
+      - official/README.md::7-13
+    - artifact: agent/trajectory.json
+      question: If the final file is not separately retained, does the trajectory expose the final model contents or patch needed to compare body physical-property definitions with the reference model?
+      support:
+      - case_packet.md::62-74
+      - official/README.md::7-13
+    id: preserve-body-physical-properties
+    rationale: The official task expressly requires preservation of body physical properties. The released verifier does not directly compare the tuned model's body physical-property definitions with the reference; it checks only reference-file identity, tuned-model existence, sampled final-state agreement, finiteness, and speed. Static retained model or patch evidence can assess that unoperationalized requirement in principle.
+    support:
+    - official/README.md::Task Requirements
+    - official/instruction.md::1-6
+    - official/tests/test_outputs.py::test_model_ref_unchanged
+    - official/tests/test_outputs.py::test_tuned_model_exists
+    - official/tests/test_outputs.py::test_correctness
+    - official/tests/test_outputs.py::test_model_speed
+    text: Beyond native scoring, retained tuned-MJCF evidence should establish that body physical properties were not changed, rather than merely showing that the released existence, reference-identity, final-state, and speed checks passed.
+task_id: terminal-bench/tune-mjcf

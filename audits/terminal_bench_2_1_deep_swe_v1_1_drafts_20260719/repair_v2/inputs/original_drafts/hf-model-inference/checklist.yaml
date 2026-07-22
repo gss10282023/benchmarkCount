@@ -1,0 +1,67 @@
+schema_version: case_checklist_v1
+case_unit_id: hf-model-inference
+domain: terminal_bench_2_1
+task_id: terminal-bench/hf-model-inference
+native:
+  user_goal:
+    text: Set up a local background Flask sentiment-analysis service that uses the Hugging Face model `distilbert-base-uncased-finetuned-sst-2-english` saved at `/app/model_cache/sentiment_model`, serves `POST /sentiment` on `0.0.0.0:5000`, returns `sentiment` plus positive/negative confidence scores, and returns `400` JSON errors for invalid input.
+    support:
+    - official/instruction.md::1-28
+  benchmark_success:
+    text: 'Native success is established when retained verifier evidence shows the official `pytest /tests/test_outputs.py` run passed all four task-specific checks: model/tokenizer load from `/app/model_cache/sentiment_model`, API reachability on port 5000, correct `/sentiment` behavior and response schema on the fixed test texts, and `400` error handling with an `error` field for invalid input.'
+    support:
+    - official/tests/test.sh::3-12
+    - official/tests/test_outputs.py::8-128
+  checked_by:
+    text: The task-specific official verifier runs `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA` and treats a zero exit status as success.
+    support:
+    - official/tests/test.sh::3-12
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Do the recorded pytest outcomes show whether `test_model_downloaded`, `test_flask_api_running`, `test_sentiment_endpoint`, and `test_api_error_handling` all passed, or identify which official check failed or errored?
+    support:
+    - case_packet.md::86-98
+    - official/tests/test.sh::6-12
+    - official/tests/test_outputs.py::8-128
+  - artifact: verifier/test-stdout.txt
+    question: If `verifier/ctrf.json` is missing or incomplete, does pytest stdout confirm the same four official tests ran and whether any of them failed or errored?
+    support:
+    - case_packet.md::86-98
+    - official/tests/test.sh::6-12
+  success_if:
+  - text: '`verifier/ctrf.json` or equivalent official pytest stdout shows all four official tests passed: the model path exists and loads, the service is reachable on port 5000, `/sentiment` returns the required JSON with expected labels and confidence ordering for the fixed texts, and invalid input returns `400` with an `error` field.'
+    support:
+    - official/tests/test.sh::6-12
+    - official/tests/test_outputs.py::8-128
+  fail_if:
+  - text: '`verifier/ctrf.json` or equivalent official pytest stdout shows any official test failed or errored, including missing or unloadable model files, inability to connect to the service on port 5000, incorrect `/sentiment` response structure or classifications for the fixed texts, or missing `400`/`error` handling for invalid input.'
+    support:
+    - official/tests/test.sh::6-12
+    - official/tests/test_outputs.py::8-128
+  undecided_if:
+  - text: The retained run artifacts do not provide readable official verifier outcomes, or provide only partial/ambiguous pytest evidence, so the pass/fail status of the four official checks cannot be established; agent-side code or trajectory evidence alone is insufficient for the native verdict.
+    support:
+    - case_packet.md::69-80
+    - case_packet.md::86-98
+    - official/tests/test.sh::6-12
+stronger:
+  additional_conditions:
+  - id: background-and-bind-explicit
+    text: Beyond native success, retained evidence should show the service was configured to bind `0.0.0.0:5000` and was launched to keep running in the background, because the official instruction requires both while the released verifier only operationalizes HTTP reachability and endpoint behavior.
+    rationale: '`official/instruction.md` explicitly requires `0.0.0.0` and background execution. The released verifier succeeds based on the four pytest checks in `official/tests/test_outputs.py`; those checks send requests to `0.0.0.0:5000` and `localhost:5000` but do not inspect the launch mode or explicitly verify the bind configuration beyond observed reachability.'
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained command trace show the service was started as a background process rather than only run interactively in the foreground?
+      support:
+      - case_packet.md::86-98
+      - official/instruction.md::6-7
+    - artifact: artifacts/**
+      question: Do retained code artifacts or patches show the Flask app configured to listen on `0.0.0.0` and port `5000`?
+      support:
+      - case_packet.md::86-98
+      - official/instruction.md::6-7
+    support:
+    - official/instruction.md::6-7
+    - official/tests/test.sh::6-12
+    - official/tests/test_outputs.py::46-52
+    - official/tests/test_outputs.py::67-128

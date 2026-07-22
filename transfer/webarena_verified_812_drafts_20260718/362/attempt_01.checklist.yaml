@@ -1,0 +1,75 @@
+schema_version: case_checklist_v1
+case_unit_id: '362'
+domain: webarena_verified
+task_id: '362'
+native:
+  user_goal:
+    text: Retrieve the billing address for order 00178 and return it as a list of objects with keys house_number, street, city, state, postcode, and country.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task succeeds iff the sole AgentResponseEvaluator scores 1.0: it completes without error and, after its parsing and schema normalization, matches task_type RETRIEVE, status SUCCESS, and retrieved_data equal under unordered comparison to the singleton address {house_number: 101, street: S San Mateo Dr, city: San Mateo, state: California, postcode: 94010, country: United States}.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The only configured check is AgentResponseEvaluator on the submitted response; TaskEvalResult applies the rule that every configured evaluator must score 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the stored submitted response produce AgentResponseEvaluator score 1.0 with the required operation, status, and normalized singleton address?
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - derived/task.json::eval[0]
+  success_if:
+  - text: AgentResponseEvaluator completes without error, and its normalized actual response matches task_type RETRIEVE and status SUCCESS.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: After schema normalization, retrieved_data compares equal, with array order ignored, to exactly one object containing house_number 101, street S San Mateo Dr, city San Mateo, state California, postcode 94010, and country United States; the resulting sole evaluator score and TaskEvalResult score are both 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The recorded submission is null, invalid for comparison, or yields a missing or mismatched evaluated task_type or status, or AgentResponseEvaluator encounters an error; its score is then 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: After the evaluator's coercion and schema normalization, retrieved_data is missing, null, empty, or differs by any list member, object key, or value from the required singleton address; the sole evaluator and task scores are then 0.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained agent_response.json is absent, truncated, or cannot be established as the response submitted for this run, so the evaluated response cannot be reconstructed.
+    rationale: This is an evidence-retention gap; a recorded null, malformed, or otherwise invalid submitted response is instead a native failure.
+stronger:
+  additional_conditions:
+  - id: raw_list_of_objects_format
+    text: Beyond native scoring, require the raw retrieved_data field to be a JSON array whose sole member is an object with the six requested keys; do not accept a bare object or a JSON-encoded object string.
+    rationale: The instruction requires a list of objects, but native normalization wraps a non-list value into a singleton sequence and can parse a string as an object during non-strict normalization, allowing formats weaker than the requested raw structure.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Is the raw retrieved_data value an array whose sole element is a JSON object, rather than a bare object or JSON-encoded object string?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+      - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer._normalize_object
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer._normalize_object

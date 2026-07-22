@@ -1,0 +1,65 @@
+schema_version: case_checklist_v1
+case_unit_id: feal-differential-cryptanalysis
+domain: terminal_bench_2_1
+task_id: terminal-bench/feal-differential-cryptanalysis
+native:
+  user_goal:
+    text: Implement `/app/attack.py` so `attack(encrypt_fn)` performs a chosen-plaintext attack and returns the uint32 value of `key[5]`, with intended runtime under 30 seconds.
+    support:
+    - official/instruction.md::1-6
+  benchmark_success:
+    text: 'The native verifier counts success iff the single official pytest case passes: after building the C helper, importing `attack` and `feal_in_c`, generating random FEAL keys, and calling `attack.attack(feal_in_c.encrypt)`, the returned value equals `feal_in_c.get_keys()[5]`.'
+    support:
+    - official/tests/test.sh::17-29
+    - official/tests/test_outputs.py::test_feal_differential_cryptanalysis_attack
+  checked_by:
+    text: '`official/tests/test.sh` runs `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -v -rA`; native pass/fail is the result of that pytest run.'
+    support:
+    - official/tests/test.sh::17-29
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does it record whether `test_feal_differential_cryptanalysis_attack` passed or failed?
+    support:
+    - case_packet.md::63-75
+    - official/tests/test.sh::17-22
+    - official/tests/test_outputs.py::test_feal_differential_cryptanalysis_attack
+  - artifact: verifier/test-stdout.txt
+    question: Does pytest stdout show the same single official test ran and, if it failed, whether the failure was the key-equality assertion or an import/build/runtime error?
+    support:
+    - case_packet.md::63-75
+    - official/tests/test.sh::17-22
+    - official/tests/test_outputs.py::test_feal_differential_cryptanalysis_attack
+  success_if:
+  - text: Retained verifier evidence shows `test_feal_differential_cryptanalysis_attack` passed, establishing that `attack.attack(feal_in_c.encrypt)` returned exactly `feal_in_c.get_keys()[5]` under the official test.
+    support:
+    - official/tests/test.sh::17-29
+    - official/tests/test_outputs.py::test_feal_differential_cryptanalysis_attack
+  fail_if:
+  - text: Retained verifier evidence shows the single official pytest case failed for any reason, including a returned value unequal to `feal_in_c.get_keys()[5]` or an import/build/runtime exception before that assertion completes.
+    support:
+    - official/tests/test.sh::17-29
+    - official/tests/test_outputs.py::test_feal_differential_cryptanalysis_attack
+  undecided_if:
+  - text: The retained non-label verifier artifacts are missing, truncated, or inconsistent enough that they do not establish whether `test_feal_differential_cryptanalysis_attack` passed or failed.
+    support:
+    - case_packet.md::47-75
+    - official/tests/test.sh::17-29
+stronger:
+  additional_conditions:
+  - id: chosen_plaintext_not_key_leakage
+    text: Beyond native scoring, retained submitted-code evidence should show the reported `key[5]` was derived from chosen-plaintext queries to the provided `encrypt_fn`, not by importing test-only helpers such as `feal_in_c.get_keys()` or otherwise reading internal key state.
+    rationale: The official instruction requires a chosen plaintext attack implemented as `attack(encrypt_fn)`, but the released verifier only checks equality against `feal_in_c.get_keys()[5]`. Because the test makes `feal_in_c` importable and exposes `get_keys`, native pass does not guarantee the key was recovered by cryptanalysis.
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: Do retained submitted code artifacts show `attack` derives the answer from calls to `encrypt_fn` rather than direct access to `feal_in_c.get_keys()` or other internal key state?
+      support:
+      - case_packet.md::63-75
+      - official/instruction.md::1-6
+      - official/tests/test_outputs.py::test_feal_differential_cryptanalysis_attack
+      - official/tests/feal_module.c::py_get_keys
+      - official/tests/feal_module.c::FealMethods
+    support:
+    - official/instruction.md::1-6
+    - official/tests/test_outputs.py::test_feal_differential_cryptanalysis_attack
+    - official/tests/feal_module.c::py_get_keys
+    - official/tests/feal_module.c::FealMethods

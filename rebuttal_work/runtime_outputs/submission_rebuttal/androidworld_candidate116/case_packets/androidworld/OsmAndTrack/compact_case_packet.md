@@ -1,0 +1,731 @@
+# AndroidWorld Compact Draft Packet
+
+This is the complete LLM-visible pre-run source packet for one contract draft. The full audit packet and frozen source closure remain available separately.
+
+```json
+{
+  "authority_rule": "Use canonical runtime goal/evaluator semantics. Treat task_metadata.json wording as descriptive only; every disagreement is retained in metadata_comparison and metadata_conflicts.",
+  "identity": {
+    "case_unit_id": "OsmAndTrack",
+    "domain": "androidworld",
+    "group": "extra16",
+    "selection_rank": 106,
+    "task_id": "OsmAndTrack"
+  },
+  "integrity": {
+    "semantic_record_sha256": "3b0d8f175bc68ad61b39c30b13a1e64470dab0da39f7feaa9ea25f9f99123813",
+    "shared_source_snapshot_manifest_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/androidworld_source_snapshot_manifest.json",
+    "shared_source_snapshot_manifest_sha256": "cdc4c9543ac50fb88837feb787179d5e73b6651f167b0d50f64b2332473b62bf",
+    "source_closure_sha256": "b8b85cdcc004a0e47929a19e0eb081fcb5a44b8b1382c5afe0a7d97fbbb09c4e",
+    "source_commit": "d9c569f764b3a5629321858de03ff653d0f24056"
+  },
+  "schema_version": "androidworld_compact_draft_packet/v2",
+  "source_context": {
+    "available_post_run_artifact_types": [
+      "post_state",
+      "trace",
+      "screenshot",
+      "tool_log",
+      "message",
+      "native_evaluator_input",
+      "native_evaluator_output",
+      "file"
+    ],
+    "contract_template": {
+      "claim_scope": "native_aligned"
+    },
+    "evaluator_description": {
+      "canonical_module": "android_world.task_evals.single.osmand",
+      "definition": {
+        "definition_kind": "python_class",
+        "incidental_runtime_module_excluded": null,
+        "mro": [
+          {
+            "canonical_androidworld_source": true,
+            "module": "android_world.task_evals.single.osmand",
+            "qualname": "OsmAndTrack",
+            "source_ref": {
+              "ast_sha256": "b9124ebecd3b653d809fa00eb3740d1b4d013ce7922f6f8c4e583324c814fd59",
+              "end_line": 456,
+              "file_sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19",
+              "path": "android_world/task_evals/single/osmand.py",
+              "snippet_sha256": "3739b3365e7a491fb813a73ad9cab3300ee1ed8b8c1ec121221a751de53afd3f",
+              "start_line": 390,
+              "symbol": "OsmAndTrack"
+            }
+          },
+          {
+            "canonical_androidworld_source": true,
+            "module": "android_world.task_evals.single.osmand",
+            "qualname": "_OsmTaskEval",
+            "source_ref": {
+              "ast_sha256": "b32d95ddcecf99bc0cff3a9c27629fb4e2906bc13d824ed5d655a337174104d8",
+              "end_line": 203,
+              "file_sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19",
+              "path": "android_world/task_evals/single/osmand.py",
+              "snippet_sha256": "fd321ff4f99a102442ab8440a4bd59fe4915b3ca1b0ef96b0f025e2741a3dbef",
+              "start_line": 200,
+              "symbol": "_OsmTaskEval"
+            }
+          },
+          {
+            "canonical_androidworld_source": true,
+            "module": "android_world.task_evals.task_eval",
+            "qualname": "TaskEval",
+            "source_ref": {
+              "ast_sha256": "85d1a56897097bc400580d972badbaf66e2063a3fb9ddf45bfa65bfe92d05f09",
+              "end_line": 190,
+              "file_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+              "path": "android_world/task_evals/task_eval.py",
+              "snippet_sha256": "555d49d2ef6e2fdd5d52484234181bdb3f7d874ac66bb5e068d01403f050351b",
+              "start_line": 30,
+              "symbol": "TaskEval"
+            }
+          },
+          {
+            "canonical_androidworld_source": false,
+            "qualname": "ABC",
+            "runtime_reported_module": "abc",
+            "source_ref": null
+          },
+          {
+            "canonical_androidworld_source": false,
+            "module": "builtins",
+            "qualname": "object",
+            "source_ref": null
+          }
+        ],
+        "runtime_reported_module": "android_world.task_evals.single.osmand",
+        "source_bindings": [
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+            "ast_sha256": "b9124ebecd3b653d809fa00eb3740d1b4d013ce7922f6f8c4e583324c814fd59",
+            "end_line": 456,
+            "owner_module": "android_world.task_evals.single.osmand",
+            "owner_qualname": "OsmAndTrack",
+            "sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19",
+            "snippet_sha256": "3739b3365e7a491fb813a73ad9cab3300ee1ed8b8c1ec121221a751de53afd3f",
+            "start_line": 390
+          }
+        ]
+      },
+      "evaluator": {
+        "branches": [],
+        "method_chain": [
+          {
+            "branch_node_count": 1,
+            "direct_calls": [
+              "ElementTree.parse",
+              "ElementTree.parse.getroot",
+              "_track_matches",
+              "_track_points",
+              "file_utils.convert_to_posix_path",
+              "file_utils.tmp_directory_from_device",
+              "os.listdir",
+              "super",
+              "super.is_successful"
+            ],
+            "direct_parameter_reads": [],
+            "owner_class": "OsmAndTrack",
+            "owner_module": "android_world.task_evals.single.osmand",
+            "source_ref": {
+              "ast_sha256": "ddf599adcfeb2b3dd3ccf561200df3fb544d6fadc3421a9b591a2675ec501e7b",
+              "end_line": 443,
+              "file_sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19",
+              "path": "android_world/task_evals/single/osmand.py",
+              "snippet_sha256": "2920779c9b8d6d462b69c75056200cca31ef6e438da962a309df61df10aa5be1",
+              "start_line": 426,
+              "symbol": "OsmAndTrack.is_successful"
+            }
+          },
+          {
+            "branch_node_count": 0,
+            "direct_calls": [
+              "self._check_is_initialized"
+            ],
+            "direct_parameter_reads": [],
+            "owner_class": "TaskEval",
+            "owner_module": "android_world.task_evals.task_eval",
+            "source_ref": {
+              "ast_sha256": "4ba02bae85e87232a171f4ab6decd0f081113181a5d2fcbd220a205512f58e16",
+              "end_line": 180,
+              "file_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+              "path": "android_world/task_evals/task_eval.py",
+              "snippet_sha256": "cb4c4fd2a9f4efa9fe8fb8328f459b54febf84903006338ae246acd0c445e098",
+              "start_line": 166,
+              "symbol": "TaskEval.is_successful"
+            }
+          }
+        ],
+        "runner_score_semantics": {
+          "display_success_threshold": "agent_successful > 0.5",
+          "done_gate": "task_successful if interaction_results.done else 0.0",
+          "source_ref": {
+            "ast_sha256": "6287c8b53ca1ea7313f4a186e885a27263c51c622f46921cbe7cc4433a04edaa",
+            "end_line": 289,
+            "file_sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b",
+            "path": "android_world/suite_utils.py",
+            "snippet_sha256": "b24c573174d61b7642dd5dd746911d21c904d793e37582c91e5972a73d634062",
+            "start_line": 223,
+            "symbol": "suite_utils._run_task"
+          },
+          "task_raw_score": "task.is_successful(env)"
+        },
+        "source_bindings": [
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+            "ast_sha256": "ddf599adcfeb2b3dd3ccf561200df3fb544d6fadc3421a9b591a2675ec501e7b",
+            "end_line": 443,
+            "owner_module": "android_world.task_evals.single.osmand",
+            "owner_qualname": "OsmAndTrack.is_successful",
+            "sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19",
+            "snippet_sha256": "2920779c9b8d6d462b69c75056200cca31ef6e438da962a309df61df10aa5be1",
+            "start_line": 426
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+            "ast_sha256": "4ba02bae85e87232a171f4ab6decd0f081113181a5d2fcbd220a205512f58e16",
+            "end_line": 180,
+            "owner_module": "android_world.task_evals.task_eval",
+            "owner_qualname": "TaskEval.is_successful",
+            "sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+            "snippet_sha256": "cb4c4fd2a9f4efa9fe8fb8328f459b54febf84903006338ae246acd0c445e098",
+            "start_line": 166
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/suite_utils.py",
+            "ast_sha256": "6287c8b53ca1ea7313f4a186e885a27263c51c622f46921cbe7cc4433a04edaa",
+            "end_line": 289,
+            "owner_module": "android_world.suite_utils",
+            "owner_qualname": "suite_utils._run_task",
+            "sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b",
+            "snippet_sha256": "b24c573174d61b7642dd5dd746911d21c904d793e37582c91e5972a73d634062",
+            "start_line": 223
+          }
+        ]
+      },
+      "is_successful": {
+        "branches": [],
+        "live_evaluator_execution_performed": false,
+        "method_chain": [
+          {
+            "branch_node_count": 1,
+            "direct_calls": [
+              "ElementTree.parse",
+              "ElementTree.parse.getroot",
+              "_track_matches",
+              "_track_points",
+              "file_utils.convert_to_posix_path",
+              "file_utils.tmp_directory_from_device",
+              "os.listdir",
+              "super",
+              "super.is_successful"
+            ],
+            "direct_parameter_reads": [],
+            "owner_class": "OsmAndTrack",
+            "owner_module": "android_world.task_evals.single.osmand",
+            "source_ref": {
+              "ast_sha256": "ddf599adcfeb2b3dd3ccf561200df3fb544d6fadc3421a9b591a2675ec501e7b",
+              "end_line": 443,
+              "file_sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19",
+              "path": "android_world/task_evals/single/osmand.py",
+              "snippet_sha256": "2920779c9b8d6d462b69c75056200cca31ef6e438da962a309df61df10aa5be1",
+              "start_line": 426,
+              "symbol": "OsmAndTrack.is_successful"
+            }
+          },
+          {
+            "branch_node_count": 0,
+            "direct_calls": [
+              "self._check_is_initialized"
+            ],
+            "direct_parameter_reads": [],
+            "owner_class": "TaskEval",
+            "owner_module": "android_world.task_evals.task_eval",
+            "source_ref": {
+              "ast_sha256": "4ba02bae85e87232a171f4ab6decd0f081113181a5d2fcbd220a205512f58e16",
+              "end_line": 180,
+              "file_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+              "path": "android_world/task_evals/task_eval.py",
+              "snippet_sha256": "cb4c4fd2a9f4efa9fe8fb8328f459b54febf84903006338ae246acd0c445e098",
+              "start_line": 166,
+              "symbol": "TaskEval.is_successful"
+            }
+          }
+        ],
+        "source_bindings": [
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+            "ast_sha256": "ddf599adcfeb2b3dd3ccf561200df3fb544d6fadc3421a9b591a2675ec501e7b",
+            "end_line": 443,
+            "owner_module": "android_world.task_evals.single.osmand",
+            "owner_qualname": "OsmAndTrack.is_successful",
+            "sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19",
+            "snippet_sha256": "2920779c9b8d6d462b69c75056200cca31ef6e438da962a309df61df10aa5be1",
+            "start_line": 426
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+            "ast_sha256": "4ba02bae85e87232a171f4ab6decd0f081113181a5d2fcbd220a205512f58e16",
+            "end_line": 180,
+            "owner_module": "android_world.task_evals.task_eval",
+            "owner_qualname": "TaskEval.is_successful",
+            "sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+            "snippet_sha256": "cb4c4fd2a9f4efa9fe8fb8328f459b54febf84903006338ae246acd0c445e098",
+            "start_line": 166
+          },
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/suite_utils.py",
+            "ast_sha256": "6287c8b53ca1ea7313f4a186e885a27263c51c622f46921cbe7cc4433a04edaa",
+            "end_line": 289,
+            "owner_module": "android_world.suite_utils",
+            "owner_qualname": "suite_utils._run_task",
+            "sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b",
+            "snippet_sha256": "b24c573174d61b7642dd5dd746911d21c904d793e37582c91e5972a73d634062",
+            "start_line": 223
+          }
+        ]
+      },
+      "task_class": "OsmAndTrack"
+    },
+    "initialization": {
+      "device_execution_performed_during_extraction": false,
+      "method_chain": [
+        {
+          "branch_node_count": 0,
+          "direct_calls": [
+            "_clear_tracks",
+            "_lookup_target_waypoints",
+            "super",
+            "super.initialize_task"
+          ],
+          "direct_parameter_reads": [
+            "waypoints"
+          ],
+          "owner_class": "OsmAndTrack",
+          "owner_module": "android_world.task_evals.single.osmand",
+          "source_ref": {
+            "ast_sha256": "dea09054e7190a111b12c072622e065dded2b1e07fe872c49d1a20f9f8abb5d7",
+            "end_line": 424,
+            "file_sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19",
+            "path": "android_world/task_evals/single/osmand.py",
+            "snippet_sha256": "631b5fc9e5b7711e79eb3021221bc065ed3b2df502e13d4a39c1469e589bb3f1",
+            "start_line": 418,
+            "symbol": "OsmAndTrack.initialize_task"
+          }
+        },
+        {
+          "branch_node_count": 2,
+          "direct_calls": [
+            "RuntimeError",
+            "logging.info",
+            "random.seed",
+            "self._initialize_apps",
+            "self.initialize_device_time",
+            "self.params.get"
+          ],
+          "direct_parameter_reads": [
+            "seed"
+          ],
+          "owner_class": "TaskEval",
+          "owner_module": "android_world.task_evals.task_eval",
+          "source_ref": {
+            "ast_sha256": "789c520bbfefb2cf815434042709e7d9d74585ebb19c2598d02dfe9c38769b1c",
+            "end_line": 157,
+            "file_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+            "path": "android_world/task_evals/task_eval.py",
+            "snippet_sha256": "51c8fe9ebb14bc1362b24c3c53691dc666b9eaf949e8e6dc7251472e335f8c47",
+            "start_line": 142,
+            "symbol": "TaskEval.initialize_task"
+          }
+        }
+      ],
+      "source_bindings": [
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+          "ast_sha256": "dea09054e7190a111b12c072622e065dded2b1e07fe872c49d1a20f9f8abb5d7",
+          "end_line": 424,
+          "owner_module": "android_world.task_evals.single.osmand",
+          "owner_qualname": "OsmAndTrack.initialize_task",
+          "sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19",
+          "snippet_sha256": "631b5fc9e5b7711e79eb3021221bc065ed3b2df502e13d4a39c1469e589bb3f1",
+          "start_line": 418
+        },
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+          "ast_sha256": "789c520bbfefb2cf815434042709e7d9d74585ebb19c2598d02dfe9c38769b1c",
+          "end_line": 157,
+          "owner_module": "android_world.task_evals.task_eval",
+          "owner_qualname": "TaskEval.initialize_task",
+          "sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb",
+          "snippet_sha256": "51c8fe9ebb14bc1362b24c3c53691dc666b9eaf949e8e6dc7251472e335f8c47",
+          "start_line": 142
+        }
+      ]
+    },
+    "metadata_comparison": {
+      "canonical_templates": [],
+      "comparison_is_semantic_proof": false,
+      "differences": [
+        {
+          "canonical_runtime_templates": [],
+          "comparison_status": "mismatch",
+          "difference_id": "task_template_vs_runtime_goal",
+          "field": "task_template",
+          "metadata_value": "Save a track with waypoints Ruggell, Liechtenstein, Bendern, Liechtenstein in the OsmAnd maps app in the same order as listed."
+        }
+      ],
+      "fixed_seed_sample_shape_matches": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "has_difference": true,
+      "matches_runtime": false,
+      "metadata_placeholders": [],
+      "metadata_template": "Save a track with waypoints Ruggell, Liechtenstein, Bendern, Liechtenstein in the OsmAnd maps app in the same order as listed.",
+      "status": "mismatch"
+    },
+    "metadata_conflicts": [
+      {
+        "conflict_type": "fixed_example_replaces_parameterized_goal",
+        "difference_id": "task_template_vs_runtime_goal",
+        "materiality": "material",
+        "reason": "metadata fixes two waypoints while the runtime goal uses generated two-to-four waypoints",
+        "resolution": "runtime_goal_and_evaluator_sources_are_canonical",
+        "resolution_rule": "runtime_goal_and_evaluator_sources_are_canonical",
+        "scope": "metadata_vs_runtime_goal",
+        "status": "requires_contract_review"
+      }
+    ],
+    "native_sources": [
+      {
+        "owner_module": "android_world.task_evals.single.osmand",
+        "owner_qualname": "OsmAndTrack",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+        "source_sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.osmand",
+        "owner_qualname": "OsmAndTrack.goal",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+        "source_sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.osmand",
+        "owner_qualname": "OsmAndTrack.schema",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+        "source_sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.osmand",
+        "owner_qualname": "OsmAndTrack.generate_random_params",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+        "source_sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.osmand",
+        "owner_qualname": "OsmAndTrack.initialize_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+        "source_sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19"
+      },
+      {
+        "owner_module": "android_world.task_evals.task_eval",
+        "owner_qualname": "TaskEval.initialize_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+        "source_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.osmand",
+        "owner_qualname": "OsmAndTrack.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+        "source_sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19"
+      },
+      {
+        "owner_module": "android_world.task_evals.task_eval",
+        "owner_qualname": "TaskEval.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+        "source_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb"
+      },
+      {
+        "owner_module": "android_world.suite_utils",
+        "owner_qualname": "suite_utils._run_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/suite_utils.py",
+        "source_sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b"
+      },
+      {
+        "owner_module": "android_world.task_evals.single.osmand",
+        "owner_qualname": "OsmAndTrack.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+        "source_sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19"
+      },
+      {
+        "owner_module": "android_world.task_evals.task_eval",
+        "owner_qualname": "TaskEval.is_successful",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/task_eval.py",
+        "source_sha256": "e359e11f9f8874af9dc17311f58c11eb1169672826f43e582d91b95f205008eb"
+      },
+      {
+        "owner_module": "android_world.suite_utils",
+        "owner_qualname": "suite_utils._run_task",
+        "source_ref": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/suite_utils.py",
+        "source_sha256": "caf4d3a8765c914a2b978d119921cc4c062176e5a362c20c53905d4d0dbe083b"
+      }
+    ],
+    "official_policy": "AndroidWorld has no separate policy document. The frozen task class, parameter generator/schema, initialize_task implementation, runtime-dispatched goal, is_successful implementation, and suite runner are authoritative. task_metadata.json is descriptive and is not allowed to override conflicting runtime semantics.",
+    "parameter_schema": {
+      "observed_parameter_keys": [
+        "seed",
+        "track_name",
+        "waypoints"
+      ],
+      "observed_parameter_types": {
+        "seed": [
+          "builtins.int"
+        ],
+        "track_name": [
+          "builtins.str"
+        ],
+        "waypoints": [
+          "builtins.list"
+        ]
+      },
+      "runner_injected_parameters": [
+        "seed"
+      ],
+      "schema_completeness": "declared_not_assumed_complete",
+      "source_bindings": [
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+          "ast_sha256": "b9124ebecd3b653d809fa00eb3740d1b4d013ce7922f6f8c4e583324c814fd59",
+          "end_line": 456,
+          "owner_module": "android_world.task_evals.single.osmand",
+          "owner_qualname": "OsmAndTrack.schema",
+          "sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19",
+          "snippet_sha256": "3739b3365e7a491fb813a73ad9cab3300ee1ed8b8c1ec121221a751de53afd3f",
+          "start_line": 390
+        },
+        {
+          "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+          "ast_sha256": "e370f83e616157dbac9bba099a602e327b1c6aa37111d1ca3bc8b119cfccac0c",
+          "end_line": 456,
+          "owner_module": "android_world.task_evals.single.osmand",
+          "owner_qualname": "OsmAndTrack.generate_random_params",
+          "sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19",
+          "snippet_sha256": "5cc477c5c4f3863b58b97ec78bee9daf73c93b08844ccfc633106556433b3684",
+          "start_line": 450
+        }
+      ],
+      "value": {
+        "properties": {
+          "waypoints": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "waypoints"
+        ],
+        "type": "object"
+      }
+    },
+    "semantic_record": {
+      "path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/semantic_records/cases/OsmAndTrack/canonical_task_semantics.json",
+      "sha256": "3b0d8f175bc68ad61b39c30b13a1e64470dab0da39f7feaa9ea25f9f99123813"
+    },
+    "task_text": {
+      "benchmark": "AndroidWorld",
+      "canonical_goal": {
+        "authority": "runtime_goal_dispatched_by_android_world.suite_utils",
+        "branches": [],
+        "computed_expression": {
+          "branch_node_count": 1,
+          "direct_calls": [
+            "ValueError",
+            "join",
+            "len"
+          ],
+          "direct_parameter_reads": [
+            "waypoints"
+          ]
+        },
+        "dispatch_phase": "after_initialize_task",
+        "generation_semantics": {
+          "computed_goal_semantics": {
+            "branch_node_count": 1,
+            "direct_calls": [
+              "ValueError",
+              "join",
+              "len"
+            ],
+            "direct_parameter_reads": [
+              "waypoints"
+            ]
+          },
+          "runtime_samples": [
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Save a track with waypoints Rotenboden, Liechtenstein, Balzers, Liechtenstein, Oberplanken, Liechtenstein in the OsmAnd maps app in the same order as listed.",
+              "dispatch_goal_sha256": "ff1bd9aeebb32070de2ff60fd473d611e64dca6fb492e47649ca42c7e9413ba0",
+              "parameter_keys": [
+                "seed",
+                "track_name",
+                "waypoints"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 0
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Save a track with waypoints Schaanwald, Liechtenstein, Bendern, Liechtenstein in the OsmAnd maps app in the same order as listed.",
+              "dispatch_goal_sha256": "3491573401002ea3bc51ae3b76f25ffbdd639e13527603e91f701bc83b37a782",
+              "parameter_keys": [
+                "seed",
+                "track_name",
+                "waypoints"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 1
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Save a track with waypoints Bendern, Liechtenstein, Triesen, Liechtenstein in the OsmAnd maps app in the same order as listed.",
+              "dispatch_goal_sha256": "fd8133d9262e1c9fae972105c82c6b1b4913c6a97c7e5acf19385825da287c13",
+              "parameter_keys": [
+                "seed",
+                "track_name",
+                "waypoints"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 2
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Save a track with waypoints Schaanwald, Liechtenstein, Schaan, Liechtenstein in the OsmAnd maps app in the same order as listed.",
+              "dispatch_goal_sha256": "c9c22029e7b3ea594257047c5150684a92c54c8ca56cac577df49cdc7286d349",
+              "parameter_keys": [
+                "seed",
+                "track_name",
+                "waypoints"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 3
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Save a track with waypoints Oberplanken, Liechtenstein, Bendern, Liechtenstein in the OsmAnd maps app in the same order as listed.",
+              "dispatch_goal_sha256": "27756a87cd6f9328e7396d6ce544671c38633cbdea298ab2e7589fe8401c48a3",
+              "parameter_keys": [
+                "seed",
+                "track_name",
+                "waypoints"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 4
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Save a track with waypoints Oberplanken, Liechtenstein, Planken, Liechtenstein, Schaan, Liechtenstein, Balzers, Liechtenstein in the OsmAnd maps app in the same order as listed.",
+              "dispatch_goal_sha256": "ad7576a79e99462c5032415ba98836d8be5017c95d38a4031d333ed55eaa6c42",
+              "parameter_keys": [
+                "seed",
+                "track_name",
+                "waypoints"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 5
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Save a track with waypoints Malbun, Liechtenstein, Rotenboden, Liechtenstein, Balzers, Liechtenstein in the OsmAnd maps app in the same order as listed.",
+              "dispatch_goal_sha256": "376dda8bef646b52aa36e27b087fa08fdb88e8959ccf0b7f09b9c7b76a42fc5a",
+              "parameter_keys": [
+                "seed",
+                "track_name",
+                "waypoints"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 7
+            },
+            {
+              "branch_selector": null,
+              "device_initialization_executed": false,
+              "dispatch_goal_model": "Save a track with waypoints Schaan, Liechtenstein, Ruggell, Liechtenstein, Sch\u00f6nberg, Liechtenstein in the OsmAnd maps app in the same order as listed.",
+              "dispatch_goal_sha256": "0573c431511bcde9a8940c667ffa55634b7c56ad7350370f528a2bdc8e594e94",
+              "parameter_keys": [
+                "seed",
+                "track_name",
+                "waypoints"
+              ],
+              "pure_pre_dispatch_transforms": [],
+              "sample_kind": "fixed_seed",
+              "suite_seed": 11
+            }
+          ],
+          "samples_are_examples_not_generic_templates": true,
+          "templates": []
+        },
+        "representation_kind": "computed_goal",
+        "source_bindings": [
+          {
+            "artifact_path": "rebuttal_work/runtime_outputs/submission_rebuttal/androidworld_candidate116/shared_source/source_tree/android_world/task_evals/single/osmand.py",
+            "ast_sha256": "68ba214facf63dce0e1148c0d1ea307b2a072faf276a1fc08a8991d0cab5e829",
+            "end_line": 416,
+            "owner_module": "android_world.task_evals.single.osmand",
+            "owner_qualname": "OsmAndTrack.goal",
+            "sha256": "04d39ee7658e0c2f520f7d25475cd5e3d0a4e8fbcd45b52fb2764855bd4d0b19",
+            "snippet_sha256": "b0fcb8633b8df2d7786548bd419d8c49fc0eb2399ce8c41c8c22126b0bfe35fa",
+            "start_line": 405
+          }
+        ]
+      },
+      "difficulty": "hard",
+      "metadata_semantic_role": "descriptive_non_authoritative_when_conflicting",
+      "metadata_task_template": "Save a track with waypoints Ruggell, Liechtenstein, Bendern, Liechtenstein in the OsmAnd maps app in the same order as listed.",
+      "optimal_steps": "60",
+      "tags": [
+        "complex_ui_understanding",
+        "search",
+        "data_entry",
+        "repetition",
+        "parameterized"
+      ],
+      "task_name": "OsmAndTrack"
+    },
+    "trace_schema": {
+      "artifacts": [
+        "device state",
+        "system state",
+        "checkpoint artifacts",
+        "observations",
+        "actions",
+        "messages",
+        "evaluator input",
+        "evaluator output"
+      ],
+      "episodes_per_record": 1
+    }
+  }
+}
+```

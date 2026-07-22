@@ -1,0 +1,125 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "552",
+  "domain": "webarena_verified",
+  "task_id": "552",
+  "native": {
+    "user_goal": {
+      "text": "Using GitLab Web IDE, create and commit `real_space/urls.json` in `gimmiethat.space` on its default branch; the file must be a JSON object whose `urls` array contains the full URLs of the five newest `space` forum posts, newest first.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is `TaskEvalResult.score == 1.0`: both the configured `AgentResponseEvaluator` and `NetworkEventEvaluator` must score 1.0.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released evaluator normalizes and structurally compares the stored agent response, checks the last HAR event matching the configured GitLab commit POST, and conjunctively composes the two evaluator scores.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the stored response parse and normalize under the released evaluator to exactly `{task_type: MUTATE, status: SUCCESS, retrieved_data: null}`?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching `POST __GITLAB__/api/v4/projects/byteblaze%2Fgimmiethat.space/repository/commits` have response status `201` and parsed post data with `branch=main`, `actions[0].action=create`, `actions[0].file_path=real_space/urls.json`, `actions[0].content` equal after official JSON/URL normalization to `{\"urls\":[\"__REDDIT__/f/space/134164/scientists-erupt-at-nasa-gutting-funding-for-crucial-venus\",\"__REDDIT__/f/space/134163/virgin-orbit-fails-to-secure-funding-will-cease-operations\",\"__REDDIT__/f/space/134162/nasa-to-name-artemis-2-crew-next-week-the-first-moon\",\"__REDDIT__/f/space/134161/bent-light-in-deep-space-reveals-one-of-the-biggest-black\",\"__REDDIT__/f/space/134160/seti-s-new-machine-learning-algorithm-works-like-google-s\"]}`, and `actions[1].action=null`?",
+        "support": [
+          "derived/task.json::eval[1].expected",
+          "derived/task.json::eval[1].last_event_only",
+          "derived/task.json::eval[1].post_data_schema",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalized_actual_value"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff the agent response passes its accepted normalized comparison and the last matching HAR commit event passes every configured URL, method, status, and extracted post-data comparison; both evaluator scores must be 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either evaluator does not score 1.0 or errors: the response fails its normalized comparison, a complete HAR contains no qualifying commit POST, or the last qualifying POST mismatches any configured URL, method, `201` status, or extracted post-data value. Any one such result makes the task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when `agent_response.json` or `network.har` is absent, truncated, or unreadable so one of the two evaluator results cannot be reconstructed; a complete HAR with no qualifying event is failure, not undecided.",
+        "rationale": "Incomplete retained evidence cannot establish the conjunctive native score, whereas evaluator-visible absence in a complete trace is an ordinary counted failure."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "web_ide_origin",
+        "text": "Beyond native event acceptance, retained interaction evidence must establish that the matching commit was submitted through GitLab Web IDE.",
+        "rationale": "The official task explicitly requires Web IDE, while the released evaluator filters and compares network events without checking their UI origin.",
+        "decisive_artifacts": [
+          {
+            "artifact": "retained browser interaction trace or recording",
+            "question": "Does the evidence establish that the accepted commit was submitted from the GitLab Web IDE for `gimmiethat.space`?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+        ]
+      },
+      {
+        "id": "actual_default_branch_state",
+        "text": "Beyond the successful HAR request, post-run GitLab state must show a commit creating `real_space/urls.json` with the required JSON on the repository's actual default branch.",
+        "rationale": "The task requires a committed file on the default branch, but the released check only requires a successful request whose body hard-codes `branch: main`; it neither verifies that `main` is the default nor reads final repository state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "post-run GitLab repository snapshot and commit record",
+            "question": "Which branch is recorded as default, and does its post-run history and tip tree show creation of `real_space/urls.json` with the exact required five-URL JSON value?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.post_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected.post_data.branch",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

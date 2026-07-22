@@ -1,0 +1,77 @@
+schema_version: case_checklist_v1
+case_unit_id: '702'
+domain: webarena_verified
+task_id: '702'
+native:
+  user_goal:
+    text: Create a new marketing price rule named "Pride Month" for all registered customers that gives 45% off all products.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both the AgentResponseEvaluator comparison for the reported MUTATE/SUCCESS outcome and the NetworkEventEvaluator comparison for the last matching catalog-rule save POST must score 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator evaluates agent_response.json with AgentResponseEvaluator and network.har with NetworkEventEvaluator, then composes both results into TaskEvalResult.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response pass the official AgentResponseEvaluator parsing, normalization, and structural comparison against the configured MUTATE/SUCCESS response?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event matching a POST to __SHOPPING_ADMIN__/catalog_rule/promo_catalog/save/ a 302 response whose compared form values are customer_group_ids[0]="1", discount_amount="45", is_active="1", name="Pride Month", simple_action="by_percent", and website_ids[0]="1"?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff AgentResponseEvaluator scores 1.0 under its configured MUTATE/SUCCESS comparison and NetworkEventEvaluator scores 1.0 for the last matching save POST with response status 302 and all six configured form values; only those expected post-data keys are projected for comparison, and neither evaluator may error.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Failure if AgentResponseEvaluator returns score 0 or errors because the retained response is invalid or does not pass its configured comparison; since all evaluator scores must be 1.0, this makes the task score 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Failure if NetworkEventEvaluator returns score 0 or errors because no qualifying save POST exists or the selected last matching event fails any configured URL, method, form-value, or 302-status comparison; this makes the task score 0 even if the response check passes.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when a retained artifact is absent, truncated, or unreadable so one or both evaluator inputs cannot be reconstructed and no official TaskEvalResult is retained; an intact invalid response or an intact HAR with no qualifying event is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: persisted_rule_matches_full_intent
+    text: Beyond native scoring, a retained post-run state diff must show that the run created and persisted an active "Pride Month" rule for registered customers with a 45% by-percent discount and no product or category conditions, so it applies to all products.
+    rationale: The native network check establishes only a matching save POST and 302 response and projects actual post_data onto six configured keys. It therefore does not verify persisted state or reject unexamined fields that could restrict product scope, while the official instruction requires creation of a rule covering all products.
+    decisive_artifacts:
+    - artifact: Post-run shopping-admin catalog-rule state diff or rule-record export
+      question: Does it show a newly created, persisted, active "Pride Month" rule for registered customers with a 45% by-percent discount and no product/category restrictions?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

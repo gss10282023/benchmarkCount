@@ -1,0 +1,84 @@
+schema_version: case_checklist_v1
+case_unit_id: '69'
+domain: webarena_verified
+task_id: '69'
+native:
+  user_goal:
+    text: Inspect the 10 hottest posts in the “Books” forum and return every organization URL from posts about supporting local book stores, exactly as it appears in each qualifying post description.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The sole AgentResponseEvaluator scores 1.0: after its parsing and normalization, the response has task type RETRIEVE, status SUCCESS, and exactly one retrieved item matching either “bookshop.org” or “https://bookshop.org”; item order is ignored. The task score is 1.0 only when this evaluator score is 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator, which parses the final response, normalizes its compared fields and retrieved data, and performs structural comparison; evaluator or orchestration errors score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the supplied final response parse under the evaluator’s rules into compared fields whose normalized task type (including the accepted legacy performed_operation alias) is RETRIEVE, status is SUCCESS, and retrieved data contains exactly one item matching “bookshop.org” or “https://bookshop.org” with no missing or extra retrieved item?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Can the official evaluator parse this required trace and, if configured Reddit environment URLs are unavailable, obtain the base URL needed to construct the evaluation context and derender response URLs without an evaluation error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+  success_if:
+  - text: The evaluated response parses and normalizes to task type RETRIEVE, status SUCCESS, and retrieved data containing exactly one item that matches either “bookshop.org” or “https://bookshop.org”; no compared-field or retrieved-item assertion fails.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: Evaluation completes without error and the sole AgentResponseEvaluator score is 1.0, yielding TaskEvalResult.score 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The response supplied to evaluation is null, is not parseable as a mapping, lacks a compared task-type or status field, or normalizes to a task type other than RETRIEVE or a status other than SUCCESS.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+  - text: Normalized retrieved data is missing or empty, contains an item other than the accepted alternatives, or has any missing or extra item relative to the required one-item result.
+    support:
+    - derived/task.json::eval[0].expected.retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: A required input cannot be parsed, evaluator/orchestration processing errors, or the AgentResponseEvaluator score is not 1.0; each such case makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Retained evidence does not establish the exact response or parseable trace supplied during evaluation, and no retained official TaskEvalResult resolves whether the run scored 1.0.
+    rationale: A post-run retention gap is non-decisive; it does not show that the corresponding input was absent or invalid during the evaluated run.
+stronger:
+  additional_conditions:
+  - id: verify_source_scope_and_literal_urls
+    text: Beyond native scoring, retained web evidence must show that every reported string appears literally in a qualifying post description within the Books forum’s top 10 hottest posts, and that no other qualifying organization URL from those 10 posts was omitted.
+    rationale: The native configuration contains only an AgentResponseEvaluator and accepts either fixed string alternative from the final response; it does not check the trace for the hot-post ranking, qualifying-post provenance, literal appearance, or completeness required by the user instruction.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Do retained response bodies establish the Books hot ranking’s top 10 posts, their relevant descriptions, the literal reported URL string or strings, and the absence of additional organization URLs in descriptions about supporting local book stores?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0]
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected.retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values

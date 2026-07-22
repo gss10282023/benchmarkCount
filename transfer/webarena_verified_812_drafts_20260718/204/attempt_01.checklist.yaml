@@ -1,0 +1,83 @@
+schema_version: case_checklist_v1
+case_unit_id: '204'
+domain: webarena_verified
+task_id: '204'
+native:
+  user_goal:
+    text: Report, in ascending final-price order, the product name and numeric final price for each item in the most recent completed shopping-admin order, using name/price objects only.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::instantiation_dict
+  benchmark_success:
+    text: The task succeeds only if the official evaluation has no error and its sole AgentResponseEvaluator scores 1.0, making TaskEvalResult.score 1.0. The evaluator-normalized response must match task type RETRIEVE, status SUCCESS, and the configured order-sensitive retrieved-data array.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator, which parses and schema-normalizes the response and performs structural, order-sensitive comparison; TaskEvalResult conjunctively composes all configured evaluator scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does official parsing and schema normalization yield task_type RETRIEVE, status SUCCESS, and ordered retrieved_data [{"name":"Ida Workout Parachute Pant","price":38.4},{"name":"Proteus Fitness Jackshirt","price":45.0}], with no compared structural, item, or key mismatch?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].ordered
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Can the official runner parse the required trace and establish the evaluation context/config without an orchestration error?
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: The retained response and trace can be processed without orchestration or evaluator error, and both the sole AgentResponseEvaluator and resulting TaskEvalResult have score 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: After official parsing and schema normalization, the compared response fields are RETRIEVE, SUCCESS, and the ordered two-item array Ida Workout Parachute Pant at 38.4 followed by Proteus Fitness Jackshirt at 45.0, with matching name/price object structure.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_ordered
+  fail_if:
+  - text: The official run has an orchestration or evaluator error, including failure to parse a supplied required artifact or establish its evaluation context; TaskEvalResult.score is then 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: The parsed/normalized response is not a comparable object with RETRIEVE and SUCCESS, or its retrieved_data differs after normalization in length, order, item keys, product name, or price; any such assertion makes the evaluator score 0.0 and the task fail.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_ordered
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  undecided_if:
+  - text: The retained evidence cannot be associated with case 204 or is too incomplete to recover either an official TaskEvalResult or a replayable agent_response.json and network.har pair, so the sole evaluator outcome cannot be determined.
+    rationale: This is an evidence-availability gap; a run-recorded null or malformed response, trace-processing error, or evaluator error is instead a native failure.
+stronger:
+  additional_conditions:
+  - id: standalone_json_without_surrounding_detail
+    text: Beyond native scoring, the raw agent response is itself a standalone valid FinalAgentResponse JSON object, with no code fence or surrounding prose or additional details.
+    rationale: The official response contract calls for valid JSON and the task requests no additional details, but the released parser can extract and score JSON embedded in a fenced block while ignoring surrounding content.
+    decisive_artifacts:
+    - artifact: agent_response.json (raw response)
+      question: Is the entire raw response the valid JSON object being evaluated, rather than an object embedded within a code fence or surrounding prose?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict

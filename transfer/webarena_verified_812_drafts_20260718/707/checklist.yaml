@@ -1,0 +1,66 @@
+schema_version: case_checklist_v1
+case_unit_id: '707'
+domain: webarena_verified
+task_id: '707'
+native:
+  user_goal:
+    text: Show the shopping-admin sales order report for last year—calendar year 2022, given that today is March 15, 2023.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.query_params
+  benchmark_success:
+    text: Native success is TaskEvalResult.score = 1.0, which requires both the AgentResponseEvaluator and NetworkEventEvaluator scores to equal 1.0; any lower score or evaluator error makes the task score 0.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the two configured evaluators and conjunctively aggregates their results into TaskEvalResult.score.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After released parsing and normalization, does the response structurally match the configured NAVIGATE/SUCCESS response without an evaluator error?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last navigation event a 200 GET to __SHOPPING_ADMIN__/reports/report_sales/sales/filter whose report_type, from, and to values normalize to created_at_order, 1/1/2022, and 12/31/2022, with other query-parameter names ignored?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalized_url
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff the parsed agent response passes the configured NAVIGATE/SUCCESS comparison and the HAR's last navigation event passes the configured 200-GET URL/query comparison for report_type=created_at_order and the calendar-2022 date range.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Failure if either evaluator scores below 1.0 or errors: the agent response fails its configured comparison, or the HAR lacks a qualifying last navigation event or that event mismatches the required method, path, status, or retained report_type/from/to values.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when post-run retention loss or truncation prevents establishing the agent-response bytes or relevant HAR events supplied to evaluation; an evaluator-observed malformed or missing input is failure, not undecided.
+    rationale: Both retained inputs are needed to reproduce the conjunctive native checks, while loss of evidence after the run does not establish that either check passed or failed.
+stronger:
+  additional_conditions:
+  - id: visible_report_state
+    text: Beyond native success, a retained final-page screenshot must show the sales order report content rendered with an applied January 1–December 31, 2022 range.
+    rationale: The official intent is to show the report, but native evaluation checks only the agent's NAVIGATE/SUCCESS response and the final navigation request, status, and query; it does not inspect response content or rendered page state.
+    decisive_artifacts:
+    - artifact: final-page screenshot
+      question: Does the visible page show sales order report content and the applied calendar-2022 date range?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.query_params
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1].expected.response_content
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data

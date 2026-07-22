@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '650'
+domain: webarena_verified
+task_id: '650'
+native:
+  user_goal:
+    text: Reply to the Reddit post on the supplied page with the comment “I am a big fan of the bookorg”.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS under its released comparison, and NetworkEventEvaluator accepts the last selected target POST as matching the configured URL, comment form value, and 302 response status.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator and NetworkEventEvaluator, with TaskEvalResult.create applying an all-evaluator-scores-equal-1.0 composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After released parsing and normalization, does the response produce no AgentResponseEvaluator assertion against the configured MUTATE/SUCCESS response?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among non-static evaluation events, does the last POST selected for /f/books/59421/-/comment fully match the normalized expected URL, response status 302, and form field reply_to_submission_59421[comment] = “I am a big fan of the bookorg”?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: The response is accepted as MUTATE/SUCCESS and the HAR’s last selected target POST matches every configured network field; both evaluator scores are therefore 1.0 and TaskEvalResult.score is 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The native claim fails if either evaluator returns failure or error—for example, the response is not accepted as MUTATE/SUCCESS, no target POST is selected, the selected last target POST mismatches any configured URL/method/comment/status field, or evaluation orchestration errors—because any such result makes TaskEvalResult.score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored evidence is undecidable only when it does not reveal one or both actual evaluator inputs and no retained official evaluator result resolves the missing component; a missing or malformed artifact known to have been the evaluator input is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    rationale: This distinguishes loss of review evidence from evaluator-visible absence or corruption.
+stronger:
+  additional_conditions:
+  - id: persisted_reddit_reply
+    text: Beyond native scoring, retained post-run Reddit state shows a persisted reply on submission 59421, authored by the run account, with text exactly equal to “I am a big fan of the bookorg”.
+    rationale: The task claims that a reply was made, while the released network check validates only a selected request/response event and does not inspect persisted Reddit state; a matching POST with status 302 is weaker than evidence that the reply exists on the post.
+    decisive_artifacts:
+    - artifact: Post-run Reddit comment record or target-post DOM snapshot
+      question: Does it show a persisted reply on submission 59421 by the run account with exactly the requested text?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

@@ -1,0 +1,69 @@
+schema_version: case_checklist_v1
+case_unit_id: '714'
+domain: webarena_verified
+task_id: '714'
+native:
+  user_goal:
+    text: Downvote the single top-ranked all-time post in the gadgets subreddit.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both configured evaluators must score 1.0—the agent response must pass the successful-MUTATE comparison, and the last matching Reddit POST must pass the normalized /sv/19459.json, choice=-1, HTTP-200 comparison.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and then NetworkEventEvaluator; TaskEvalResult.create assigns score 1.0 only when every evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse to a mapping that normalizes to task_type=MUTATE, status=SUCCESS, and retrieved_data=null, with the retrieved-data value ignored for this MUTATE task and without a processed extra error_details key causing mismatch or error?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among POST events whose normalized path matches /sv/19459.json, does the last such event have the matching normalized URL, parsed post field choice=-1, method POST, and response status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff AgentResponseEvaluator has no assertion or error for the normalized MUTATE/SUCCESS response mapping and NetworkEventEvaluator has no assertion or error for the last matching POST to /sv/19459.json with choice=-1 and response status 200, so both evaluator scores equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if the retained run response produces a non-1.0 AgentResponseEvaluator score because it is not a parseable mapping, its normalized task type or status mismatches, its normalized keys do not align, or response normalization/comparison errors.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Fail if the complete HAR produces a non-1.0 NetworkEventEvaluator score because no qualifying POST exists, the last matching event differs in normalized URL, choice, method, or response status, or evaluation errors.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  undecided_if:
+  - text: Undecided only when neither retained component already establishes failure and agent_response.json or the complete network.har is absent, unreadable, or truncated, preventing both evaluator outcomes from being determined.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+stronger:
+  additional_conditions:
+  - id: verify_target_and_persisted_downvote
+    text: Beyond native scoring, require retained authenticated post-run Reddit state to show an active downvote by the current user on the post ranked first all-time in gadgets; the configured native target is submission 19459.
+    rationale: The task asks for the actual top-ever gadgets post to be thumbed down, while the native evaluator accepts a successful response plus a matching POST/200 event to a fixed submission endpoint without inspecting the target's ranked membership or persisted user-vote state.
+    decisive_artifacts:
+    - artifact: Authenticated post-run Reddit top/all page or state snapshot
+      question: Does it identify submission 19459 as the first all-time-ranked gadgets post and show the current user's downvote as active on that submission?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

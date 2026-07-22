@@ -5,7 +5,7 @@ This wrapper keeps the existing pairing, validator, and batch orchestration unch
 It only sets score auth/model defaults before delegating to run_agentdojo_score_batch.py:
 
 - score auth mode: API-key mode via OpenRouter
-- default model: deepseek/deepseek-v4-pro
+- default model: openai/gpt-5.4
 - default base URL: https://openrouter.ai/api/v1
 
 If slot-specific score keys are already configured, they win. Otherwise this wrapper
@@ -28,7 +28,7 @@ if str(PACKAGE_ROOT) not in sys.path:
 from neurips_ed_track_minimal.scripts import run_agentdojo_score_batch as batch_scorer
 
 
-DEFAULT_OPENROUTER_SCORE_MODEL = "deepseek/deepseek-v4-pro"
+DEFAULT_OPENROUTER_SCORE_MODEL = "openai/gpt-5.4"
 DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_OPENROUTER_SCORE_OUTPUT_ROOT = PACKAGE_ROOT / "results" / "scores_openrouter"
 DEFAULT_OPENROUTER_SLOT_COUNT = 4

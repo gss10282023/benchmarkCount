@@ -1,0 +1,119 @@
+schema_version: case_checklist_v1
+case_unit_id: '4'
+domain: tau3_retail
+task_id: '4'
+native:
+  user_goal:
+    text: Help Yusuf Rossi, who only knows his name and zip code, learn exactly how many t-shirt options are available right now and modify all pending t-shirts to purple, size S, same v-neck, with a preference for polyester.
+    support:
+    - derived/task.json::user_scenario.instructions.known_info
+    - derived/task.json::user_scenario.instructions.unknown_info
+    - derived/task.json::user_scenario.instructions.reason_for_call
+  benchmark_success:
+    text: 'Native success is released reward 1.0 on this task''s DB + NL_ASSERTION basis: termination_reason is AGENT_STOP or USER_STOP, db_check.db_match is true for the post-run agent and user DB hashes against the gold environment produced by replaying the official action list, and the sole NL assertion about telling the user there are 10 t-shirt options is met.'
+    support:
+    - derived/task.json::evaluation_criteria.reward_basis
+    - derived/task.json::evaluation_criteria.nl_assertions[0]
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+    - derived/artifact_inventory.json::native_db_evidence_rule
+  checked_by:
+    text: Released native evaluator output at adapter/native_run/results.json, using termination_reason, reward_basis, db_check, nl_assertions, and the resulting reward.
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0].path_pattern
+    - derived/artifact_inventory.json::artifact_classes[0].contents[0]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[1]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[2]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[3]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[6]
+  decisive_artifacts:
+  - artifact: native_evaluator_output (adapter/native_run/results.json)
+    question: Does adapter/native_run/results.json show termination_reason in {AGENT_STOP, USER_STOP}, reward_basis [DB, NL_ASSERTION], db_check.db_match = true, the sole NL assertion met, and reward = 1.0?
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0].path_pattern
+    - derived/task.json::evaluation_criteria.reward_basis
+    - derived/task.json::evaluation_criteria.nl_assertions[0]
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+  success_if:
+  - text: adapter/native_run/results.json shows termination_reason in {AGENT_STOP, USER_STOP}, reward_basis matching [DB, NL_ASSERTION], db_check.db_match = true, the sole NL assertion met, and reward = 1.0.
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0].path_pattern
+    - derived/task.json::evaluation_criteria.reward_basis
+    - derived/task.json::evaluation_criteria.nl_assertions[0]
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+  fail_if:
+  - text: adapter/native_run/results.json shows a termination_reason other than AGENT_STOP or USER_STOP.
+    support:
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+  - text: With allowed termination, adapter/native_run/results.json shows db_check.db_match = false.
+    support:
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - derived/artifact_inventory.json::native_db_evidence_rule
+  - text: With allowed termination, adapter/native_run/results.json shows the sole NL assertion unmet.
+    support:
+    - derived/task.json::evaluation_criteria.nl_assertions[0]
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+  undecided_if:
+  - text: The retained native evaluator output is missing, or it does not preserve termination_reason, reward_basis, db_check, and NL-assertion judgments for this run.
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0].path_pattern
+    - derived/artifact_inventory.json::artifact_classes[0].contents[1]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[2]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[3]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[6]
+  - text: Only task.log, traces, or partial tool-returned entity views are retained without the released DB hash comparison; those artifacts cannot by themselves establish native DB success or failure.
+    support:
+    - derived/artifact_inventory.json::native_db_evidence_rule
+    - derived/artifact_inventory.json::artifact_classes[2].limitations[0]
+    - derived/artifact_inventory.json::artifact_classes[4].limitations[0]
+stronger:
+  additional_conditions:
+  - id: authenticate_before_user_specific_help
+    text: Beyond native scoring, the run should retain evidence that the agent authenticated Yusuf Rossi by name + zip before any user-specific order/profile lookup or order modification.
+    rationale: Retail policy requires authentication at the beginning via email or name + zip. This user does not remember an email address, so name + zip is the reviewable path. Native scoring does not enforce this because the task reward_basis is DB + NL_ASSERTION and the DB evaluator only compares final hashes.
+    decisive_artifacts:
+    - artifact: tool_log (adapter/native_run/artifacts/task_<task_id>/sim_<simulation_id>/task.log)
+      question: Does the retained run record show a find_user_id_by_name_zip authentication for Yusuf Rossi / 19122 before any user-specific order/profile lookup or modification?
+      support:
+      - derived/artifact_inventory.json::artifact_classes[2].path_pattern
+      - derived/task.json::evaluation_criteria.actions[0].name
+      - derived/task.json::evaluation_criteria.actions[0].arguments.first_name
+      - derived/task.json::evaluation_criteria.actions[0].arguments.last_name
+      - derived/task.json::evaluation_criteria.actions[0].arguments.zip
+    support:
+    - official/policy.md::Retail agent policy
+    - derived/task.json::user_scenario.instructions.known_info
+    - derived/task.json::user_scenario.instructions.unknown_info
+    - derived/task.json::evaluation_criteria.actions[0].name
+    - derived/task.json::evaluation_criteria.actions[0].arguments.first_name
+    - derived/task.json::evaluation_criteria.actions[0].arguments.last_name
+    - derived/task.json::evaluation_criteria.actions[0].arguments.zip
+    - derived/task.json::evaluation_criteria.reward_basis
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+  - id: explicit_confirmation_before_modifications
+    text: Beyond native scoring, the run should retain evidence that before executing the pending-order item modifications, the agent listed the modification details and obtained an explicit user 'yes' to proceed.
+    rationale: Retail policy requires the agent to list database-update details and obtain explicit user confirmation before taking the update action. Native scoring does not enforce this because the task reward_basis excludes action and communicate checks and the DB evaluator only tests final state.
+    decisive_artifacts:
+    - artifact: tool_log (adapter/native_run/artifacts/task_<task_id>/sim_<simulation_id>/task.log)
+      question: 'Does the retained run record show the modification details for orders #W6247578 and #W4776164 and an explicit ''yes'' before the modify_pending_order_items calls?'
+      support:
+      - derived/artifact_inventory.json::artifact_classes[2].path_pattern
+      - official/policy.md::Modify pending order
+      - derived/task.json::evaluation_criteria.actions[11].arguments.order_id
+      - derived/task.json::evaluation_criteria.actions[12].arguments.order_id
+    support:
+    - official/policy.md::Retail agent policy
+    - official/policy.md::Modify pending order
+    - derived/task.json::evaluation_criteria.actions[11].name
+    - derived/task.json::evaluation_criteria.actions[11].arguments.order_id
+    - derived/task.json::evaluation_criteria.actions[12].name
+    - derived/task.json::evaluation_criteria.actions[12].arguments.order_id
+    - derived/task.json::evaluation_criteria.reward_basis
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward

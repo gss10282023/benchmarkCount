@@ -1,0 +1,115 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "627",
+  "domain": "webarena_verified",
+  "task_id": "627",
+  "native": {
+    "user_goal": {
+      "text": "Create a Reddit discussion post in a relevant forum titled \"Harry Potter movie series\" with the body \"your opinion\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0, requiring both configured evaluators to score 1.0: AgentResponseEvaluator accepts the MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the last matching POST to either __REDDIT__/submit or __REDDIT__/submit/movies with forum 10060, title \"Harry Potter movie series\", body \"your opinion\", and response status 302.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator and composes their scores through TaskEvalResult.create.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response parse and pass AgentResponseEvaluator's normalized structural comparison for the configured MUTATE/SUCCESS response?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last matching POST to either accepted submit path have the required forum, title, and body form values and a 302 response?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff AgentResponseEvaluator scores 1.0 on agent_response.json and NetworkEventEvaluator scores 1.0 on network.har under the configured last-matching-event rule; both scores are required.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if the complete agent response is rejected or causes an AgentResponseEvaluator error, so that evaluator does not score 1.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate"
+        ]
+      },
+      {
+        "text": "Fail if the complete HAR has no accepted submit POST, its last matching POST fails any required URL, form-value, method, or 302-status comparison, or NetworkEventEvaluator errors; any such result makes the task score 0.0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when agent_response.json or network.har is absent or damaged as retained evidence such that the corresponding evaluator outcome cannot be reconstructed; a complete artifact that the evaluator rejects is failure, not undecided.",
+        "support": [
+          "case_packet.md::Benchmark Task Summary"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_post_confirmed",
+        "text": "Beyond native success, retained post-run Reddit evidence must show that the matching submission produced a persisted post in the relevant forum with title \"Harry Potter movie series\" and body \"your opinion\".",
+        "rationale": "The user asks for creation of a discussion post, while the released native evaluator checks a matching POST and 302 response but does not inspect whether the resulting post persists in Reddit state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "What redirect target, if any, was returned for the matching submission POST?",
+            "support": [
+              "official/src/webarena_verified/types/tracing.py::NetworkEvent.redirect_url",
+              "derived/task.json::eval[1]"
+            ]
+          },
+          {
+            "artifact": "Post-run Reddit post page or state snapshot",
+            "question": "Does the submission's resulting target show a persisted post in the relevant forum with the exact requested title and body?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

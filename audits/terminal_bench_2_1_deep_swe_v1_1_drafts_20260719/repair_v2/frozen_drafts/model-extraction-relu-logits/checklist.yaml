@@ -1,0 +1,67 @@
+schema_version: case_checklist_v1
+case_unit_id: model-extraction-relu-logits
+domain: terminal_bench_2_1
+task_id: terminal-bench/model-extraction-relu-logits
+native:
+  user_goal:
+    text: Produce `/app/steal.py` that queries `forward()` and, when run, outputs a matrix equal to the black-box network's `A1` up to neuron permutation and scaling, then saves it to `/app/stolen_A1.npy`.
+    support:
+    - official/instruction.md::1-1
+  benchmark_success:
+    text: 'Native success is the official verifier''s single pytest check: after `official/tests/test_outputs.py` rewrites `forward.py` to its seed-5 30x10 network and runs `python3 /app/steal.py`, `/app/stolen_A1.npy` must exist and every row of that verifier matrix must have some saved row whose elementwise ratio to the original row is constant within `1e-4`.'
+    support:
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::12-41
+    - official/tests/test_outputs.py::44-76
+  checked_by:
+    text: The task-specific official verifier in `official/tests/test.sh`, which runs pytest test `test_stolen_matrix_matches` from `official/tests/test_outputs.py`.
+    support:
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::44-76
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the retained pytest report show whether `test_stolen_matrix_matches` passed or failed, including whether failure came from a missing `/app/stolen_A1.npy` or unmatched rows?
+    support:
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::44-76
+  - artifact: artifacts/**
+    question: If retained, does `/app/stolen_A1.npy` exist, and does its content satisfy the verifier's row-matching rule against the seed-5 30x10 matrix?
+    support:
+    - official/tests/test_outputs.py::47-53
+    - official/tests/test_outputs.py::61-76
+  success_if:
+  - text: Retained verifier evidence establishes that `test_stolen_matrix_matches` passed, which entails that `/app/stolen_A1.npy` existed after running `/app/steal.py` and that every row of the verifier's seed-5 30x10 matrix had a saved-row match under the `<1e-4` constant-ratio check.
+    support:
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::44-76
+  fail_if:
+  - text: Retained verifier evidence shows `/app/stolen_A1.npy` did not exist after `python3 /app/steal.py` was run.
+    support:
+    - official/tests/test_outputs.py::45-48
+  - text: 'Retained verifier evidence shows that at least one row of the verifier''s seed-5 30x10 matrix lacked any saved row satisfying the `<1e-4` constant-ratio rule, including a reported `Failed to match rows: [...]` assertion.'
+    support:
+    - official/tests/test_outputs.py::51-76
+  - text: Retained verifier evidence shows `test_stolen_matrix_matches` failed or errored before establishing the native success condition.
+    support:
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::44-76
+  undecided_if:
+  - text: The retained evidence does not reliably show the outcome of `test_stolen_matrix_matches`, and there is no retained `/app/stolen_A1.npy` from which the file-existence and row-matching rule can be independently determined.
+    support:
+    - official/tests/test_outputs.py::45-53
+    - official/tests/test_outputs.py::61-76
+stronger:
+  additional_conditions:
+  - id: matches_original_user_visible_network
+    text: Beyond native scoring, retained `/app/stolen_A1.npy` should match the `A1` of the user-visible network in `official/environment/forward.py` up to row permutation and scaling, not merely the different seed-5 substitute network used by the verifier.
+    rationale: The instruction asks for extraction of the network the agent can query by importing `forward.py`, but the released verifier overwrites `forward.py` with a different 30x10 seed-5 network and scores only against that substitute matrix.
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: If retained, does `/app/stolen_A1.npy` match the original `A1` defined in `official/environment/forward.py` under the same row permutation/scaling relation used by the verifier?
+      support:
+      - official/environment/forward.py::4-8
+      - official/tests/test_outputs.py::61-76
+    support:
+    - official/instruction.md::1-1
+    - official/environment/forward.py::4-8
+    - official/tests/test_outputs.py::12-41

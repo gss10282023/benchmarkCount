@@ -1,0 +1,133 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "683",
+  "domain": "webarena_verified",
+  "task_id": "683",
+  "native": {
+    "user_goal": {
+      "text": "Find a GitLab repository related to metaseq, then create a link post in the most relevant discussion forum using the repository path as the title and \"<number of commits> commit(s) already!\" as the body.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "The case scores 1.0 only if both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the last matching Reddit submission POST with all configured request and response values.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator normalizes and structurally compares the final response; NetworkEventEvaluator filters network events by method and URL, selects the last match, and compares the configured fields; TaskEvalResult conjuncts their scores.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the stored final response pass the configured normalized comparison for task_type MUTATE, status SUCCESS, and null retrieved_data?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the evaluator-visible trace's last POST matching the Reddit submit URL have title facebook/metaseq, body \"272 commits already!\", mediaType url, a URL that derenders to __GITLAB__/facebook/metaseq, forum 10043 or 10018, and response status 302?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "AgentResponseEvaluator scores 1.0 because agent_response.json passes its configured parsing, normalization, and structural comparison.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "NetworkEventEvaluator scores 1.0 because the selected last matching POST satisfies every configured URL, method, post-data, and response-status comparison.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "Both evaluator scores equal 1.0, making TaskEvalResult.score equal 1.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Overall failure occurs if AgentResponseEvaluator does not score 1.0 because the final response mismatches the configured normalized response or evaluation errors.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "Overall failure occurs if NetworkEventEvaluator does not score 1.0 because no qualifying POST exists, the selected last match fails any configured comparison, or evaluation errors.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored-evidence review is undecided only when the retained final-response or HAR evidence is absent or incomplete enough that either official evaluator outcome cannot be reconstructed; an evidenced malformed response, missing runtime event, field mismatch, or evaluator error is failure.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "confirm_persisted_post",
+        "text": "Beyond native scoring, require response-linked post-run Reddit state showing that this run actually created a retrievable post with title facebook/metaseq, URL __GITLAB__/facebook/metaseq, body \"272 commits already!\", and forum 10043 or 10018; a matching POST with status 302 alone is insufficient.",
+        "rationale": "The task requires creating a new post, while the released network evaluator checks only the selected request fields and response status and does not inspect persisted forum state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Does the submission response provide a post identifier or redirect target that ties the resulting Reddit post to this run?",
+            "support": [
+              "official/src/webarena_verified/types/tracing.py::NetworkEvent.redirect_url",
+              "derived/task.json::eval[1].expected"
+            ]
+          },
+          {
+            "artifact": "retained post-run Reddit post page or state snapshot",
+            "question": "Does the response-linked post exist after the run with the evaluated title, repository URL, body, and forum?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

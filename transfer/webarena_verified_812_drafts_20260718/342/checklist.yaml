@@ -1,0 +1,53 @@
+schema_version: case_checklist_v1
+case_unit_id: '342'
+domain: webarena_verified
+task_id: '342'
+native:
+  user_goal:
+    text: Navigate in the current GitLab project to the list of all opened issues that are questions related to the OPT model.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::start_urls[0]
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if all three configured checks score 1.0: the AgentResponseEvaluator accepts the final response as NAVIGATE/SUCCESS; the first NetworkEventEvaluator accepts the last navigation event as a 200 GET to the root/metaseq issues route while ignoring all query parameters; and the second accepts the selected last matching 200 POST to /api/graphql with Referer equal, under its normalization rules, to the opened, question-labeled, OPT Model search URL. Any non-1.0 component makes the task score 0.0.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator applies one AgentResponseEvaluator and two NetworkEventEvaluator configurations to the retained response and HAR, then conjunctively composes their scores in TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response normalize to a passing AgentResponseEvaluator comparison for task type NAVIGATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the trace contain both the accepted last 200 GET navigation to the root/metaseq issues route and the accepted last matching 200 POST to /api/graphql with the configured filtered-issues Referer?
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+  success_if:
+  - text: 'All three checks return 1.0: the response passes NAVIGATE/SUCCESS comparison, the last navigation event passes the issues-route GET check, and the selected GraphQL POST passes the configured method, URL, status, and filtered Referer check.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Complete retained run artifacts cause any configured check to fail or error, including a non-passing response, a missing or nonmatching last issues-page navigation, or a missing or nonmatching GraphQL POST; any such component makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Either agent_response.json or network.har was not retained, or a post-run retention defect prevents reconstruction of the original evaluator input; missing review evidence alone does not establish whether the corresponding check passed.
+    support:
+    - case_packet.md::Benchmark Task Summary
+stronger:
+  additional_conditions: []

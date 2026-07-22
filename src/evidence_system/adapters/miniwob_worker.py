@@ -37,6 +37,13 @@ Rules:
 """
 
 
+# Chromium may need more than 20 seconds to flush both BrowserGym video
+# recorders after a long (30-step) episode.  This timeout affects teardown and
+# artifact finalization only; it does not change the task, action budget, or
+# released evaluator invocation.
+ENV_CLOSE_TIMEOUT_SECONDS = 180
+
+
 @dataclass(frozen=True)
 class MiniWoBSmokeConfig:
     job: dict[str, Any]
@@ -48,6 +55,7 @@ class MiniWoBSmokeConfig:
     max_tokens: int
     timeout_seconds: int
     retry: int
+    openrouter_provider_only: str | None
     openrouter_api_key_env: str
     max_steps: int
     driver: str
@@ -67,6 +75,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-tokens", type=int, default=2048)
     parser.add_argument("--timeout-seconds", type=int, default=120)
     parser.add_argument("--retry", type=int, default=0)
+    parser.add_argument("--openrouter-provider-only")
     parser.add_argument("--openrouter-api-key-env", default="OPENROUTER_API_KEY")
     parser.add_argument("--max-steps", type=int, default=6)
     parser.add_argument("--driver", default=DRIVER_OPENROUTER_CHAT)
@@ -82,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         max_tokens=args.max_tokens,
         timeout_seconds=args.timeout_seconds,
         retry=args.retry,
+        openrouter_provider_only=args.openrouter_provider_only,
         openrouter_api_key_env=args.openrouter_api_key_env,
         max_steps=args.max_steps,
         driver=args.driver,
@@ -189,7 +199,6 @@ def run_smoke_job(config: MiniWoBSmokeConfig) -> dict[str, Any]:
                 action_space_description=action_space_description,
                 previous_steps=steps,
             )
-            request_timestamp = _utc_now_iso()
             request_messages = [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": step_prompt},
@@ -200,32 +209,79 @@ def run_smoke_job(config: MiniWoBSmokeConfig) -> dict[str, Any]:
                 "temperature": config.temperature,
                 "max_tokens": config.max_tokens,
             }
-            try:
-                response_payload = request_openrouter_completion(
-                    api_key=api_key,
-                    model=config.model,
-                    messages=request_messages,
-                    temperature=config.temperature,
-                    max_tokens=config.max_tokens,
-                    timeout_seconds=config.timeout_seconds,
-                    retry=config.retry,
-                )
-            except Exception as exc:
+            provider_routing = None
+            if config.openrouter_provider_only:
+                provider_routing = {
+                    "only": [config.openrouter_provider_only],
+                    "allow_fallbacks": False,
+                }
+                request_payload["provider"] = provider_routing
+
+            response_payload = None
+            response_content = None
+            request_timestamp = _utc_now_iso()
+            response_timestamp = request_timestamp
+            request_error: Exception | None = None
+            for provider_attempt in range(config.retry + 1):
+                request_timestamp = _utc_now_iso()
+                try:
+                    response_payload = request_openrouter_completion(
+                        api_key=api_key,
+                        model=config.model,
+                        messages=request_messages,
+                        temperature=config.temperature,
+                        max_tokens=config.max_tokens,
+                        timeout_seconds=config.timeout_seconds,
+                        retry=0,
+                        provider_routing=provider_routing,
+                    )
+                    response_timestamp = _utc_now_iso()
+                    response_content = extract_response_content(response_payload)
+                    if not response_content.strip():
+                        raise RuntimeError("OpenRouter response content is empty")
+                except Exception as exc:
+                    request_error = exc
+                    response_timestamp = _utc_now_iso()
+                    _write_openrouter_call(
+                        path=(
+                            config.output_dir
+                            / "openrouter_calls"
+                            / "retry_attempts"
+                            / f"call-{step_index:04d}-attempt-{provider_attempt + 1:04d}.json"
+                        ),
+                        call_id=f"call-{step_index:04d}-attempt-{provider_attempt + 1:04d}",
+                        request_timestamp=request_timestamp,
+                        response_timestamp=response_timestamp,
+                        request_payload=request_payload,
+                        response_payload=response_payload,
+                        action_text="",
+                        python_code=None,
+                        error_type=type(exc).__name__,
+                        error_message=str(exc),
+                    )
+                    if provider_attempt < config.retry:
+                        continue
+                else:
+                    request_error = None
+                break
+
+            if request_error is not None:
                 _write_openrouter_call(
                     path=config.output_dir / "openrouter_calls" / f"call-{step_index:04d}.json",
                     call_id=f"call-{step_index:04d}",
                     request_timestamp=request_timestamp,
-                    response_timestamp=_utc_now_iso(),
+                    response_timestamp=response_timestamp,
                     request_payload=request_payload,
-                    response_payload=None,
+                    response_payload=response_payload,
                     action_text="",
                     python_code=None,
-                    error_type=type(exc).__name__,
-                    error_message=str(exc),
+                    error_type=type(request_error).__name__,
+                    error_message=str(request_error),
                 )
-                raise
-            response_timestamp = _utc_now_iso()
-            action_text = extract_action_text(extract_response_content(response_payload))
+                raise request_error
+            if response_payload is None or response_content is None:
+                raise RuntimeError("OpenRouter retry loop ended without a response")
+            action_text = extract_action_text(response_content)
             python_code = None
             parse_error = None
             try:
@@ -322,7 +378,10 @@ def run_smoke_job(config: MiniWoBSmokeConfig) -> dict[str, Any]:
     finally:
         close_error = None
         if env is not None:
-            close_error = _close_env_with_timeout(env, timeout_seconds=20)
+            close_error = _close_env_with_timeout(
+                env, timeout_seconds=ENV_CLOSE_TIMEOUT_SECONDS
+            )
+        summary["environment_close_timeout_seconds"] = ENV_CLOSE_TIMEOUT_SECONDS
         if close_error:
             summary["close_error"] = close_error
         _write_json(config.output_dir / "artifact_manifest.json", _worker_artifact_manifest(config.output_dir))
@@ -343,6 +402,7 @@ def _artifact_dirs(output_dir: Path) -> None:
         output_dir / "trajectory" / "observations",
         output_dir / "task_artifacts",
         output_dir / "openrouter_calls",
+        output_dir / "openrouter_calls" / "retry_attempts",
     ):
         path.mkdir(parents=True, exist_ok=True)
 

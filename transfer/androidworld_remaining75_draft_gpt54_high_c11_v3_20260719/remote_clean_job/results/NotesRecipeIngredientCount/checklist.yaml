@@ -1,0 +1,91 @@
+schema_version: case_checklist_v1
+case_unit_id: NotesRecipeIngredientCount
+domain: androidworld
+task_id: NotesRecipeIngredientCount
+native:
+  user_goal:
+    text: Determine the quantity needed for the named ingredient in the named Joplin recipe and answer with the quantity string in `<amount> <unit>` form matching the recipe’s format.
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::3169-3258
+  benchmark_success:
+    text: Native success requires underlying run evidence that the episode ended with `done=true` and that the agent’s final submitted answer matches the task’s official expected quantity string under the evaluator’s STRING_MATCH check for this task.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::3169-3258
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  checked_by:
+    text: 'Checked by reapplying the `_run_task` completion gate and the `InformationRetrieval.is_successful` answer check to retained evidence: dispatched goal, terminal `done` status, final answer text, and the recipe note content needed to recover the expected quantity.'
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::3169-3258
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+  decisive_artifacts:
+  - artifact: Retained episode trace or action log with dispatched goal text, answer action text, and terminal `done` state
+    question: Does it show the requested recipe title and ingredient, the exact final answer submitted by the agent, and whether the run ended with `done=true`?
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+  - artifact: Retained Joplin notes snapshot or exported Joplin DB/content for the run
+    question: In the recipe note named in the goal, what exact quantity string appears immediately before the requested ingredient in the ingredients list?
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::3169-3258
+    - official/install/android_world/task_evals/information_retrieval/joplin_app_utils.py::setup_task_state
+  success_if:
+  - text: The retained evidence shows `done=true`, a single final submitted answer text, and a recipe note matching the goal; the quantity string recoverable from that note for the requested ingredient matches the submitted answer under the evaluator’s STRING_MATCH rule.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::3169-3258
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  fail_if:
+  - text: The retained evidence shows the episode did not finish with `done=true`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: The retained evidence shows `done=true` but no final answer text was submitted for evaluator checking.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+  - text: The retained evidence shows `done=true` and a final answer text, but that answer does not match the official quantity string recoverable from the recipe note under the evaluator’s STRING_MATCH rule.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::3169-3258
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  undecided_if:
+  - text: 'The retained evidence does not let the reviewer recover one or more native inputs needed to reapply scoring: the dispatched goal, the terminal `done` state, the final submitted answer text, or the recipe note content needed to identify the expected quantity.'
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::3169-3258
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    rationale: Native scoring depends on those underlying inputs; if they are missing from retained evidence, a later reviewer cannot independently rerun the native rule.
+  - text: Only a stored summary label or scalar success result is retained, without the underlying trace and note evidence needed to reapply the benchmark rule.
+    rationale: A summary outcome is not itself decisive run evidence for this checklist; the scorer needs the underlying completion and answer-comparison evidence.
+stronger:
+  additional_conditions:
+  - id: exact_quantity_string_not_fuzzy
+    text: Require the final submitted answer to equal exactly the quantity string from the recipe note for the requested ingredient, not merely to pass the native fuzzy STRING_MATCH check.
+    rationale: The dispatched goal says the amount and unit should exactly match the recipe’s format, but native scoring accepts approximate case-insensitive string matches via `fuzzy_match` rather than exact equality.
+    decisive_artifacts:
+    - artifact: Retained episode trace or action log with dispatched goal text, answer action text, and terminal `done` state
+      question: What exact final answer text was submitted for the requested recipe title and ingredient, and did the run end with `done=true`?
+      support:
+      - official/install/android_world/suite_utils.py::_run_task
+      - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+      - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - artifact: Retained Joplin notes snapshot or exported Joplin DB/content for the run
+      question: What exact quantity string appears before the requested ingredient in the matching recipe note?
+      support:
+      - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::3169-3258
+      - official/install/android_world/task_evals/information_retrieval/joplin_app_utils.py::setup_task_state
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::3169-3258
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match

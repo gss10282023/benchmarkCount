@@ -1,0 +1,124 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "346",
+  "domain": "webarena_verified",
+  "task_id": "346",
+  "native": {
+    "user_goal": {
+      "text": "Report how many reviews the shop received during 2022.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0: evaluation reaches the sole AgentResponseEvaluator, whose score is 1.0 only when the parsed and normalized response has no structural or value mismatch against task_type RETRIEVE, status SUCCESS, and numeric retrieved_data [0] under unordered comparison; all configured evaluator scores must equal 1.0.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator orchestration, AgentResponseEvaluator normalization/comparison, and TaskEvalResult score composition.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "After the evaluator's string/code-block JSON extraction and normalization, does the evaluated object match task_type RETRIEVE, status SUCCESS, and exactly one numeric retrieved value 0 without structural assertions?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "derived/task.json::eval[0].results_schema",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the HAR parse into a NetworkTrace so evaluation-context construction and any needed environment-URL fallback complete without an orchestration error?",
+        "support": [
+          "case_packet.md::Benchmark Task Summary",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The retained response normalizes to an evaluated object with no key or value assertions: task_type matches RETRIEVE, status matches SUCCESS, and retrieved_data normalizes under the numeric-array schema to exactly [0]; order is irrelevant.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "The HAR/context and response evaluation produce no orchestration or evaluator error; the empty assertion set gives the sole evaluator score 1.0, so the task score is 1.0.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The response is empty, non-mapping after parsing, or produces any normalized key/value mismatch, including a task-type or status mismatch, missing/null retrieved data, a nonzero value, or missing/extra retrieved items.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare"
+        ]
+      },
+      {
+        "text": "A runtime response/HAR parsing, context-validation, orchestration, or evaluator error yields score 0.0; likewise, any configured evaluator score other than 1.0 makes the task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecided when the retained artifact set does not expose readable runtime bytes for agent_response.json or enough of network.har to determine whether official evaluation could be constructed. Retained empty, invalid, or mismatching runtime inputs are failures, not undecided.",
+        "support": [
+          "case_packet.md::Benchmark Task Summary",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ],
+        "rationale": "Missing retained evidence does not establish what evaluator-visible input was supplied during the run."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "public_response_array_shape",
+        "text": "Beyond native matching, the parsed response must encode retrieved_data as the JSON array [0], not as a scalar that the evaluator coerces into a one-element sequence.",
+        "rationale": "The public FinalAgentResponse type requires retrieved_data to be a list or null, while the released evaluator wraps any non-list/tuple scalar before comparison; native scoring can therefore accept an output shape outside the official response schema.",
+        "decisive_artifacts": [
+          {
+            "artifact": "agent_response.json",
+            "question": "After JSON extraction but before retrieved-data coercion, is retrieved_data an array containing the numeric value 0?",
+            "support": [
+              "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::eval[0].results_schema",
+          "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data"
+        ]
+      }
+    ]
+  }
+}

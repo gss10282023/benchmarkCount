@@ -1,0 +1,83 @@
+schema_version: case_checklist_v1
+case_unit_id: '686'
+domain: webarena_verified
+task_id: '686'
+native:
+  user_goal:
+    text: Create a post in the technology discussion forum promoting auth0/angular-storage, using the project's description as the title.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring both configured scores to equal 1.0: AgentResponseEvaluator on the final response and NetworkEventEvaluator on the network trace.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the two configured evaluators in order, and TaskEvalResult.create composes their scores conjunctively.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the stored final response produce no AgentResponseEvaluator assertions after official parsing and normalization against the expected MUTATE/SUCCESS response structure?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last evaluation event matching the expected Reddit submit URL and POST method have response status 302 and normalized form values submission[forum]=10082, submission[mediaType]=url, submission[title]="A storage library for AngularJS done right", and submission[url]=the configured GitLab URL for auth0/angular-storage?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'AgentResponseEvaluator scores 1.0: the response normalizes to the required task_type MUTATE and status SUCCESS structure without comparison assertions; retrieved_data values are not compared for this mutate task.'
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: 'NetworkEventEvaluator scores 1.0: the last POST matching the expected Reddit submit URL pattern has status 302 and all four required normalized form values.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Both evaluator scores equal 1.0, so the composed TaskEvalResult score is 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The agent-response component fails if the retained response yields any comparison assertion or evaluator error instead of a 1.0 score for the required MUTATE/SUCCESS structure.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The network component fails if a complete trace has no POST matching the expected submit URL, or if the last such event mismatches status 302 or any required normalized form value; either component failure or error makes the task score 0.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable when agent_response.json or network.har is absent, corrupt, truncated, or otherwise insufficient to reconstruct the corresponding evaluator input; a complete trace showing no qualifying event is failure, not undecided.
+    rationale: Both evaluator inputs are needed to distinguish a native pass from a mismatch, while incomplete retention does not establish what the run supplied.
+stronger:
+  additional_conditions:
+  - id: persisted_post_verified
+    text: Beyond native scoring, require retained post-run Reddit evidence to show that the run actually produced a technology-forum post titled "A storage library for AngularJS done right" and targeting the GitLab auth0/angular-storage project.
+    rationale: The task intent requires creating a post, but the native NetworkEventEvaluator accepts a matching submission request with a 302 response without inspecting persisted Reddit state; this stronger check closes that request-versus-created-state gap.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Can the matching submission response metadata, such as its redirect target or resulting identifier, be linked to the created Reddit post record?
+      support:
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent.redirect_url
+    - artifact: Retained post-run Reddit state snapshot or resulting post page
+      question: Does it contain the run-attributable technology post with the required title and GitLab project target?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

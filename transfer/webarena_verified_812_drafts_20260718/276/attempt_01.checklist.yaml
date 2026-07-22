@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: '276'
+domain: webarena_verified
+task_id: '276'
+native:
+  user_goal:
+    text: Open the shopping site's search-results page for the query "switch accessories".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring both configured evaluator scores to equal 1.0: AgentResponseEvaluator must accept the submitted NAVIGATE/SUCCESS response, and NetworkEventEvaluator must accept the last classified navigation event as a GET to __SHOPPING__/catalogsearch/result/ with q = "switch accessories" and response status 200.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator and composes their scores through TaskEvalResult.create.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted response parse and normalize to the response structure accepted for this case—task type NAVIGATE and status SUCCESS—without an assertion or evaluator error?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Is the last event classified as a navigation event accepted as a GET to __SHOPPING__/catalogsearch/result/ with q = "switch accessories" and response status 200 under the evaluator's URL/query normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: 'AgentResponseEvaluator scores 1.0 for agent_response.json: its parsing, normalization, and structural comparison accept the NAVIGATE/SUCCESS response.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - text: 'NetworkEventEvaluator scores 1.0 for network.har: the selected last navigation event matches the configured shopping path, query, GET method, and 200 response status.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+  - text: Both evaluator scores equal 1.0, so TaskEvalResult.score equals 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The established submitted response yields AgentResponseEvaluator score 0.0 or ERROR, including when it is not an accepted mapping or its normalized task type/status does not match NAVIGATE/SUCCESS.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The established submitted trace yields NetworkEventEvaluator score 0.0 or ERROR, including when no navigation event is classified or the last one fails the normalized path, query, method, or response-status comparison.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Either evaluator score being other than 1.0, or an orchestration error, makes TaskEvalResult.score 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+  undecided_if:
+  - text: The retained record is missing, truncated, or unreadable for either actual evaluator input, and no retained official evaluator result supplies the missing component score; screenshots or action logs alone do not decide both native checks.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    rationale: Native success is a conjunction over the submitted response and network trace; absent review evidence is not affirmative evidence that either evaluator rejected its actual input.
+stronger:
+  additional_conditions: []

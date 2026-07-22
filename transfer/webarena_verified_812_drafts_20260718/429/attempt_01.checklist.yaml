@@ -1,0 +1,86 @@
+schema_version: case_checklist_v1
+case_unit_id: '429'
+domain: webarena_verified
+task_id: '429'
+native:
+  user_goal:
+    text: On the map site, view the info page for every college where The Chair was filmed, with each page open in a separate tab, using the provided wiki site as needed.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if all three configured evaluators score 1.0: AgentResponseEvaluator accepts the NAVIGATE/SUCCESS response, and the two NetworkEventEvaluator entries accept GET 200 map URLs __MAP__/relation/583390395 and __MAP__/relation/172206707. For this NAVIGATE task, both network evaluators compare their distinct URL expectations against the same last navigation event.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator and both NetworkEventEvaluator entries; TaskEvalResult.create assigns score 1.0 only when every evaluator result has score 1.0 and assigns 0.0 on any failure or evaluator error.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: When parsed and normalized by the released evaluator, does the response pass the configured NAVIGATE/SUCCESS AgentResponseEvaluator comparison?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: 'What is the last evaluator-visible navigation event, and does that same event pass both configured comparisons: GET 200 to __MAP__/relation/583390395 and GET 200 to __MAP__/relation/172206707, with query parameters ignored?'
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events
+  success_if:
+  - text: The retained response receives AgentResponseEvaluator score 1.0 against the configured NAVIGATE/SUCCESS expectation under the released normalization and comparison rules.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: The last evaluator-visible navigation event in the HAR receives score 1.0 for the GET 200 comparison to __MAP__/relation/583390395.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: The same last navigation event also receives score 1.0 for the GET 200 comparison to __MAP__/relation/172206707; together, all three evaluator scores equal 1.0.
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The AgentResponseEvaluator rejects or errors on the retained response, including a task-type or status mismatch.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The HAR has no evaluator-visible navigation event, or its single last navigation event fails either configured URL, GET-method, or 200-status comparison.
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Any configured evaluator or task-level orchestration error produces task score 0.0 rather than native success.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained response or ordered HAR is absent, truncated, or otherwise insufficient to reconstruct the evaluator-visible response and last navigation event; ancillary screenshots or action notes alone do not decide the native score.
+    rationale: The released checks consume the agent response and network trace, so incomplete retention cannot establish whether their exact comparisons passed or failed.
+stronger:
+  additional_conditions:
+  - id: separate_map_tabs_visible
+    text: 'Beyond native scoring, retained final browser state must show two distinct open map tabs: one displaying __MAP__/relation/583390395 and the other displaying __MAP__/relation/172206707.'
+    rationale: The official instruction requires each college page in a separate tab, while the released network checks contain no tab-identity condition and, for this NAVIGATE/GET task, both select the same last navigation event. Native scoring therefore does not directly verify the requested two-tab state.
+    decisive_artifacts:
+    - artifact: Final browser context snapshot with tab identities, URLs, and visible page titles
+      question: Are two distinct tabs simultaneously open at run end, with one showing each configured map information page?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.url
+      - derived/task.json::eval[2].expected.url
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/types/task.py::NetworkEventSpec
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria

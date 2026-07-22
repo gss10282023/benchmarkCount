@@ -1,0 +1,229 @@
+{
+  "decision": "revise",
+  "checklist_items": [
+    {
+      "id": "identity_and_scope",
+      "status": "pass",
+      "rationale": "The domain, case-unit id, and task id exactly match the packet, and the checklist addresses only this case.",
+      "evidence": [
+        "case_packet.md::Case Metadata",
+        "checklist.yaml::{case_unit_id,domain,task_id}"
+      ]
+    },
+    {
+      "id": "native_user_goal",
+      "status": "pass",
+      "rationale": "The stated top-1 product-type retrieval goal faithfully preserves the official instruction; singular wording is equivalent for a top-1 request.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::official instruction",
+        "case_packet.md::derived/task.json::intent",
+        "checklist.yaml::native.user_goal.text"
+      ]
+    },
+    {
+      "id": "official_evaluator_semantics",
+      "status": "fail",
+      "rationale": "The response comparison is otherwise accurate, including the sparse expected fields, unordered singleton, and absence of an error_details check. However, native success and failure are incorrectly made conditional on HAR parsing even though the sole configured evaluator is AgentResponseEvaluator and its comparison reads the agent response, not the network trace.",
+      "evidence": [
+        "case_packet.md::derived/tag_task.json::eval[0]",
+        "case_packet.md::official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+        "case_packet.md::official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.fail_if[1]"
+      ]
+    },
+    {
+      "id": "evaluator_composition",
+      "status": "pass",
+      "rationale": "The checklist identifies exactly one AgentResponseEvaluator and correctly requires its score to equal 1.0 for TaskEvalResult.score to equal 1.0; response mismatches and evaluator errors are failures.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::evaluator sequence",
+        "case_packet.md::Benchmark Task Summary::task score composition",
+        "case_packet.md::official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "checklist.yaml::native.checked_by"
+      ]
+    },
+    {
+      "id": "decisive_post_run_evidence",
+      "status": "fail",
+      "rationale": "agent_response.json is sufficient to reconstruct the only configured comparison. Adding network.har as a decisive artifact is nonminimal: the packet's batch artifact contract does not create a NetworkEventEvaluator, and the represented AgentResponseEvaluator does not read trace events for this comparison.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::evaluator sequence",
+        "case_packet.md::Benchmark Task Summary::required run artifacts",
+        "case_packet.md::derived/task.json::eval",
+        "case_packet.md::official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+        "checklist.yaml::native.decisive_artifacts[1]"
+      ]
+    },
+    {
+      "id": "decision_rules",
+      "status": "fail",
+      "rationale": "The rules improperly require a valid retained HAR for success and classify a missing or malformed HAR as native failure. With no configured network check, HAR retention or validity does not determine the response predicate; only loss of the decisive response evidence may make reconstruction undecidable.",
+      "evidence": [
+        "case_packet.md::derived/task.json::eval",
+        "case_packet.md::official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]"
+      ]
+    },
+    {
+      "id": "source_support_pointers",
+      "status": "pass",
+      "rationale": "The checklist's support paths and symbols are all represented in the packet, and no evaluator instance or expected value is invented.",
+      "evidence": [
+        "case_packet.md::Source Inventory",
+        "case_packet.md::Packet Source Files",
+        "checklist.yaml::native"
+      ]
+    },
+    {
+      "id": "stronger_conditions",
+      "status": "pass",
+      "rationale": "The empty stronger list is appropriate because the packet supplies no concrete, measurable case-specific gap between the retrieval goal and the released response check.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::official instruction",
+        "case_packet.md::derived/tag_task.json::eval[0]",
+        "checklist.yaml::stronger.additional_conditions"
+      ]
+    },
+    {
+      "id": "minimality_and_no_run_leakage",
+      "status": "fail",
+      "rationale": "The checklist contains no run-result leakage and is otherwise coherent, but its HAR artifact and associated success, failure, and undecided branches are unnecessary for this sole-response-evaluator case, so it is not minimal.",
+      "evidence": [
+        "case_packet.md::derived/task.json::eval",
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]"
+      ]
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "unsupported_har_native_semantics",
+      "checklist_item_id": "official_evaluator_semantics",
+      "message": "The native rules add HAR validity as a prerequisite despite the case having only an AgentResponseEvaluator whose score-relevant extraction and comparison use the response.",
+      "required_change": "Remove HAR parsing or validity from the native success and failure semantics; retain the released response parsing, normalization, schema, unordered comparison, and task-level score composition.",
+      "evidence": [
+        "case_packet.md::derived/tag_task.json::eval[0]",
+        "case_packet.md::official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.fail_if[1]"
+      ]
+    },
+    {
+      "id": "nonminimal_har_artifact",
+      "checklist_item_id": "decisive_post_run_evidence",
+      "message": "network.har is named as decisive even though agent_response.json alone reconstructs the sole configured evaluator check.",
+      "required_change": "Keep complete agent_response.json as the only decisive native artifact and remove network.har from decisive_artifacts.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::evaluator sequence",
+        "case_packet.md::derived/task.json::eval",
+        "checklist.yaml::native.decisive_artifacts[1]"
+      ]
+    },
+    {
+      "id": "har_misclassification",
+      "checklist_item_id": "decision_rules",
+      "message": "The rules treat HAR validity as necessary for success and HAR absence or malformation as native failure or undecided, broadening the configured predicate.",
+      "required_change": "Base success and failure solely on the AgentResponseEvaluator result, and restrict undecided to loss, corruption, or provenance failure of the retained agent response needed to reconstruct that result.",
+      "evidence": [
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]",
+        "case_packet.md::official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+      ]
+    },
+    {
+      "id": "remove_nonminimal_trace_branch",
+      "checklist_item_id": "minimality_and_no_run_leakage",
+      "message": "The HAR artifact and three related decision-rule branches add unnecessary native-review scope.",
+      "required_change": "Delete the HAR artifact and all HAR-dependent success, failure, and undecided language while preserving the response comparison and evidence-integrity distinction.",
+      "evidence": [
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]"
+      ]
+    }
+  ],
+  "revised_checklist": {
+    "native": {
+      "user_goal": {
+        "text": "Get the top-1 best-selling product type name(s) in Jan 2023.",
+        "support": [
+          "derived/task.json::intent"
+        ]
+      },
+      "benchmark_success": {
+        "text": "Native success is TaskEvalResult.score = 1.0: the sole AgentResponseEvaluator must score 1.0 after released parsing and normalization match the explicitly configured sparse expected fields task_type RETRIEVE, status SUCCESS, and retrieved_data as the exact unordered normalized string singleton [\"Duffle\"]. The string-array results schema and ordered=false apply. Default-only error_details and other raw response keys are not compared for this case; an evaluator error scores 0.0.",
+        "support": [
+          "derived/tag_task.json::eval[0]",
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "checked_by": {
+        "text": "The released WebArenaVerifiedEvaluator runs exactly one configured AgentResponseEvaluator. TaskEvalResult.create assigns score 1.0 only when every configured evaluator score is 1.0, which here means that sole evaluator.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "decisive_artifacts": [
+        {
+          "artifact": "agent_response.json",
+          "question": "Does the complete retained response pass released string/code-block JSON extraction and normalize on the explicitly configured fields to task_type RETRIEVE (including the supported performed_operation alias when task_type is absent), status SUCCESS, and retrieved_data as exactly one unordered normalized string item, \"Duffle\", with no missing, wrong, or extra retrieved items?",
+          "support": [
+            "derived/tag_task.json::eval[0]",
+            "derived/task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered"
+          ]
+        }
+      ],
+      "success_if": [
+        {
+          "text": "The complete response passes released extraction, normalization, and comparison for task_type RETRIEVE, status SUCCESS, and the exact unordered normalized singleton [\"Duffle\"]; the sole AgentResponseEvaluator therefore scores 1.0 and TaskEvalResult.score is 1.0.",
+          "support": [
+            "derived/task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "fail_if": [
+        {
+          "text": "Given a complete attributable response, native failure occurs if it is null or not evaluator-parseable as a mapping, a configured task_type or status field is missing or mismatches after normalization, retrieved_data is missing, wrong, or has extra normalized items relative to [\"Duffle\"], or the evaluator encounters an error; the resulting evaluator or task score is 0.0.",
+          "support": [
+            "derived/tag_task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "undecided_if": [
+        {
+          "text": "The retained agent_response.json is missing, unreadable, truncated, or not attributable to this run, preventing reconstruction of the configured comparison. A complete recorded null, invalid, or mismatching response is failure rather than undecided.",
+          "rationale": "Only loss of the decisive response evidence or its integrity/provenance prevents post-run reconstruction."
+        }
+      ]
+    },
+    "stronger": {
+      "additional_conditions": []
+    }
+  }
+}

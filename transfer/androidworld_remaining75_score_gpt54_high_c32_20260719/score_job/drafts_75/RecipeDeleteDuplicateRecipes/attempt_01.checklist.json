@@ -1,0 +1,123 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "RecipeDeleteDuplicateRecipes",
+  "domain": "androidworld",
+  "task_id": "RecipeDeleteDuplicateRecipes",
+  "native": {
+    "user_goal": {
+      "text": "Delete all but one of any exact-duplicate recipes in the Broccoli app while leaving at least one instance of each unique recipe.",
+      "support": [
+        "official/install/android_world/task_evals/single/recipe.py::RecipeDeleteDuplicateRecipes.goal"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success requires the runner done gate to be true and the released evaluator's Broccoli `recipes` table check to pass: compared with the initialized table, either member of the designated duplicate pair may be removed, the other designated duplicate must remain, every other initialized row must remain unchanged, and no new row may appear.",
+      "support": [
+        "official/install/android_world/suite_utils.py::_run_task",
+        "official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteDuplicateRows.initialize_task",
+        "official/install/android_world/task_evals/single/recipe.py::RecipeDeleteDuplicateRecipes.validate_deletion_integrity",
+        "official/install/android_world/task_evals/common_validators/sqlite_validators.py::validate_rows_removal_integrity"
+      ]
+    },
+    "checked_by": {
+      "text": "`suite_utils._run_task` applies the done gate, then `DeleteMultipleRows.is_successful` reads the final Broccoli SQLite rows and calls `RecipeDeleteDuplicateRecipes.validate_deletion_integrity`.",
+      "support": [
+        "official/install/android_world/suite_utils.py::_run_task",
+        "official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteMultipleRows.is_successful",
+        "official/install/android_world/task_evals/single/recipe.py::RecipeDeleteDuplicateRecipes.validate_deletion_integrity"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "episode_termination_record",
+        "question": "Does retained run evidence show whether the episode finished with `done=true` or `done=false`?",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task"
+        ]
+      },
+      {
+        "artifact": "initialized_broccoli_recipes_table_snapshot",
+        "question": "What exact rows, including assigned `recipeId` values, were present in Broccoli `recipes` immediately after task initialization, and which two rows formed the designated duplicate pair?",
+        "support": [
+          "official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteMultipleRows.initialize_task",
+          "official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteDuplicateRows.initialize_task"
+        ]
+      },
+      {
+        "artifact": "final_broccoli_recipes_table_snapshot",
+        "question": "What exact rows, including `recipeId` values, were present in Broccoli `recipes` at evaluation time?",
+        "support": [
+          "official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteMultipleRows.is_successful"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Retained run evidence shows `done=true`, and the initialized/final Broccoli `recipes` snapshots show that exactly one row from the designated duplicate pair is absent from the final table while the other designated duplicate and every non-designated initialized row remain unchanged, with no added rows.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task",
+          "official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteDuplicateRows.initialize_task",
+          "official/install/android_world/task_evals/single/recipe.py::RecipeDeleteDuplicateRecipes.validate_deletion_integrity",
+          "official/install/android_world/task_evals/common_validators/sqlite_validators.py::validate_rows_removal_integrity"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Retained run evidence shows `done=false`; the runner scores native failure regardless of the database state.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task"
+        ]
+      },
+      {
+        "text": "Retained run evidence shows `done=true`, but the initialized/final Broccoli `recipes` snapshots do not satisfy either allowed native outcome for the designated duplicate pair: for example both designated duplicates remain, both are removed, any other initialized row is missing or changed, or any extra row appears.",
+        "support": [
+          "official/install/android_world/task_evals/single/recipe.py::RecipeDeleteDuplicateRecipes.validate_deletion_integrity",
+          "official/install/android_world/task_evals/common_validators/sqlite_validators.py::validate_rows_removal_integrity"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Usable retained evidence for the runner done status or for the initialized/final Broccoli `recipes` table snapshots with assigned `recipeId` values is missing, or the record contains only exception/NaN/evaluator-summary fields, so the native done gate and designated-pair row comparison cannot be reconstructed from underlying evidence.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task",
+          "official/install/android_world/suite_utils.py::_create_failed_result",
+          "official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteMultipleRows.initialize_task",
+          "official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteMultipleRows.is_successful"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "table_wide_exact_dedup",
+        "text": "Beyond native scoring, the final Broccoli `recipes` table should satisfy the full dispatched goal across the entire initialized table: every exact-duplicate recipe group is reduced to one surviving row, and every recipe that was unique in the initialized table still remains unchanged. This is stricter than native scoring, which accepts deleting one row from one designated duplicate pair only.",
+        "rationale": "The official goal is table-wide deduplication, but the released evaluator checks only whether one member of a designated duplicate pair was removed while every other initialized row stays unchanged, so additional duplicate groups can be left unresolved and still pass natively.",
+        "decisive_artifacts": [
+          {
+            "artifact": "initialized_broccoli_recipes_table_snapshot",
+            "question": "What exact rows, including assigned `recipeId` values, were present in Broccoli `recipes` immediately after task initialization, so every duplicate group and every unique row can be identified?",
+            "support": [
+              "official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteMultipleRows.initialize_task",
+              "official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteDuplicateRows.initialize_task"
+            ]
+          },
+          {
+            "artifact": "final_broccoli_recipes_table_snapshot",
+            "question": "Does the final Broccoli `recipes` table leave exactly one survivor from each initialized exact-duplicate group while preserving every initialized unique row?",
+            "support": [
+              "official/install/android_world/task_evals/common_validators/sqlite_validators.py::DeleteMultipleRows.is_successful"
+            ]
+          }
+        ],
+        "support": [
+          "official/install/android_world/task_evals/single/recipe.py::RecipeDeleteDuplicateRecipes.goal",
+          "official/install/android_world/task_evals/single/recipe.py::RecipeDeleteDuplicateRecipes.validate_deletion_integrity",
+          "official/install/android_world/task_evals/common_validators/sqlite_validators.py::validate_rows_removal_integrity"
+        ]
+      }
+    ]
+  }
+}

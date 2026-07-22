@@ -1,0 +1,109 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "488",
+  "domain": "webarena_verified",
+  "task_id": "488",
+  "native": {
+    "user_goal": {
+      "text": "Change the shopping-admin CMS page titled \"Home Page\" so its page title is exactly \"This is the home page!! Leave here!!\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the selected network event.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator and aggregates their scores with TaskEvalResult.create.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained final response pass AgentResponseEvaluator normalization and comparison for task_type MUTATE and status SUCCESS?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last matching POST to the shopping-admin CMS save endpoint have response status 302 and post fields is_active=\"1\", page_id=\"2\", store_id[0]=\"0\", and the exact requested title?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both evaluator scores are 1.0: the final response is accepted as MUTATE/SUCCESS, and the last matching POST to /cms/page/save/back/edit matches response status 302 and all required post fields, including title=\"This is the home page!! Leave here!!\".",
+        "support": [
+          "derived/task.json::eval[0]",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The task fails if AgentResponseEvaluator scores below 1.0 or errors because the submitted response is invalid under its parsing and normalization rules or does not match the expected MUTATE/SUCCESS response.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      {
+        "text": "The task fails if NetworkEventEvaluator scores below 1.0 or errors because no qualifying POST exists or the selected last matching event differs in endpoint, method, response status, or any required post field.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Evidence is undecided when no retained component proves failure, but agent_response.json or network.har was not retained, so both required evaluator outcomes cannot be reconstructed.",
+        "rationale": "Native success is conjunctive; passing evidence for fewer than both checks cannot establish a score of 1.0, while a retention gap does not reveal what the missing submitted artifact contained."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_page_title",
+        "text": "A fresh post-run read of the targeted \"Home Page\" CMS record shows its persisted title is exactly \"This is the home page!! Leave here!!\".",
+        "rationale": "The native checks inspect the agent's success response and a matching save request with a 302 response, but they do not read the resulting CMS record; therefore native success does not itself verify that the requested title persisted.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run shopping-admin CMS page-state capture",
+            "question": "After a fresh read or reload, does the targeted \"Home Page\" record show the exact requested title?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "451",
+  "domain": "webarena_verified",
+  "task_id": "451",
+  "native": {
+    "user_goal": {
+      "text": "Set the homepage URL on the user's GitLab profile to www.byteblaze.com.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Both official checks must score 1.0: AgentResponseEvaluator must accept the final response, and NetworkEventEvaluator must accept the last matching GitLab profile POST; otherwise TaskEvalResult.score is 0.0.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs AgentResponseEvaluator on the final response and NetworkEventEvaluator on the network trace, then applies the all-evaluators-must-pass score composition.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "After official parsing and normalization, does the response pass the expected MUTATE, SUCCESS, and null retrieved-data comparison?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last evaluation event matching a POST to the rendered GitLab /-/profile URL a 302 response whose user[website_url] value is either https://www.byteblaze.com or http://www.byteblaze.com?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff the stored response passes AgentResponseEvaluator and the HAR's last matching profile POST passes NetworkEventEvaluator with response status 302 and user[website_url] equal to either accepted scheme form, so both evaluator scores are 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either official check fails or errors on complete artifacts—for example, the response does not match the expected normalized structure, no matching profile POST exists, or the last method-and-URL-matching POST has a different compared value or status—because any evaluator score below 1.0 makes the task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when agent_response.json or network.har is absent or incomplete enough that a corresponding official comparison, including identification of the last matching event, cannot be reconstructed from retained evidence.",
+        "support": [
+          "case_packet.md::Benchmark Task Summary",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_profile_homepage",
+        "text": "Beyond native event-based scoring, retained post-run GitLab state must show that the profile homepage is actually saved as www.byteblaze.com, allowing either accepted http:// or https:// scheme form.",
+        "rationale": "The native evaluator accepts a matching POST and 302 response without checking the persisted profile field, while the official task intent requires the homepage to be set.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run GitLab profile-state snapshot",
+            "question": "Does reload-backed post-run state show the saved Website/Homepage field as http://www.byteblaze.com or https://www.byteblaze.com?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

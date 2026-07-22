@@ -1,0 +1,127 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "75",
+  "domain": "webarena_verified",
+  "task_id": "75",
+  "native": {
+    "user_goal": {
+      "text": "Use the OSRM direction service to report the minimum-total-travel-time order for visiting Massachusetts Institute of Technology, Harvard University, and Boston Logan International Airport, starting at MIT.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Evaluation completes with TaskEvalResult.score = 1.0: the sole AgentResponseEvaluator scores 1.0 when the normalized response has task_type RETRIEVE, status SUCCESS, and retrieved_data equal to [\"Massachusetts Institute of Technology\", \"Harvard University\", \"Boston Logan International Airport\"] in that order.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator, then TaskEvalResult.create requires every configured evaluator score to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the submitted response parse under the official extractor and, after schema normalization, match the configured task type, status, and ordered three-location list?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Can the official evaluator parse the retained HAR into a network trace without causing task setup or orchestration to error?",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "agent_response.json is accepted as a structured response whose normalized task_type is RETRIEVE, status is SUCCESS, and retrieved_data has exactly the three configured location names in the configured order, with no missing or extra item.",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "derived/task.json::eval[0].ordered",
+          "derived/task.json::eval[0].results_schema",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_ordered"
+        ]
+      },
+      {
+        "text": "network.har is evaluator-readable, evaluation completes without error, and the sole AgentResponseEvaluator score is 1.0, making TaskEvalResult.score 1.0.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The submitted response is absent, unparsable as a structured response, has a missing or mismatched task_type or status, or has null, malformed, missing, extra, wrong, or out-of-order retrieved_data after normalization.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_ordered"
+        ]
+      },
+      {
+        "text": "The run record establishes that network.har was missing or unreadable at evaluation, or that evaluator setup, orchestration, or the sole evaluator errored; these cases produce TaskEvalResult.score 0.0.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is missing or truncated such that neither the evaluator-visible submitted response and HAR validity nor an official task evaluation result can be established.",
+        "rationale": "Absence from the review bundle alone does not show that the evaluated run submitted no response or trace, so native success and failure cannot be distinguished."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "osrm_optimality_evidence",
+        "text": "Beyond native acceptance, the retained HAR must contain successful OSRM directions evidence sufficient, without new calls, to establish that the reported order has minimum total travel time among the permitted visit orders starting at MIT.",
+        "rationale": "The user requests an OSRM-derived minimum-time route, but the sole evaluator only compares normalized response fields with a fixed ordered list and does not validate OSRM use or compare route durations.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Does the HAR retain successful OSRM directions requests and responses with route-duration data sufficient to compare the permitted orders starting at MIT?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+            ]
+          },
+          {
+            "artifact": "agent_response.json",
+            "question": "Is the reported three-location order a minimum-total-duration order under the retained OSRM evidence?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[0].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

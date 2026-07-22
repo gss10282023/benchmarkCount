@@ -1,0 +1,76 @@
+schema_version: case_checklist_v1
+case_unit_id: '174'
+domain: webarena_verified
+task_id: '174'
+native:
+  user_goal:
+    text: Determine whether the most recently updated GitLab issue whose title contains "feature" is closed, returning true if closed and false if open.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: the sole configured AgentResponseEvaluator must score 1.0 after the compared response fields normalize to task_type RETRIEVE, status SUCCESS, and retrieved_data exactly [false] under the configured unordered boolean-array comparison.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator, which parses the agent response, schema-normalizes the compared fields, structurally compares them, and converts assertion or evaluator errors into the evaluator and task scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After the official parser and normalizer are applied, do the compared fields equal task_type RETRIEVE, status SUCCESS, and retrieved_data containing exactly the boolean false?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+  - artifact: network.har
+    question: Is the supplied HAR parseable as the network trace needed to construct the official evaluation context without an input or configuration error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: The parsed and normalized response has the compared task_type RETRIEVE and status SUCCESS fields with no structural mismatch.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: retrieved_data normalizes under the configured boolean-array schema to exactly one false value; the unordered comparison finds neither a missing nor an extra element.
+    support:
+    - derived/task.json::eval[0].expected.retrieved_data
+    - derived/task.json::eval[0].results_schema
+    - derived/task.json::eval[0].ordered
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: The trace and evaluation context are accepted, the sole AgentResponseEvaluator completes without error at score 1.0, and therefore TaskEvalResult.score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The response is not a comparable structured object, or its normalized compared task_type/status fields or key structure differ from RETRIEVE/SUCCESS.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+  - text: retrieved_data is missing or null, cannot be normalized, or its normalized collection differs from the singleton false value, including any extra element.
+    support:
+    - derived/task.json::eval[0].expected.retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: Trace parsing, context construction, evaluator execution, or orchestration produces an error, or the sole evaluator otherwise scores below 1.0; TaskEvalResult.score is then 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: A retained copy of the response or trace is missing, truncated, unreadable, or cannot be identified as the artifact actually supplied to evaluation, and no retained official evaluation outcome resolves the score.
+    rationale: Loss or ambiguity of stored run evidence does not establish either an evaluator pass or an evaluator-counted failure.
+stronger:
+  additional_conditions: []

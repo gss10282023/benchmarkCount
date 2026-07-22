@@ -1,0 +1,57 @@
+schema_version: case_checklist_v1
+case_unit_id: '256'
+domain: webarena_verified
+task_id: '256'
+native:
+  user_goal:
+    text: Return the website for the Carnegie art museum in Pittsburgh.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score 1.0: the required inputs parse and the sole AgentResponseEvaluator scores 1.0 by matching the normalized response to task_type RETRIEVE, status SUCCESS, and the unordered singleton retrieved_data value http://web.cmoa.org/.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator; TaskEvalResult succeeds only when every configured evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted response parse and normalize to task_type RETRIEVE, status SUCCESS, and exactly the singleton retrieved_data value http://web.cmoa.org/?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Can the required HAR be parsed as the NetworkTrace needed to construct the official evaluation context? Its events are not independently compared because this case configures only AgentResponseEvaluator.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: The required inputs parse, the sole AgentResponseEvaluator reports score 1.0 after its normalization and unordered exact comparison to RETRIEVE, SUCCESS, and [http://web.cmoa.org/], and therefore TaskEvalResult.score is 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if the submitted response is absent or cannot be normalized as the compared mapping, or if any compared key or value differs, including a missing, empty, wrong, or additional retrieved-data item; the AgentResponseEvaluator then does not score 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+  - text: Fail if required-input parsing or evaluation orchestration produces an ERROR, or otherwise if any configured evaluator score is not 1.0; TaskEvalResult.score is then 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained copies do not establish the actual submitted agent response or whether the required HAR parsed, and their absence or damage cannot be shown to have occurred in the evaluator inputs themselves.
+    rationale: Without the actual evaluator inputs or an equivalent retained official result, the native comparison cannot be reconstructed; a merely incomplete review bundle is not evidence of a benchmark-counted failure.
+stronger:
+  additional_conditions: []

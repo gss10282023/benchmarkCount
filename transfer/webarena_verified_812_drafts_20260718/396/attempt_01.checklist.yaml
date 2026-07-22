@@ -1,0 +1,65 @@
+schema_version: case_checklist_v1
+case_unit_id: '396'
+domain: webarena_verified
+task_id: '396'
+native:
+  user_goal:
+    text: Fork the ChatGPT project in GitLab.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if both released checks score 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the selected GitLab fork event; otherwise the task score is 0.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in configuration order, then TaskEvalResult.create applies all-of score aggregation.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response pass AgentResponseEvaluator's normalization and structural comparison for task type MUTATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the retained trace's last evaluation event matching POST __GITLAB__/api/v4/projects/175/fork pass comparison with HTTP 201 and post data id 175, name Chatgpt, namespace_id 2505, and path chatgpt?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both components pass concurrently: agent_response.json compares without assertions to the MUTATE/SUCCESS response expectation, and network.har''s evaluator-selected last matching fork event compares without assertions to the configured endpoint, HTTP 201 status, and post-data fields.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native failure occurs if either evaluator scores below 1.0 or errors, including a response parse/shape/value mismatch or a missing, mismatched, or erroneous selected fork event; aggregation requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  undecided_if:
+  - text: Stored-evidence review is undecided only if a required artifact was lost or became unreadable after the run and no retained official evaluator result establishes that component; an evaluator-observed missing or invalid input, failure, or error is native failure, not undecided.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+stronger:
+  additional_conditions:
+  - id: confirm_persistent_fork_state
+    text: Beyond native scoring, retained post-run GitLab state must show that namespace 2505 contains project path chatgpt with source project 175 (ChatGPT) recorded as its fork origin.
+    rationale: The task requests a resulting fork, while the released evaluator accepts a self-reported success plus a matching HTTP 201 fork event and does not inspect persistent post-run GitLab state.
+    decisive_artifacts:
+    - artifact: Post-run GitLab project or API state snapshot
+      question: Does the snapshot show namespace_id 2505/path chatgpt exists and records project 175 (ChatGPT) as its fork source?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

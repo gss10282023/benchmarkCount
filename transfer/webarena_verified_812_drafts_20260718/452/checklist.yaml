@@ -1,0 +1,68 @@
+schema_version: case_checklist_v1
+case_unit_id: '452'
+domain: webarena_verified
+task_id: '452'
+native:
+  user_goal:
+    text: Set the homepage URL on the user's GitLab profile to https://byteblaze.github.io.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success requires both official evaluator scores to equal 1.0: AgentResponseEvaluator accepts the response as a successful MUTATE with evaluator-normalized retrieved_data null, and NetworkEventEvaluator accepts the last evaluation event matching a POST to the normalized GitLab /-/profile path with user[website_url]=https://byteblaze.github.io and response status 302.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then TaskEvalResult.create requires every evaluator score to be 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize to the expected MUTATE/SUCCESS response with evaluator-normalized retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among evaluation events matching a POST to the normalized GitLab /-/profile path, does the last one contain user[website_url]=https://byteblaze.github.io and have response status 302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.from_har
+  success_if:
+  - text: 'Success iff both checks pass: the retained response is accepted by AgentResponseEvaluator and the retained HAR''s last eligible profile POST is accepted by NetworkEventEvaluator, making both evaluator scores 1.0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Fail if either official check definitively fails or errors: the response does not normalize and compare as the expected MUTATE/SUCCESS response, or no eligible profile POST exists, or the last eligible POST does not match the required website value and 302 status.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided if retained evidence cannot determine every not-yet-failed check—for example, agent_response.json or network.har is missing, truncated, or unreadable and the remaining evidence does not already establish failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: Loss or corruption of retained evidence does not by itself reveal whether the corresponding check passed, although a conclusive failure in the other check still determines native failure.
+stronger:
+  additional_conditions:
+  - id: verify_persisted_profile_state
+    text: A retained post-run GitLab profile-state snapshot shows that the stored homepage URL equals https://byteblaze.github.io.
+    rationale: The task asks for a persisted profile update, while the native evaluator only checks a claimed-success response and a matching POST/302 event; it does not directly inspect the resulting profile state.
+    decisive_artifacts:
+    - artifact: Authenticated post-run GitLab profile settings or profile API snapshot
+      question: After the run, is the homepage or website URL stored on the user's GitLab profile exactly https://byteblaze.github.io?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::instantiation_dict.url
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

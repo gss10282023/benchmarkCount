@@ -6,6 +6,8 @@ from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
 
+import pytest
+
 from evidence_system.adapters import appworld_official_worker
 from evidence_system.orchestrator.jobs import plan_smoke_jobs
 
@@ -37,7 +39,9 @@ def test_plan_smoke_jobs_appworld_uses_official_worker(tmp_path: Path) -> None:
     assert "evidence_system.adapters.appworld_official_worker" in item.execution_plan["runner_command"]
     assert "--model openai/gpt-5.4" in item.execution_plan["runner_command"]
     assert "--max-steps 50" in item.execution_plan["runner_command"]
-    assert "APPWORLD_ROOT=<APPWORLD_OFFICIAL_ROOT>" in item.execution_plan["runner_command"]
+    assert "APPWORLD_ROOT='<APPWORLD_INSTALL_ROOT>-official-a072b7a/project'" in item.execution_plan[
+        "runner_command"
+    ]
     assert "simplified_react_code_agent" in "\n".join(item.execution_plan["notes"])
 
 
@@ -47,8 +51,9 @@ def test_appworld_official_worker_run_official_job_writes_expected_artifacts(
 ) -> None:
     install_fake_official_appworld(monkeypatch, tmp_path)
     appworld_root = tmp_path / "appworld-root"
-    (appworld_root / "data").mkdir(parents=True, exist_ok=True)
-    (appworld_root / "data" / "version.txt").write_text("0.1.0", encoding="utf-8")
+    (appworld_root / "data" / "base_dbs").mkdir(parents=True, exist_ok=True)
+    (appworld_root / "data" / "version.txt").write_text("0.2.0", encoding="utf-8")
+    (appworld_root / "data" / "base_dbs" / "version.txt").write_text("0.2.0", encoding="utf-8")
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("APPWORLD_ROOT", str(appworld_root))
 
@@ -67,15 +72,16 @@ def test_appworld_official_worker_run_official_job_writes_expected_artifacts(
         max_tokens=1024,
         openrouter_api_key_env="OPENROUTER_API_KEY",
         max_steps=50,
-        lm_retry_after_seconds=15,
-        lm_max_retries=100,
+        lm_retry_after_seconds=60,
+        lm_max_retries=1,
     )
 
     summary = appworld_official_worker.run_official_job(config)
 
     assert summary["status"] == "completed"
     assert summary["success"] is True
-    assert summary["data_version"] == "0.1.0"
+    assert summary["data_version"] == "0.2.0"
+    assert summary["db_version"] == "0.2.0"
     assert summary["official_agent_name"] == "simplified_react_code_agent"
     assert (config.output_dir / "native_evaluator_input.json").exists()
     assert (config.output_dir / "native_evaluator_output.json").exists()
@@ -100,18 +106,39 @@ def test_appworld_official_worker_run_official_job_writes_expected_artifacts(
     import appworld.evaluator as evaluator_module
     import appworld.task as task_module
 
-    assert constants.DB_VERSION == "0.1.0"
-    assert environment_module.DB_VERSION == "0.1.0"
-    assert evaluator_module.DB_VERSION == "0.1.0"
-    assert "0.1.0" in constants.COMPATIBLE_DATA_VERSIONS
-    assert "0.1.0" in constants.COMPATIBLE_DB_VERSIONS
-    assert "0.1.0" in task_module.COMPATIBLE_DB_VERSIONS
+    assert constants.DB_VERSION == "0.2.0"
+    assert environment_module.DB_VERSION == "0.2.0"
+    assert evaluator_module.DB_VERSION == "0.2.0"
+    assert constants.COMPATIBLE_DATA_VERSIONS == ["0.2.0"]
+    assert constants.COMPATIBLE_DB_VERSIONS == ["0.2.0"]
+    assert task_module.COMPATIBLE_DB_VERSIONS == ["0.2.0"]
+
+
+def test_appworld_worker_rejects_incompatible_data_without_mutating_versions(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    install_fake_official_appworld(monkeypatch, tmp_path)
+    appworld_root = tmp_path / "appworld-root"
+    (appworld_root / "data" / "base_dbs").mkdir(parents=True)
+    (appworld_root / "data" / "version.txt").write_text("0.1.0", encoding="utf-8")
+    (appworld_root / "data" / "base_dbs" / "version.txt").write_text("0.1.0", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="no LM request was made"):
+        appworld_official_worker.validate_official_runtime_compatibility(str(appworld_root))
+
+    import appworld.common.constants as constants
+
+    assert constants.DATA_VERSION == "0.2.0"
+    assert constants.DB_VERSION == "0.2.0"
+    assert constants.COMPATIBLE_DATA_VERSIONS == ["0.2.0"]
 
 
 def install_fake_official_appworld(monkeypatch, tmp_path: Path) -> None:
     package = ModuleType("appworld")
     common_module = ModuleType("appworld.common")
     constants_module = ModuleType("appworld.common.constants")
+    constants_module.DATA_VERSION = "0.2.0"
     constants_module.COMPATIBLE_DATA_VERSIONS = ["0.2.0"]
     constants_module.COMPATIBLE_DB_VERSIONS = ["0.2.0"]
     constants_module.DB_VERSION = "0.2.0"

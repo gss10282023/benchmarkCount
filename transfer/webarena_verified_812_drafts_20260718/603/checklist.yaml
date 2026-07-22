@@ -1,0 +1,68 @@
+schema_version: case_checklist_v1
+case_unit_id: '603'
+domain: webarena_verified
+task_id: '603'
+native:
+  user_goal:
+    text: Create the user's Reddit question as a post titled "safe and budget apartment to live in nyc" in a forum where it is likely to receive an answer.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::sites
+  benchmark_success:
+    text: 'Native success requires both official evaluator scores to equal 1.0: AgentResponseEvaluator must accept the retained response as MUTATE/SUCCESS, and NetworkEventEvaluator must accept the last matching Reddit submission event. TaskEvalResult.score is 1.0 only when both checks score 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator, then applies the all-evaluator-scores-equal-1.0 composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize to a structure that matches task_type MUTATE and status SUCCESS under AgentResponseEvaluator?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event matching a POST to __REDDIT__/submit or __REDDIT__/submit/nyc a 302 response whose form data matches submission[forum] = "10067" and submission[title] = "safe and budget apartment to live in nyc" under evaluator normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks pass: AgentResponseEvaluator scores 1.0 for a response normalizing to MUTATE/SUCCESS, and NetworkEventEvaluator scores 1.0 because the last matching POST to either configured submission URL has forum "10067", the configured title, and response status 302; consequently both evaluator scores and TaskEvalResult.score equal 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Given complete retained inputs, failure occurs if either evaluator does not score 1.0: the response does not normalize and compare as MUTATE/SUCCESS, or no qualifying submission POST exists, or the last URL/method-matching POST mismatches the configured forum, title, or 302 status. Evaluator errors also make the overall score 0.0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only when retention loss or truncation prevents establishing the evaluated contents of agent_response.json or the ordered network.har events. A retained malformed or nonmatching input is failure, not undecided.
+    rationale: Both raw run inputs are needed to replay the two required official checks; absence caused only by the review evidence package does not reveal the missing check's result.
+stronger:
+  additional_conditions:
+  - id: persisted_owned_post
+    text: Beyond native scoring, authenticated post-run Reddit state shows a post authored by the run user with the exact requested title in the NYC forum represented by forum id "10067".
+    rationale: The task asks to post "my question," but the native evaluator can pass from a MUTATE/SUCCESS response plus a matching POST that returns 302; it does not inspect persistent Reddit state or post ownership.
+    decisive_artifacts:
+    - artifact: Authenticated post-run Reddit state export or post-detail capture
+      question: Does it show a post owned by the run user, titled "safe and budget apartment to live in nyc", in the NYC forum corresponding to forum id "10067"?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

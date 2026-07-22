@@ -1,0 +1,96 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "695",
+  "domain": "webarena_verified",
+  "task_id": "695",
+  "native": {
+    "user_goal": {
+      "text": "Add a simple shopping-admin product named \"Energy-Bulk Man Yoga Pant\", priced at $69.99, with 50 in stock, size 38, color yellow, and the appropriate attribute set.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult scores 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the configured last matching product-save POST.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator and combines their scores conjunctively.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the final response parse and normalize to task_type MUTATE, status SUCCESS, and retrieved_data null, with no AgentResponseEvaluator comparison failure?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching a POST to ^__SHOPPING_ADMIN__/catalog/product/save/type/simple/store/0/set/\\d+/back/edit$ have response status 302 and evaluator-matching form values product[name]=Energy-Bulk Man Yoga Pant, product[price]=69.99, product[quantity_and_stock_status][qty]=50, product[quantity_and_stock_status][is_in_stock]=1, product[size]=179, product[color]=60, and product[status]=1, after ignoring the isAjax query parameter?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff agent_response.json gives AgentResponseEvaluator score 1.0 and network.har gives NetworkEventEvaluator score 1.0; the resulting task status is SUCCESS with score 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Failure if either evaluator does not score 1.0, including a present response that fails MUTATE/SUCCESS normalization or an evaluable HAR whose last qualifying save POST is absent or mismatches any checked criterion; the task score is then 0.0 or ERROR.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when retained evidence does not establish one or both actual evaluator inputs—for example, a required run artifact was not retained or was corrupted after evaluation—and no official per-evaluator result resolves the missing component.",
+        "rationale": "Without both actual inputs or their official results, a reviewer cannot determine the conjunctive score; an input that was itself invalid at evaluation time is a native failure, not undecided."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_product_and_attribute_set",
+        "text": "Beyond native scoring, retained post-run shopping-admin state must show that the product was actually persisted as a simple, enabled product with the requested name, $69.99 price, quantity 50 and in-stock status, size 38, color yellow, and the appropriate attribute set.",
+        "rationale": "The task asks to add the product using the appropriate attribute set, while the native network check inspects only a save request and 302 response; its set/\\d+ URL pattern accepts any numeric attribute-set ID and it does not inspect persisted product state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Retained post-run shopping-admin product-state snapshot or export",
+            "question": "Does the persisted product record show the requested simple product and all requested values, including the identity of an appropriate attribute set?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

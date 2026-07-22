@@ -1,0 +1,67 @@
+schema_version: case_checklist_v1
+case_unit_id: '253'
+domain: webarena_verified
+task_id: '253'
+native:
+  user_goal:
+    text: Get the phone number for Carnegie Mellon Café.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: TaskEvalResult scores 1.0 only when every configured evaluator scores 1.0; here, the sole AgentResponseEvaluator must parse and normalize the response to task_type RETRIEVE, status NOT_FOUND_ERROR, and null retrieved_data with no failing comparison assertion.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator parses, normalizes, and structurally compares the agent response; TaskEvalResult.create composes the configured evaluator scores.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the released evaluator parse and normalize the retained response to task_type RETRIEVE, status NOT_FOUND_ERROR, and null retrieved_data without any evaluator-visible structure or value mismatch?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: The retained response yields task_type RETRIEVE, status NOT_FOUND_ERROR, and null retrieved_data under the evaluator's parsing and normalization, produces no failing assertion, and therefore gives both the sole evaluator and TaskEvalResult a score of 1.0.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: A present response fails if it is unparseable or non-structured, has a missing or mismatched task_type or status, has non-null retrieved_data, has another evaluator-visible structural mismatch, or causes an evaluator error; the resulting task score is 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained agent_response.json is absent or storage-truncated, so the exact response supplied to the response-only evaluator cannot be established; network.har alone is not decisive for native scoring.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+stronger:
+  additional_conditions:
+  - id: substantiate_not_found
+    text: Beyond native scoring, network.har must substantiate the NOT_FOUND_ERROR by showing a map lookup for Carnegie Mellon Café whose returned data contains either no matching place or no phone number for the matching place.
+    rationale: The instruction asks for the café's phone number, but the released evaluator accepts a self-reported NOT_FOUND_ERROR with null data and reads only the agent response. Trace corroboration addresses this concrete task/evaluator gap.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Do retained map requests and responses show a lookup for Carnegie Mellon Café and support the absence of either a matching place or a phone-number value for that place?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+      - official/src/webarena_verified/types/eval.py::TaskEvalContext
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/types/agent_response.py::Status

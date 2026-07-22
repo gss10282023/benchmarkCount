@@ -1,0 +1,103 @@
+schema_version: case_checklist_v1
+case_unit_id: '746'
+domain: webarena_verified
+task_id: '746'
+native:
+  user_goal:
+    text: Create a new private GitLab project named "llm_bulk_inference" and add primer, convexegg, and abishek as members.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native score is 1.0 only when all five configured evaluator scores are 1.0: the AgentResponseEvaluator, the project-creation NetworkEventEvaluator, and all three member-add NetworkEventEvaluators.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the five task evaluator configurations; each EvaluatorResult scores 1.0 only when its comparisons pass, and TaskEvalResult scores 1.0 only when every evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize to the expected MUTATE/SUCCESS response under AgentResponseEvaluator's comparison rule?
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the retained HAR make the project-creation check and each of the three independent last-event-only member-add checks pass?
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - derived/task.json::eval[4]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'AgentResponseEvaluator scores 1.0 after its parsing and normalization: the compared response object matches task_type MUTATE, status SUCCESS, and evaluator-treated retrieved_data null.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: 'The project NetworkEventEvaluator scores 1.0: the last matching POST to GitLab /api/v4/projects has response status 201 and parsed post data containing name llm_bulk_inference and visibility private.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: 'All three member NetworkEventEvaluators score 1.0: under each configuration''s last_event_only rule, the independently selected last POST to a GitLab /api/v4/projects/<numeric-id>/members path has response status 201, access_level 30, and user_id 2367, 43, and 5 respectively.'
+    support:
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - derived/task.json::eval[4]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  fail_if:
+  - text: Given a complete retained response, AgentResponseEvaluator fails or errors because the response cannot be parsed and normalized to the expected MUTATE/SUCCESS comparison result.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: Given a complete parseable HAR, the project-creation check fails or errors because no qualifying last POST exists or its selected event mismatches the required path, method, status, name, or visibility.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Given a complete parseable HAR, native failure occurs if any member-add evaluator fails or errors because its independently selected last matching event is absent or does not match status 201, access_level 30, and its configured user_id; any one non-1.0 evaluator score makes the task score 0.
+    support:
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - derived/task.json::eval[4]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: A required run artifact is missing or demonstrably truncated through evidence retention, and no retained official TaskEvalResult resolves the five checks, so the native score cannot be reconstructed.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+stronger:
+  additional_conditions:
+  - id: final_state_and_project_linkage
+    text: A retained post-run GitLab state snapshot must show a private project named "llm_bulk_inference" with primer, convexegg, and abishek all members of that same project.
+    rationale: The native evaluator checks successful network events only; its member URL patterns accept any numeric project ID and all three member checks select the last matching event independently, so native acceptance does not establish linkage to the newly created project or the requested final state.
+    decisive_artifacts:
+    - artifact: Post-run GitLab project-and-members state snapshot or API export
+      question: Does one private project named llm_bulk_inference have a membership list containing primer, convexegg, and abishek?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - derived/task.json::eval[2]
+      - derived/task.json::eval[3]
+      - derived/task.json::eval[4]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - derived/task.json::eval[4]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

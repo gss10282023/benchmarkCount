@@ -1,0 +1,73 @@
+schema_version: case_checklist_v1
+case_unit_id: '319'
+domain: webarena_verified
+task_id: '319'
+native:
+  user_goal:
+    text: Determine the total refund for any orders canceled in April 2022, including shipping fees, and return only the numeric value.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task succeeds only if the sole AgentResponseEvaluator scores 1.0: the final response must parse and normalize to task_type RETRIEVE, status NOT_FOUND_ERROR, and null-equivalent retrieved_data with no assertion or evaluator error; that sole score then makes TaskEvalResult.score 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator parses, normalizes, and structurally compares the final response; EvaluatorResult and TaskEvalResult convert any mismatch or evaluation error into score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the exact final response received by the evaluator parse and normalize to task_type RETRIEVE, status NOT_FOUND_ERROR, and null-equivalent retrieved_data without a comparison or normalization error?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the retained trace loadable and sufficient for evaluator setup to reach the response check without a trace or environment-context error?
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: Evaluation reaches the sole AgentResponseEvaluator, the retained final response produces no comparison assertions or errors against RETRIEVE / NOT_FOUND_ERROR / null retrieved_data, and the resulting evaluator score and TaskEvalResult.score are both 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The sole evaluator scores below 1.0 because the received response is invalid, has a mismatching normalized task_type or status, has non-null normalized retrieved_data, produces another comparison assertion, or evaluation encounters an error; consequently TaskEvalResult.score is 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained evidence does not establish the exact final response and trace supplied to the evaluator—for example, a required artifact is absent or truncated and no retained evaluation result records the evaluated actual value and score.
+    rationale: Missing review evidence does not establish whether the original evaluator input passed or failed; a known absent, invalid, or malformed evaluator input is instead a native failure.
+stronger:
+  additional_conditions:
+  - id: numeric_refund_total
+    text: Beyond native success, require retained evidence that the user-facing answer is only a numeric refund total correctly calculated from all April 2022 canceled orders, including shipping fees, rather than merely the evaluator-accepted NOT_FOUND_ERROR/null response.
+    rationale: The official instruction explicitly requests a number-only refund amount, while the released configuration expects NOT_FOUND_ERROR with null retrieved_data and uses only AgentResponseEvaluator; native success therefore does not demonstrate delivery or correctness of the requested numeric total.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Is the user-facing final answer only the requested numeric refund total?
+      support:
+      - derived/task.json::intent
+    - artifact: network.har
+      question: Do retained shopping responses expose a complete set of relevant April 2022 canceled orders and their refund and shipping amounts, and do those values support the reported total?
+      support:
+      - derived/task.json::intent
+      - case_packet.md::Benchmark Task Summary
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values

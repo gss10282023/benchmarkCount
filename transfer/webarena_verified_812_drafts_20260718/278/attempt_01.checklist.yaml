@@ -1,0 +1,82 @@
+schema_version: case_checklist_v1
+case_unit_id: '278'
+domain: webarena_verified
+task_id: '278'
+native:
+  user_goal:
+    text: Open the shopping search-results page for “green tea bag for weight loss”.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success requires both configured evaluators to score 1.0: the final response is accepted as NAVIGATE/SUCCESS with non-retrieve data treated as null, and the evaluator-selected last navigation event matches a 200 GET to __SHOPPING__/catalogsearch/result/ with q=green tea bag for weight loss.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order; TaskEvalResult.create reports success only when every evaluator score is 1.0 and none errors.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response parse and normalize without comparison assertions against the configured NAVIGATE/SUCCESS response?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the evaluator-selected last navigation event normalize and compare without assertions to the configured 200 GET shopping-results URL and exact q parameter?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: AgentResponseEvaluator accepts agent_response.json as the configured NAVIGATE/SUCCESS response, including its non-retrieve null-data treatment.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: NetworkEventEvaluator accepts the last navigation event in network.har as the configured 200 GET to the shopping catalog-search route with q=green tea bag for weight loss.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Both evaluator scores equal 1.0, producing TaskEvalResult score 1.0 and SUCCESS status.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: AgentResponseEvaluator produces a mismatch or error, including an unaccepted response structure or task_type/status mismatch.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: NetworkEventEvaluator produces a mismatch or error because no navigation event is available or the selected last navigation event differs in normalized URL/query, method, or 200 response status.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Either evaluator score is not 1.0, or either evaluator errors, causing overall score 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: For retrospective review, agent_response.json or network.har is not retained, so both official checks cannot be reconstructed from the stored run evidence.
+    rationale: Absence of a required run artifact does not establish whether the corresponding check passed or failed during the run.
+stronger:
+  additional_conditions:
+  - id: rendered_results_visible
+    text: Beyond native scoring, require the retained final browser state to show that the shopping search-results page rendered for “green tea bag for weight loss”, rather than only recording a matching request.
+    rationale: The task asks to open the results, but the native network check validates URL, query, GET method, and status 200 while expecting no response-content evidence; the response check is also not a rendered-page check.
+    decisive_artifacts:
+    - artifact: final browser-state capture containing the current URL and rendered screenshot or DOM/accessibility snapshot
+      question: Does the final rendered state visibly show the shopping search-results page for the exact query?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values

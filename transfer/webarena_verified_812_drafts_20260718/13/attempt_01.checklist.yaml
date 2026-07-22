@@ -1,0 +1,80 @@
+schema_version: case_checklist_v1
+case_unit_id: '13'
+domain: webarena_verified
+task_id: '13'
+native:
+  user_goal:
+    text: Report the total number of store reviews that mention the term "decent".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: The sole AgentResponseEvaluator must score 1.0, making TaskEvalResult status success and score 1.0. After evaluator parsing and normalization, the response must match task_type RETRIEVE, status SUCCESS, and the exact unordered numeric singleton retrieved_data [2].
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator parses the raw response, normalizes its evaluator-visible fields under the numeric result schema, and structurally compares them with the configured expected response; TaskEvalResult then requires every configured evaluator score to equal 1.0. No NetworkEventEvaluator is configured.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the official response parser and non-strict normalizer produce exactly the evaluator-visible mapping task_type RETRIEVE, status SUCCESS, and numeric retrieved_data [2], with no comparison assertion or normalization error?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].results_schema
+    - derived/task.json::eval[0].ordered
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the required trace parse into the NetworkTrace needed to construct an error-free evaluation context, including URL recovery if the configured environment URLs require the evaluator's fallback?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+  success_if:
+  - text: The retained response yields no AgentResponseEvaluator assertions or errors after official parsing, normalization, and exact unordered comparison against RETRIEVE, SUCCESS, and numeric singleton [2], so that evaluator scores 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The required evaluation inputs parse and orchestration completes without error; because AgentResponseEvaluator is the only configured evaluator and scores 1.0, TaskEvalResult has status success and score 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The response is non-object after parsing, has an evaluator-visible key mismatch, resolves to a task type or status different from RETRIEVE or SUCCESS, or has missing, different, or extra normalized retrieved data; any resulting assertion or evaluator exception makes AgentResponseEvaluator score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: A required input is missing or invalid at evaluation time, evaluation orchestration errors, or the sole evaluator otherwise does not score 1.0; TaskEvalResult then has score 0.0 and status failure or error.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._create_eval_error_result
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained evidence is incomplete or unreadable and contains neither enough response-and-trace data to reproduce the official result nor a retained official TaskEvalResult, while the remaining evidence does not independently establish a mismatch or recorded run-time error.
+    rationale: This distinguishes post-run evidence loss from an input that was actually missing or invalid during evaluation; the latter is native failure, not an undecided outcome.
+stronger:
+  additional_conditions:
+  - id: public-response-schema-conformance
+    text: 'Beyond native scoring, the raw retained response must itself validate as FinalAgentResponse: a JSON object whose task type resolves to RETRIEVE, whose status resolves to SUCCESS, whose retrieved_data is the numeric array [2], and whose error_details resolves to null. Passing only after fenced-JSON extraction or scalar-to-array coercion is insufficient.'
+    rationale: The official response type requires a structured JSON response and list-valued retrieved_data, but the released evaluator can extract JSON from code fences and wraps a scalar retrieved_data value into a tuple before comparison. Native scoring can therefore accept outputs that do not conform to the declared public response format.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Before evaluator-specific code-block extraction or scalar wrapping, does the raw value validate directly as FinalAgentResponse with numeric retrieved_data [2] and null-defaulting error_details?
+      support:
+      - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    support:
+    - official/src/webarena_verified/types/agent_response.py::FinalAgentResponse
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data

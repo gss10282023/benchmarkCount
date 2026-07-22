@@ -5,13 +5,18 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 import json
+from pathlib import Path
 import sys
 from typing import Any, Sequence
 
 from evidence_system.cli._common import BootstrapCommand
 from evidence_system.cli import webarena_runtime
 from evidence_system.contracts.common import load_mapping, normalize_domain, utc_now_iso
-from evidence_system.orchestrator.jobs import execute_planned_jobs, plan_smoke_jobs
+from evidence_system.orchestrator.jobs import (
+    execute_planned_jobs,
+    plan_smoke_jobs,
+    resolve_result_namespace,
+)
 
 
 COMMAND = BootstrapCommand(
@@ -42,8 +47,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Canonical domain id(s) in the desired execution order. May be repeated.",
     )
     parser.add_argument("--phase", default="full")
-    parser.add_argument("--experiment-type", default="main")
-    parser.add_argument("--case-count", type=int, default=100)
+    parser.add_argument(
+        "--experiment-type",
+        default=None,
+        help="Experiment type. Omit to infer it from the selected manifest domains; an explicit value must match.",
+    )
+    parser.add_argument(
+        "--case-count",
+        type=int,
+        default=None,
+        help="Number of manifest cases to run per domain. Omit to run every case in the manifest.",
+    )
     parser.add_argument(
         "--agent-id",
         action="append",
@@ -55,8 +69,30 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-bundle", default=DEFAULT_FULL_SOURCE_BUNDLE)
     parser.add_argument("--contracts-dir", default=DEFAULT_FULL_CONTRACTS_DIR)
     parser.add_argument("--infra-config", default="configs/infra.yaml")
+    parser.add_argument(
+        "--execution-lock",
+        default=None,
+        help=(
+            "Pre-run AgentDojo full execution lock. When supplied, raw evidence "
+            "is forced into the lock's sealed staging namespace."
+        ),
+    )
     parser.add_argument("--agents-config", default=DEFAULT_FULL_AGENTS_CONFIG)
-    parser.add_argument("--jobs-dir", default=DEFAULT_FULL_JOBS_DIR)
+    parser.add_argument(
+        "--jobs-dir",
+        default=None,
+        help="Job-plan directory. Defaults to the legacy directory, or an isolated namespace directory when configured.",
+    )
+    parser.add_argument(
+        "--result-namespace",
+        "--run-set",
+        dest="result_namespace",
+        default=None,
+        help=(
+            "Isolated result run-set. Must match manifest.result_namespace when the manifest declares one. "
+            "Results are written below results/namespaces/<value>/ instead of the legacy results/<phase>/ tree."
+        ),
+    )
     parser.add_argument(
         "--max-workers",
         type=int,
@@ -73,6 +109,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=2,
         help="Retry transient model failures such as AgentDojo `No response from model` and AppWorld TimeoutError this many times before stopping.",
     )
+    failure_mode = parser.add_mutually_exclusive_group()
+    failure_mode.add_argument(
+        "--continue-on-error",
+        dest="continue_on_error",
+        action="store_true",
+        help="Record blind job failures and finish all remaining jobs in the batch.",
+    )
+    failure_mode.add_argument(
+        "--fail-fast",
+        dest="continue_on_error",
+        action="store_false",
+        help="Stop at the first job failure.",
+    )
+    parser.set_defaults(continue_on_error=None)
     parser.add_argument("--plan-only", action="store_true", help="Plan batches and emit the execution order without running them.")
     return parser
 
@@ -94,9 +144,29 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if not args.domain:
         parser.error("--domain must be provided at least once")
+    if args.execution_lock and not args.plan_only:
+        _emit_error(
+            "execution-locked AgentDojo plans are permanently non-executable from "
+            "run_full; use run_agentdojo_locked_evidence with namespace-init and "
+            "immutable stage authorization",
+            as_json=args.json,
+        )
+        return 1
 
     try:
+        manifest = load_mapping(args.manifest)
+        result_namespace = resolve_result_namespace(
+            manifest=manifest,
+            requested=args.result_namespace,
+            execution_lock_path=args.execution_lock,
+        )
+        jobs_dir = args.jobs_dir or _default_jobs_dir(result_namespace)
         domain_batches = _domain_batches(args.domain, explicit_agents=args.agent_id, agents_config_path=args.agents_config)
+        experiment_type = _resolve_experiment_type(
+            manifest,
+            domains=[domain for domain, _ in domain_batches],
+            requested=args.experiment_type,
+        )
     except Exception as exc:
         _emit_error(str(exc), as_json=args.json)
         return 1
@@ -113,7 +183,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 planned = plan_smoke_jobs(
                     domain=domain,
                     phase=args.phase,
-                    experiment_type=args.experiment_type,
+                    experiment_type=experiment_type,
                     case_count=args.case_count,
                     agent_ids=[agent_id],
                     seed=args.seed,
@@ -122,9 +192,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                     contracts_dir=args.contracts_dir,
                     infra_config_path=args.infra_config,
                     agents_config_path=args.agents_config,
-                    jobs_dir=args.jobs_dir,
+                    jobs_dir=jobs_dir,
+                    result_namespace=result_namespace,
+                    execution_lock_path=args.execution_lock,
                 )
-                if len(planned) != args.case_count:
+                if not planned:
+                    raise ValueError(f"{domain}/{agent_id}: manifest selection produced zero case jobs")
+                if args.case_count is not None and len(planned) != args.case_count:
                     raise ValueError(
                         f"{domain}/{agent_id}: expected {args.case_count} case jobs, planned {len(planned)}"
                     )
@@ -135,7 +209,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "domain": domain,
                     "agent_id": agent_id,
                     "phase": args.phase,
-                    "experiment_type": args.experiment_type,
+                    "experiment_type": experiment_type,
+                    "result_namespace": result_namespace,
+                    "jobs_dir": str(jobs_dir),
                     "planned_job_count": len(planned),
                     "first_job_id": planned[0].job["job_id"],
                     "last_job_id": planned[-1].job["job_id"],
@@ -177,6 +253,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     fail_fast_on_noncompleted=True,
                     skip_completed=not args.rerun_completed,
                     retry_no_response_attempts=args.retry_no_response,
+                    continue_on_error=args.continue_on_error,
                 )
                 status_counts = Counter(str(item.execution_result.get("status") or "unknown") for item in executed)
                 batch_summary["status_counts"] = dict(sorted(status_counts.items()))
@@ -199,13 +276,51 @@ def main(argv: Sequence[str] | None = None) -> int:
     payload = {
         "status": "planned" if args.plan_only else "executed",
         "phase": args.phase,
-        "experiment_type": args.experiment_type,
+        "experiment_type": experiment_type,
+        "result_namespace": result_namespace,
+        "jobs_dir": str(jobs_dir),
         "domains": [domain for domain, _ in domain_batches],
         "batches": summaries,
         "preflights": preflight_summaries,
     }
     _emit(payload, as_json=args.json)
     return 0
+
+
+def _default_jobs_dir(result_namespace: str | None) -> str:
+    if result_namespace is None:
+        return DEFAULT_FULL_JOBS_DIR
+    return str(Path(DEFAULT_FULL_JOBS_DIR) / "namespaces" / result_namespace)
+
+
+def _resolve_experiment_type(
+    manifest: dict[str, Any],
+    *,
+    domains: Sequence[str],
+    requested: str | None,
+) -> str:
+    selected = {normalize_domain(domain) for domain in domains}
+    declared_by_domain = {
+        normalize_domain(block.get("domain")): str(block.get("experiment_type") or "")
+        for block in manifest.get("domains") or []
+        if isinstance(block, dict) and normalize_domain(block.get("domain")) in selected
+    }
+    missing = selected - set(declared_by_domain)
+    if missing:
+        raise ValueError(f"manifest is missing selected domain(s): {sorted(missing)}")
+    declared = set(declared_by_domain.values())
+    if "" in declared or len(declared) != 1:
+        raise ValueError(
+            "selected manifest domains must declare one common experiment_type: "
+            f"{declared_by_domain}"
+        )
+    resolved = next(iter(declared))
+    if requested is not None and requested != resolved:
+        raise ValueError(
+            "requested experiment_type does not match manifest: "
+            f"requested={requested!r}, manifest={resolved!r}"
+        )
+    return resolved
 
 
 def _domain_batches(

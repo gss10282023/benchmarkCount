@@ -1,0 +1,102 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "666",
+  "domain": "webarena_verified",
+  "task_id": "666",
+  "native": {
+    "user_goal": {
+      "text": "Submit a merge request in the current primer/design repository from dialog-component into dialog, with Primer assigned as reviewer.",
+      "support": [
+        "derived/task.json::intent",
+        "derived/task.json::instantiation_dict"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS with no retrieved data, and NetworkEventEvaluator accepts the configured merge-request POST event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator; TaskEvalResult.create requires every evaluator score to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does AgentResponseEvaluator parse and normalize the retained response to the expected MUTATE/SUCCESS response with retrieved_data absent or null?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last matching POST to __GITLAB__/primer/design/-/merge_requests a 302 response with source and target project 180, source dialog-component, target dialog, reviewer 2367, and assignee 0?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both evaluator scores are 1.0: the final response passes the MUTATE/SUCCESS/no-retrieved-data comparison, and the last URL-and-method-matching HAR event passes the POST, 302, and six expected form-value comparisons.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "With complete evaluator inputs, native failure occurs if either evaluator does not score 1.0—for example, the response is not accepted, no qualifying POST exists, the last qualifying POST differs in any required status or form value, or either evaluator errors.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Retention loss, corruption, or truncation prevents reconstructing agent_response.json or determining the last matching event in network.har; a complete retained input that shows a mismatch is failure, not undecided.",
+        "rationale": "The native outcome cannot be re-established when stored evidence no longer contains a complete evaluator input."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "resulting_merge_request_exists",
+        "text": "Beyond native request matching, authoritative post-run GitLab state must show the resulting primer/design merge request from dialog-component into dialog with Primer as reviewer.",
+        "rationale": "The task requires an actual merge request, while the released network evaluator checks only a matching recorded POST and HTTP 302 and does not inspect resulting GitLab state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run GitLab merge-request state snapshot or API export",
+            "question": "Does authoritative post-run state contain the resulting primer/design merge request with source dialog-component, target dialog, and reviewer Primer?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

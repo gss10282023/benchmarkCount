@@ -1,0 +1,65 @@
+schema_version: case_checklist_v1
+case_unit_id: '122'
+domain: webarena_verified
+task_id: '122'
+native:
+  user_goal:
+    text: Get the title and rating of every review with at least 4 stars for the Olivia zip jacket, returned as a list of objects with keys "title" and "rating".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0: the sole AgentResponseEvaluator scores 1.0 because the submitted response, after official extraction and schema normalization, matches task_type RETRIEVE, status SUCCESS, and the unordered one-item retrieved-data collection containing {"title":"Quite good","rating":5}.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official AgentResponseEvaluator parses and normalizes the submitted response, performs the structural comparison, and contributes its binary score to TaskEvalResult.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After official JSON or code-block extraction, schema normalization, and unordered structural comparison, does the submitted response match RETRIEVE/SUCCESS and exactly one retrieved object with title "Quite good" and rating 5?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: The retained response is evaluator-readable and normalizes to matching task_type RETRIEVE and status SUCCESS, with retrieved_data containing exactly one unordered object whose fields are title "Quite good" and rating 5; the evaluator produces no assertions and TaskEvalResult.score is 1.0.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  fail_if:
+  - text: The submitted response is absent, evaluator-unreadable, unnormalizable, or has comparison-relevant task_type/status structure that does not match RETRIEVE/SUCCESS, causing an assertion or evaluator error and score 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The normalized retrieved_data is missing or empty, or has any missing, extra, or mismatching element, key, or value relative to the single {"title":"Quite good","rating":5} object; unordered comparison still requires exact cardinality.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  undecided_if:
+  - text: Retained evidence is insufficient only if agent_response.json was not preserved or is truncated or corrupt, so the submitted evaluator-visible value cannot be reconstructed; a preserved null or invalid response is a native failure, not undecided.
+    rationale: This distinguishes loss of review evidence from a run that actually submitted no usable response.
+stronger:
+  additional_conditions:
+  - id: require_actual_list_shape
+    text: Beyond native scoring, require retrieved_data in the submitted response to be an actual JSON array of objects, as requested, rather than a lone object or object-encoded string accepted through evaluator coercion.
+    rationale: The task explicitly requests a list of objects, but the released evaluator wraps any non-list retrieved_data value into a singleton collection before normalization, and object-shaped JSON strings can then be parsed during non-strict object normalization.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Is retrieved_data encoded directly as a JSON array, with every member encoded as a JSON object?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+      - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer._normalize_object
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer._normalize_object

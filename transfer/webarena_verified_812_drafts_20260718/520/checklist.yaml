@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: '520'
+domain: webarena_verified
+task_id: '520'
+native:
+  user_goal:
+    text: Add the product displayed on the current shopping page to the user's wishlist.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::start_urls[0]
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring both configured evaluators to score 1.0: AgentResponseEvaluator accepts the final response for the configured successful MUTATE task, and NetworkEventEvaluator accepts the last matching POST to __SHOPPING__/wishlist/index/add/ with post_data containing product="37313" and qty="1" and response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator on the retained agent response and NetworkEventEvaluator on the retained HAR, then composes their scores with TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response parse, normalize, and compare without failure against the configured successful MUTATE response expectation?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last evaluation event matching a POST to the wishlist-add endpoint contain product="37313" and qty="1" and have response status 302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.from_har
+  success_if:
+  - text: 'Both official checks pass from the retained artifacts: the final response is accepted by AgentResponseEvaluator and the last matching wishlist-add POST is accepted by NetworkEventEvaluator; therefore both evaluator scores and TaskEvalResult.score equal 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Native failure is established if either official check fails or errors: the supplied final response is rejected, or no qualifying wishlist-add POST exists or its last matching event fails the configured post-data/status comparison. Any non-1.0 evaluator score or evaluation error makes TaskEvalResult.score 0.0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only when post-run retention loss or damage leaves insufficient agent-response or HAR evidence to determine one or both official evaluator outcomes.
+    rationale: This distinguishes unavailable retained evidence from an empty, malformed, or mismatching artifact actually supplied to the evaluator, which is a benchmark-counted failure or error.
+stronger:
+  additional_conditions:
+  - id: verify_persisted_wishlist_membership
+    text: Beyond native success, authenticated post-run shopping state must show the start-page product corresponding to product ID 37313 present in the user's wishlist.
+    rationale: The task asks for actual wishlist membership, while the native evaluator observes only the agent's success response and a matching wishlist-add request with a 302 response; it does not inspect persisted wishlist contents.
+    decisive_artifacts:
+    - artifact: Authenticated post-run wishlist page capture or wishlist-state export
+      question: Does the user's wishlist contain the product from the task's start page, corresponding to product ID 37313, after the run?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::start_urls[0]
+      - derived/task.json::eval[1].expected.post_data.product
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

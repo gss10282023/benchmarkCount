@@ -1,0 +1,69 @@
+schema_version: case_checklist_v1
+case_unit_id: '407'
+domain: webarena_verified
+task_id: '407'
+native:
+  user_goal:
+    text: Upvote the newest post in the deep learning forum.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success requires both configured evaluators to score 1.0: AgentResponseEvaluator must accept the final response under its configured MUTATE/SUCCESS comparison, and NetworkEventEvaluator must accept the last matching Reddit POST to __REDDIT__/sv/125036.json with parsed post_data choice "1" and response status 200. TaskEvalResult.score is otherwise 0.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then applies the all-evaluator-scores-equal-1.0 task composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response, under the official parsing, normalization, and comparison rules, pass the configured MUTATE/SUCCESS AgentResponseEvaluator check?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: After official evaluation-event filtering and URL normalization, does the last POST matching __REDDIT__/sv/125036.json also match choice "1" and response status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff re-evaluation of both retained artifacts yields AgentResponseEvaluator.score = 1.0 and NetworkEventEvaluator.score = 1.0, and therefore TaskEvalResult.score = 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Failure if complete retained inputs produce an evaluator error or any non-1.0 evaluator score: the response fails its configured comparison, or the qualifying last network event is absent or mismatches the expected URL, method, parsed body, or response status.'
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  undecided_if:
+  - text: Undecided only when post-run evidence loss or truncation prevents reconstructing either evaluator input and outcome; if the released evaluator itself received missing, invalid, or unparseable input, its resulting 0/error is failure.
+    rationale: Loss of retained evidence is epistemically different from an evaluator-observed invalid run, which the native score composition counts as failure.
+stronger:
+  additional_conditions:
+  - id: final_reddit_state_matches_intent
+    text: Beyond native success, retained authenticated post-run Reddit evidence must show that the newest post in the deep learning forum is upvoted by the run's account.
+    rationale: The released evaluators accept a self-reported success plus a matching HTTP 200 POST event to a fixed endpoint; they do not inspect final Reddit vote state or independently establish from retained run state that the affected post is the forum's newest.
+    decisive_artifacts:
+    - artifact: Authenticated post-run deep learning forum listing
+      question: Does the retained listing, ordered newest-first, identify the forum's newest post?
+      support:
+      - derived/task.json::intent
+    - artifact: Authenticated post-run vote-state capture for that post
+      question: Does the retained final state show that same post upvoted by the run's account after the run?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

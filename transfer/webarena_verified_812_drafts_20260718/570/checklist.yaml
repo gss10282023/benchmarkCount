@@ -1,0 +1,73 @@
+schema_version: case_checklist_v1
+case_unit_id: '570'
+domain: webarena_verified
+task_id: '570'
+native:
+  user_goal:
+    text: Invite Jakub K, Alex Dills, Alex Hutnik, and Benoît Blanchon as collaborators to the “my time tracking tool project” repository.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if all five configured evaluators score 1.0: the AgentResponseEvaluator accepts a normalized MUTATE/SUCCESS response, and each of four NetworkEventEvaluators accepts its selected last matching POST to project 190’s members endpoint with response status 201, access_level 30, and its configured user_id (1842, 2179, 1693, or 597).'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator followed by four NetworkEventEvaluator instances; TaskEvalResult.create applies the all-evaluator-scores-equal-1.0 composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - derived/task.json::eval
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Under AgentResponseEvaluator parsing, normalization, and exact-key comparison, does the response match task_type MUTATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: For each of the four configurations, does that evaluator’s last POST matching the project-190 members endpoint match response status 201 and post_data access_level 30 with user_id 1842, 2179, 1693, or 597, respectively?
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'All five evaluator scores are 1.0: the response matches the configured normalized MUTATE/SUCCESS response, and all four last-matching-event HAR checks match their respective status, payload, method, and endpoint expectations.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The AgentResponseEvaluator returns a score other than 1.0 because the retained response is invalid, mismatches the configured normalized response, or causes an evaluator error.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Any one of the four NetworkEventEvaluators returns a score other than 1.0 because its matching POST is absent, its selected last matching event fails an expected field, or evaluation errors.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: If no retained component already proves failure, the native outcome is undecided when retention of agent_response.json or network.har is missing or incomplete such that one or more of the five evaluator outcomes cannot be reconstructed.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+stronger:
+  additional_conditions:
+  - id: verify_final_collaborator_state
+    text: Retained post-run membership state for “my time tracking tool project” shows Jakub K, Alex Dills, Alex Hutnik, and Benoît Blanchon as collaborators.
+    rationale: The user goal concerns resulting repository membership, while native evaluation compares only the response and HAR events. Moreover, all four network configurations share the same method and endpoint with last_event_only=true, so each selects the same final matching POST despite expecting a different user_id; a final-state snapshot directly measures the stated goal.
+    decisive_artifacts:
+    - artifact: post-run GitLab project-membership snapshot
+      question: Does a retained members-page or project-members API snapshot identify “my time tracking tool project” and show all four named users as current collaborators?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria

@@ -1,0 +1,75 @@
+schema_version: case_checklist_v1
+case_unit_id: '424'
+domain: webarena_verified
+task_id: '424'
+native:
+  user_goal:
+    text: On the map site, view the information page for the city where A Beautiful Day in the Neighborhood was filmed, using the provided Wikipedia site for any needed lookup.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 iff both configured evaluator scores are 1.0: AgentResponseEvaluator accepts a response normalized to task_type NAVIGATE, status SUCCESS, and retrieved_data null; and NetworkEventEvaluator accepts the last navigation event as a GET to __MAP__/relation/188553 with response status 200, ignoring all query parameters.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks agent_response.json, NetworkEventEvaluator checks network.har, and TaskEvalResult.create requires both evaluator scores to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the released response parser and normalizer produce exactly the compared fields task_type NAVIGATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last navigation event normalize to a GET for __MAP__/relation/188553 with response status 200 under the evaluator's all-query-parameters-ignored rule?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: 'Both checks pass: agent_response.json is accepted as the configured NAVIGATE/SUCCESS response, and network.har''s last navigation event matches GET __MAP__/relation/188553 with status 200 after query-parameter ignoring; consequently both evaluator scores and TaskEvalResult.score are 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native failure or error occurs if either response comparison is not accepted or the HAR lacks a navigation event, has a different last navigation target, method, or status, or causes evaluator error; any evaluator score other than 1.0 makes TaskEvalResult.score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored-evidence review is undecided only if a retained response or HAR is missing, truncated, or unreadable such that what the evaluators received cannot be reconstructed; a preserved evaluator result showing missing or invalid input is failure or error, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    rationale: Loss of the retained review copy is non-decisive, whereas an evaluator-visible input failure is natively scored zero.
+stronger:
+  additional_conditions:
+  - id: wikipedia_lookup_evidence
+    text: Beyond native success, network.har contains a successful navigation on the provided Wikipedia site to a page or search relevant to the named film or its filming city.
+    rationale: The official instruction explicitly directs use of the provided wiki site, but the released navigation evaluator checks only the last navigation event against the map target and does not require any Wikipedia event.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the trace contain a successful Wikipedia navigation whose URL, page topic, or search query is relevant to A Beautiful Day in the Neighborhood or its filming location?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

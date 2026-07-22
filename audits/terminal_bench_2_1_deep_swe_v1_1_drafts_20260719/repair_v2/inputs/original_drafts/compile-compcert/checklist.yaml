@@ -1,0 +1,90 @@
+schema_version: case_checklist_v1
+case_unit_id: compile-compcert
+domain: terminal_bench_2_1
+task_id: terminal-bench/compile-compcert
+native:
+  user_goal:
+    text: Build CompCert 3.13.1 from source under `/tmp/CompCert/`, configured for the development environment's OS and ISA, so `/tmp/CompCert/ccomp` is invocable there and fully functional.
+    support:
+    - official/instruction.md::1-4
+  benchmark_success:
+    text: 'Native success is the conjunction of the three official pytest checks invoked by `official/tests/test.sh`: the `ccomp` existence/version check passes, the positive-probe authenticity/functionality check passes, and the negative-probe VLA-rejection check passes.'
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_compcert_exists_and_executable
+    - official/tests/test_outputs.py::test_compcert_valid_and_functional
+    - official/tests/test_outputs.py::test_compcert_rejects_unsupported_feature
+  checked_by:
+    text: Task-specific verifier `official/tests/test.sh`, which runs `pytest` on `/tests/test_outputs.py` and emits a CTRF report.
+    support:
+    - official/tests/test.sh::18-22
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: 'Does the structured pytest report show pass/fail status for the three official checks: `test_compcert_exists_and_executable`, `test_compcert_valid_and_functional`, and `test_compcert_rejects_unsupported_feature`?'
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_compcert_exists_and_executable
+    - official/tests/test_outputs.py::test_compcert_valid_and_functional
+    - official/tests/test_outputs.py::test_compcert_rejects_unsupported_feature
+  - artifact: verifier/test-stdout.txt
+    question: Do the retained verifier logs show the assertion outcomes and any command outputs needed to confirm which official predicate passed or failed, especially version output and probe-program behavior?
+    support:
+    - official/tests/test_outputs.py::test_compcert_exists_and_executable
+    - official/tests/test_outputs.py::test_compcert_valid_and_functional
+    - official/tests/test_outputs.py::test_compcert_rejects_unsupported_feature
+  - artifact: verifier/test-stderr.txt
+    question: If a verifier command or assertion failed, does stderr contain the corresponding failure details needed to establish the official failure condition?
+    support:
+    - official/tests/test_outputs.py::test_compcert_exists_and_executable
+    - official/tests/test_outputs.py::test_compcert_valid_and_functional
+    - official/tests/test_outputs.py::test_compcert_rejects_unsupported_feature
+  success_if:
+  - text: 'Retained verifier evidence shows `test_compcert_exists_and_executable` passed: `/tmp/CompCert/ccomp` existed as a regular executable file, `ccomp -version` exited 0, and the combined version output contained `3.13`.'
+    support:
+    - official/tests/test_outputs.py::test_compcert_exists_and_executable
+  - text: 'Retained verifier evidence shows `test_compcert_valid_and_functional` passed: `/tmp/CompCert/ccomp` compiled `positive_probe.c`; the resulting `/tests/positive_probe` was a regular executable ELF binary; its `.comment` output lacked `clang`, `llvm`, `gnu c`, and `gnu c++`; and its runtime behavior matched the official reversed-string, no-arg exit-code, and empty-string checks.'
+    support:
+    - official/tests/test_outputs.py::test_compcert_valid_and_functional
+  - text: 'Retained verifier evidence shows `test_compcert_rejects_unsupported_feature` passed: compiling `negative_probe.c` with `/tmp/CompCert/ccomp` returned nonzero, so the VLA probe was rejected.'
+    support:
+    - official/tests/test_outputs.py::test_compcert_rejects_unsupported_feature
+  fail_if:
+  - text: Retained verifier evidence shows the existence/version check failed, including if `/tmp/CompCert/ccomp` was missing, not a regular file, not executable, `ccomp -version` returned nonzero, or the version output did not contain `3.13`.
+    support:
+    - official/tests/test_outputs.py::test_compcert_exists_and_executable
+  - text: Retained verifier evidence shows the positive-probe authenticity/functionality check failed, including if `positive_probe.c` did not compile with `/tmp/CompCert/ccomp`, the produced binary was missing or non-executable, not ELF, contained a forbidden compiler signature in `.comment`, or failed any official runtime-output or exit-code check.
+    support:
+    - official/tests/test_outputs.py::test_compcert_valid_and_functional
+  - text: Retained verifier evidence shows the unsupported-feature rejection check failed, including if compiling `negative_probe.c` with `/tmp/CompCert/ccomp` succeeded.
+    support:
+    - official/tests/test_outputs.py::test_compcert_rejects_unsupported_feature
+  undecided_if:
+  - text: Retained artifacts do not establish whether one or more of the three official pytest checks passed or failed, for example because the CTRF report is missing/incomplete and the verifier logs do not contain enough detail to reconstruct the relevant assertion outcome.
+    support:
+    - official/tests/test.sh::18-22
+    rationale: Native success is exactly the outcome of those official pytest checks; without retained non-label evidence for a check result, neither native success nor native failure is established.
+stronger:
+  additional_conditions:
+  - id: fresh_source_build_evidence
+    text: Beyond native success, retained run evidence should show that CompCert was freshly built from source under `/tmp/CompCert/` during the run, not merely that an authentic working `ccomp` binary existed there afterward.
+    rationale: The official instruction explicitly requires a fresh source build. The released verifier operationalizes only the final binary's presence, version string, probe-compilation behavior, authenticity signals, and VLA rejection, so it does not itself prove build provenance.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Do the recorded agent actions show obtaining/configuring/building CompCert source under `/tmp/CompCert/` and producing `/tmp/CompCert/ccomp` during the run?
+      support:
+      - official/instruction.md::1-4
+      - official/tests/test_outputs.py::test_compcert_exists_and_executable
+      - official/tests/test_outputs.py::test_compcert_valid_and_functional
+      - official/tests/test_outputs.py::test_compcert_rejects_unsupported_feature
+    - artifact: agent/*-stdout.txt
+      question: Do captured agent stdout logs show source-build/configuration steps and successful CompCert build output consistent with a fresh build under `/tmp/CompCert/`?
+      support:
+      - official/instruction.md::1-4
+      - official/tests/test_outputs.py::test_compcert_exists_and_executable
+      - official/tests/test_outputs.py::test_compcert_valid_and_functional
+      - official/tests/test_outputs.py::test_compcert_rejects_unsupported_feature
+    support:
+    - official/instruction.md::1-4
+    - official/tests/test_outputs.py::test_compcert_exists_and_executable
+    - official/tests/test_outputs.py::test_compcert_valid_and_functional
+    - official/tests/test_outputs.py::test_compcert_rejects_unsupported_feature

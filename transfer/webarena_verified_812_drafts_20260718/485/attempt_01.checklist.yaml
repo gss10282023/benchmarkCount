@@ -1,0 +1,49 @@
+schema_version: case_checklist_v1
+case_unit_id: '485'
+domain: webarena_verified
+task_id: '485'
+native:
+  user_goal:
+    text: Invite Vinta to the dotfile-configurations repository with GitLab Guest access.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Both configured evaluators must score 1.0: AgentResponseEvaluator must accept the final response, and NetworkEventEvaluator must accept the last matching project-members POST event; TaskEvalResult then assigns score 1.0 only if both pass.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator over the retained agent response and NetworkEventEvaluator over the retained network trace, then composes their scores with an all-must-pass rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does official normalization and structural comparison produce the expected map with task_type MUTATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the last matching POST to __GITLAB__/api/v4/projects/193/members normalize to post_data containing access_level 10 and user_id 278 and have response status 201?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+  success_if:
+  - text: Success iff AgentResponseEvaluator scores 1.0 for the MUTATE/SUCCESS response and NetworkEventEvaluator scores 1.0 for the last matching POST with access_level 10, user_id 278, and response status 201.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if either evaluator scores other than 1.0 or errors—for example, the response does not normalize to the expected MUTATE/SUCCESS map, no qualifying network event exists, or the last URL/method-matching POST differs in required post data or response status.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored-evidence review is undecided if agent_response.json or network.har was not retained, so one of the two required evaluator-visible checks cannot be reconstructed.
+    rationale: Absence from the retained review bundle does not reveal whether the artifact existed and passed during the run.
+stronger:
+  additional_conditions: []

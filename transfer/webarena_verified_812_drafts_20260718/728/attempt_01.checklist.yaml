@@ -1,0 +1,68 @@
+schema_version: case_checklist_v1
+case_unit_id: '728'
+domain: webarena_verified
+task_id: '728'
+native:
+  user_goal:
+    text: Dislike every submission authored by sirbarani in the sports forum.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::instantiation_dict
+  benchmark_success:
+    text: 'Native success requires both configured checks to score 1.0: the final response passes the MUTATE/SUCCESS AgentResponseEvaluator comparison, and the network trace''s last matching POST to __REDDIT__/sv/48303.json has choice=-1 and HTTP status 200. TaskEvalResult.score is 1.0 only when both checks score 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator over the final response and NetworkEventEvaluator over the network trace, then applies the all-evaluators composition in TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Under the released response parser and normalizer, does the retained final response pass the configured task_type=MUTATE and status=SUCCESS comparison?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among evaluation events, does the last POST matching the rendered Reddit path /sv/48303.json contain choice=-1 and receive HTTP status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: With both artifacts complete, success holds iff the final response passes AgentResponseEvaluator and the selected network event passes NetworkEventEvaluator for POST /sv/48303.json, choice=-1, and HTTP 200; therefore both evaluator scores equal 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'With complete artifacts, failure holds if either check is not 1.0: the response does not pass the configured MUTATE/SUCCESS comparison, or no selected network event satisfies the required endpoint, method, choice, and response status. Any evaluator error also makes the task score 0.'
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  undecided_if:
+  - text: The evidence review is undecided only if agent_response.json or network.har is not retained or is truncated such that an official check cannot be reconstructed; a complete artifact that is malformed or lacks the required match is failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: verify_all_target_submissions_final_state
+    text: Beyond native scoring, a complete authenticated post-run Reddit state capture must show the acting account's vote as -1 on every sports-forum submission authored by sirbarani.
+    rationale: The instruction quantifies over all matching submissions, while the native network check inspects only the last matching request to fixed submission 48303 and does not enumerate other matching submissions or verify their final vote state.
+    decisive_artifacts:
+    - artifact: Complete authenticated post-run Reddit state export or equivalent API/page captures
+      question: Does the capture enumerate every submission in the sports forum authored by sirbarani and show the acting account's vote as -1 on each one?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::instantiation_dict
+      - derived/task.json::eval[1].expected
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

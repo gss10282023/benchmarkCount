@@ -1,0 +1,67 @@
+schema_version: case_checklist_v1
+case_unit_id: '496'
+domain: webarena_verified
+task_id: '496'
+native:
+  user_goal:
+    text: 'Update order #299 so it has Federal Express tracking number 8974568499.'
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: the AgentResponseEvaluator and NetworkEventEvaluator must both score 1.0 for the run.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator and NetworkEventEvaluator, then applies the all-evaluators-must-pass score composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response normalize without evaluator error to the expected MUTATE task type and SUCCESS status, with no structural mismatch under the AgentResponseEvaluator's mutate-task comparison?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last retained evaluation event matching a POST to __SHOPPING_ADMIN__/admin/order_shipment/save/order_id/299/ a full normalized match with response status 302 and form values tracking[1][carrier_code]=fedex and tracking[1][number]=8974568499?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both native checks pass: agent_response.json gives AgentResponseEvaluator score 1.0 for normalized MUTATE/SUCCESS output, and network.har gives NetworkEventEvaluator score 1.0 for the last qualifying POST with the required endpoint, 302 response, FedEx carrier code, and tracking number; therefore both evaluator scores equal 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Native failure occurs if either evaluator scores less than 1.0 or errors: the response fails its normalized MUTATE/SUCCESS comparison, or the last qualifying POST is absent or mismatches the endpoint, method, 302 status, carrier code, or tracking number. Under the all-of composition, either failure determines task failure.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Evidence review is undecided only when the actual evaluator input cannot be reconstructed because agent_response.json or network.har was not retained, is truncated, or cannot be associated with this run. A retained malformed input or a complete HAR with no qualifying event is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: persisted_order_tracking_state
+    text: 'Beyond native success, retained post-run order state must show that order #299 has a persisted tracking entry for Federal Express/FedEx with number 8974568499.'
+    rationale: The stated task requires updating the order, but the released native checks only a self-reported success response and a matching POST that returned 302; it does not inspect the persisted order state.
+    decisive_artifacts:
+    - artifact: 'Post-run authoritative state for order #299'
+      question: Does the retained order record show a persisted Federal Express/FedEx tracking entry numbered 8974568499?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

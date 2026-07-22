@@ -1,0 +1,90 @@
+schema_version: case_checklist_v1
+case_unit_id: '682'
+domain: webarena_verified
+task_id: '682'
+native:
+  user_goal:
+    text: Find a GitLab repository related to chatGPT, then create a new discussion-forum post in the most relevant forum using the repository URL, the repository path as the title, and "<number of commits> commit(s) already!" as the body.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is conjunctive: AgentResponseEvaluator and NetworkEventEvaluator must both score 1.0. The final response must normalize to MUTATE/SUCCESS, and the last matching Reddit submission POST must match the configured repository, commit count, forum alternative, and 302 response; retrieved_data is not value-checked for this MUTATE task.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator and NetworkEventEvaluator in sequence, then TaskEvalResult.create assigns score 1.0 only when both evaluator scores equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does AgentResponseEvaluator parse and normalize the final response to the configured task_type MUTATE and status SUCCESS under its compared-field rules?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last evaluation event matching a POST to ^__REDDIT__/submit/?.*$ have response status 302 and post data title convexegg/chatgpt, body "193 commits already!", URL __GITLAB__/convexegg/chatgpt, media type url, and forum matching ^(10043|10018|10082|10078)$ under evaluator normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events
+  success_if:
+  - text: 'Success iff both official components score 1.0: agent_response.json normalizes to MUTATE/SUCCESS, and network.har contains the accepted last matching Reddit POST with all configured request fields and response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Given complete evaluator inputs, failure occurs if either component does not score 1.0: the final response is empty, unparseable, non-object, or mismatches MUTATE/SUCCESS; or no matching Reddit POST exists, its selected last event mismatches any configured field or status, or either evaluator errors.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retained evidence cannot establish what both evaluators received, such as when agent_response.json or network.har is missing, truncated, or unreadable. A complete artifact that itself shows a malformed response or no accepted event is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: Both retained inputs are needed to determine the conjunctive native score.
+stronger:
+  additional_conditions:
+  - id: verify_repository_semantics
+    text: Beyond native success, retained GitLab evidence shows that convexegg/chatgpt was related to chatGPT and displayed 193 commits when selected.
+    rationale: The task requires finding a related repository and using its commit count, while the released network check compares fixed Reddit submission fields without evaluating GitLab repository content.
+    decisive_artifacts:
+    - artifact: Retained GitLab repository page or response
+      question: Does it identify convexegg/chatgpt as chatGPT-related and show a commit count of 193 at the time used for the post?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+  - id: verify_post_state_and_forum_relevance
+    text: Beyond native success, retained Reddit state shows a new post created during the run with the configured title, body, and URL, and retained forum metadata supports that the selected forum is the most relevant for the chatGPT topic.
+    rationale: The task requires creation in the most relevant forum, but the released evaluator checks only a submission POST with response status 302 and accepts any of four forum IDs; it does not verify the resulting post state or forum semantics.
+    decisive_artifacts:
+    - artifact: Retained Reddit post record or page
+      question: Does it show a newly created post with title convexegg/chatgpt, body "193 commits already!", URL __GITLAB__/convexegg/chatgpt, and the selected forum?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - artifact: Retained forum-selection or forum-index state
+      question: Do the visible forum names or descriptions support that the selected forum is the most relevant available choice for the chatGPT topic?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data.submission[forum]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

@@ -1,0 +1,69 @@
+schema_version: case_checklist_v1
+case_unit_id: '593'
+domain: webarena_verified
+task_id: '593'
+native:
+  user_goal:
+    text: Create a milestone in the current GitLab repository, byteblaze/dotfiles, titled "all branches to main", starting 2044-03-15 and ending 2044-03-30.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::start_urls[0]
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both configured evaluator scores must be 1.0. The final response must pass AgentResponseEvaluator as a MUTATE with SUCCESS status, and the last matching POST to the repository milestones endpoint must pass NetworkEventEvaluator with the specified title, start date, due date, and HTTP 302 response.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator over the retained final response and NetworkEventEvaluator over retained network events; TaskEvalResult.create conjunctively combines their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response have a structure accepted by AgentResponseEvaluator whose compared fields normalize to task_type MUTATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event matching POST __GITLAB__/byteblaze/dotfiles/-/milestones accepted with response status 302 and form values milestone[title]="all branches to main", milestone[start_date]="2044-03-15", and milestone[due_date]="2044-03-30"?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff AgentResponseEvaluator scores 1.0 on agent_response.json and NetworkEventEvaluator scores 1.0 on the selected last matching event in network.har; both component scores are required.
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if the final response is not accepted as MUTATE/SUCCESS, or if no qualifying POST exists, the selected last matching POST differs on any compared URL, method, form value, or 302 status, or either evaluator errors; any such component prevents TaskEvalResult.score from being 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retention loss or truncation leaves agent_response.json or network.har insufficient to reconstruct at least one evaluator outcome; an explicit evaluator FAILURE or ERROR is failure, not undecided.
+    rationale: The native claim is a conjunction of two artifact-dependent checks, so incomplete retained evidence can prevent review even though a recorded evaluator failure or error is decisively non-success.
+stronger:
+  additional_conditions:
+  - id: persisted_milestone_state
+    text: Beyond native success, retained post-run GitLab state must show that byteblaze/dotfiles contains a milestone titled "all branches to main" with start_date 2044-03-15 and due_date 2044-03-30.
+    rationale: The task asks for creation of a milestone, while the released native checks establish only a MUTATE/SUCCESS response and a matching POST that returned 302; NetworkEventEvaluator does not inspect persisted milestone state.
+    decisive_artifacts:
+    - artifact: Post-run GitLab milestone-state export or snapshot
+      question: Does the retained repository state contain the specified milestone with the exact title, start date, and due date?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::start_urls[0]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

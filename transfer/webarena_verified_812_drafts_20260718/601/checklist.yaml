@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: '601'
+domain: webarena_verified
+task_id: '601'
+native:
+  user_goal:
+    text: Post the question titled "is car necessary in NYC" on Reddit in a forum likely to provide an answer.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task succeeds only if both configured checks score 1.0: AgentResponseEvaluator accepts the normalized MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the last matching Reddit submission POST with an allowed submission URL, forum 10067, title "is car necessary in NYC", and response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in configuration order; TaskEvalResult.create awards score 1.0 only when every evaluator score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After official parsing and normalization, does the response structurally match task_type MUTATE, status SUCCESS, and the evaluator's non-retrieve handling of retrieved_data, without assertions or evaluator error?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Is the last evaluation event matching a POST to __REDDIT__/submit or __REDDIT__/submit/nyc accepted with submission[forum]=10067, submission[title]="is car necessary in NYC", and response status 302 under official normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff AgentResponseEvaluator scores 1.0 on agent_response.json and NetworkEventEvaluator scores 1.0 on the specified last matching submission event in network.har; both scores together yield TaskEvalResult score 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Failure if either configured evaluator does not score 1.0, including a malformed or mismatching normalized agent response, an evaluator error, no matching submission POST, or a last matching POST whose URL, required form values, method, or 302 status fails comparison.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retained evidence does not establish what was supplied to one or both evaluators—for example, a required artifact was not retained or is known to be truncated—and no complete official evaluator result resolves the missing input; an artifact that was itself missing or malformed at evaluation time is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+stronger:
+  additional_conditions:
+  - id: persisted_reddit_post
+    text: Beyond native scoring, retained response/redirect evidence and post-run Reddit state must link this run's submission to a persisted post in forum 10067/NYC titled "is car necessary in NYC".
+    rationale: The user asks for an actual post, while the native network check compares only the submission request fields and 302 status; it does not inspect the redirect target or durable Reddit state.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the accepted submission response or redirect identify a created post that can be linked to post-run Reddit state?
+      support:
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent.redirect_url
+      - derived/task.json::eval[1]
+    - artifact: Post-run Reddit post page or site-state snapshot
+      question: Does it show the linked post persisted in forum 10067/NYC with the exact requested title?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data

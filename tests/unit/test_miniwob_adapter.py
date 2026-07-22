@@ -7,7 +7,9 @@ import shutil
 import subprocess
 from types import SimpleNamespace
 
-from evidence_system.adapters import miniwob, miniwob_worker
+import pytest
+
+from evidence_system.adapters import miniwob, miniwob_worker, runtime
 from evidence_system.adapters.runtime import SmokeExecutionContext
 from evidence_system.core.hashing import sha256_file
 from evidence_system.core.schemas import load_json_or_yaml
@@ -17,8 +19,63 @@ from evidence_system.orchestrator.jobs import resolve_infra_target
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_miniwob_remote_result_path_uses_result_namespace() -> None:
+    target = SimpleNamespace(remote_workdir="/srv/evidence")
+    job = {
+        "phase": "full",
+        "domain": "miniwob",
+        "job_id": "full-miniwob-use-slider-agent_a",
+    }
+
+    assert miniwob._remote_output_dir(target, job) == (
+        "/srv/evidence/results/full/miniwob/full-miniwob-use-slider-agent_a"
+    )
+    assert miniwob._remote_output_dir(
+        target,
+        {**job, "result_namespace": "miniwob_remaining22_browsergym_v1"},
+    ) == (
+        "/srv/evidence/results/namespaces/miniwob_remaining22_browsergym_v1/full/miniwob/"
+        "full-miniwob-use-slider-agent_a"
+    )
+
+
+def test_formal_support_tree_sync_is_delete_exact_and_bounded(monkeypatch) -> None:
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    monkeypatch.setattr(runtime, "ensure_remote_directory", lambda *_args: None)
+    monkeypatch.setattr(
+        runtime,
+        "_run_subprocess",
+        lambda argv, **kwargs: calls.append((list(argv), dict(kwargs)))
+        or subprocess.CompletedProcess(argv, 0, "", ""),
+    )
+    runtime._SYNCED_SUPPORT_KEYS.clear()
+    runtime.sync_repo_support_files(
+        _miniwob_target(),
+        paths=("src/evidence_system",),
+        include_dotenv=False,
+        delete_directories=True,
+        timeout_seconds=600,
+    )
+
+    assert len(calls) == 1
+    argv, kwargs = calls[0]
+    assert argv[:3] == ["rsync", "-az", "--delete"]
+    assert "__pycache__/" in argv
+    assert "*.pyc" in argv
+    assert kwargs["timeout_seconds"] == 600
+    runtime._SYNCED_SUPPORT_KEYS.clear()
+
+
 def test_plan_smoke_execution_miniwob_uses_remote_worker_and_openrouter_smoke_model() -> None:
     target = _miniwob_target()
+    target = replace(
+        target,
+        benchmark_config={
+            **target.benchmark_config,
+            "playwright_browsers_path": "/srv/browsergym/browsers",
+        },
+    )
     job = _job_payload()
 
     plan = miniwob.plan_smoke_execution(
@@ -32,6 +89,7 @@ def test_plan_smoke_execution_miniwob_uses_remote_worker_and_openrouter_smoke_mo
 
     assert plan["status"] == "runnable"
     assert "evidence_system.adapters.miniwob_worker" in plan["runner_command"]
+    assert "PLAYWRIGHT_BROWSERS_PATH=/srv/browsergym/browsers" in plan["runner_command"]
     assert "--task-id miniwob.click-test" in plan["runner_command"]
     assert "--driver openrouter_chat" in plan["runner_command"]
     assert "--base-url http://127.0.0.1:8787/miniwob/" in plan["runner_command"]
@@ -100,8 +158,16 @@ def test_miniwob_worker_run_smoke_job_writes_expected_artifacts(tmp_path: Path, 
 
 
 def test_execute_smoke_job_miniwob_builds_raw_run_and_llm_logs(tmp_path: Path, monkeypatch) -> None:
+    controller_root = tmp_path / "controller"
+
+    def resolve_controller_path(path: str | Path) -> Path:
+        candidate = Path(path)
+        return candidate if candidate.is_absolute() else controller_root / candidate
+
+    monkeypatch.setattr(runtime, "resolve_repo_path", resolve_controller_path)
     base_target = _miniwob_target()
-    target = replace(base_target, remote_workdir=str(tmp_path), runner_workdir=str(tmp_path))
+    remote_root = tmp_path / "remote"
+    target = replace(base_target, remote_workdir=str(remote_root), runner_workdir=str(remote_root))
     job = _job_payload()
     execution_plan = miniwob.plan_smoke_execution(
         job,
@@ -212,6 +278,55 @@ def test_execute_smoke_job_miniwob_builds_raw_run_and_llm_logs(tmp_path: Path, m
     assert "browser_artifact" in artifact_types
     assert "post_state" in artifact_types
     assert "trace" in artifact_types
+
+
+def test_formal_worker_timeout_or_ssh_loss_is_terminal_and_triggers_kill(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_remote(_target, command: str, **kwargs):
+        calls.append({"command": command, **kwargs})
+        return subprocess.CompletedProcess(
+            args=["ssh"],
+            returncode=255 if len(calls) == 1 else 0,
+            stdout="",
+            stderr="Connection reset by peer" if len(calls) == 1 else "",
+        )
+
+    monkeypatch.setattr(miniwob, "run_remote_command", fake_remote)
+    control = {
+        "timeout_seconds": 1860,
+        "remote_watchdog_seconds": 1800,
+        "transient_retry_attempts": 1,
+        "remote_pid_file": "/tmp/miniwob-bridge-deadbeef.pid",
+        "remote_timeout_command": "timeout --signal=TERM --kill-after=30s",
+        "remote_process_group": "setsid",
+        "retry_on_timeout_or_ssh_loss": False,
+        "support_files_pre_synced_and_locked": True,
+        "artifact_fetch_timeout_seconds": 600,
+    }
+    with pytest.raises(RuntimeError, match="will not be retried"):
+        miniwob._run_worker_command(
+            target=_miniwob_target(),
+            execution_plan={
+                "runner_command": "formal-command",
+                "formal_worker_control": control,
+            },
+            stdout_path=tmp_path / "worker.stdout",
+            stderr_path=tmp_path / "worker.stderr",
+            termination_stdout_path=tmp_path / "kill.stdout",
+            termination_stderr_path=tmp_path / "kill.stderr",
+        )
+
+    assert len(calls) == 2
+    assert calls[0]["command"] == "formal-command"
+    assert calls[0]["timeout_seconds"] == 1860
+    assert calls[0]["transient_retry_attempts"] == 1
+    assert "kill -TERM" in str(calls[1]["command"])
+    assert "kill -KILL" in str(calls[1]["command"])
+    assert calls[1]["transient_retry_attempts"] == 1
 
 
 class FakeActionSet:

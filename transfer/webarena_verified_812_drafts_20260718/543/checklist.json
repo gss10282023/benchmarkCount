@@ -1,0 +1,123 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "543",
+  "domain": "webarena_verified",
+  "task_id": "543",
+  "native": {
+    "user_goal": {
+      "text": "Update Bella Tank’s product description to “{count} customer(s) love it!”, where count is its number of reviews rated 4 stars or above; if there are none, use “don't miss out on this amazing product”.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only if both official evaluators score 1.0: AgentResponseEvaluator accepts the normalized MUTATE/SUCCESS response with null retrieved_data, and NetworkEventEvaluator accepts the last matching product-save POST with response status 302 and product[short_description] equal to <p>2 customer(s) love it!</p>.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator compares agent_response.json, NetworkEventEvaluator compares network.har, and TaskEvalResult.create requires every evaluator score to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "After official parsing and normalization, does the response compare as task_type MUTATE, status SUCCESS, and retrieved_data null, with no evaluator-visible structural mismatch?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last POST matching ^__SHOPPING_ADMIN__/catalog/product/save/id/1684/type/configurable/store/0/set/\\d+/back/edit$ have response status 302 and parsed form field product[short_description] exactly <p>2 customer(s) love it!</p>?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/tracing.py::NetworkEvent.post_data"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The retained response passes AgentResponseEvaluator and the retained HAR passes NetworkEventEvaluator under the configured last-matching-event rule, so both evaluator scores are 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The response is absent, invalid, or does not compare to the normalized MUTATE/SUCCESS/null-retrieved-data expectation, causing AgentResponseEvaluator to score 0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "No matching product-save POST exists, or the last matching POST has a different checked URL, status, or short-description value, causing NetworkEventEvaluator to score 0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "Any evaluator failure or error makes the task score 0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Post-run retention is missing, corrupt, or truncated such that the response or HAR supplied during the run cannot be established, and no official evaluator result is retained; an observable mismatch in complete evidence is failure, not undecided.",
+        "rationale": "The two retained inputs are jointly required to reconstruct both native checks; incomplete retention can prevent an evidence-only decision without changing the evaluator’s failure rules."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_description_and_review_count",
+        "text": "Beyond native scoring, retained post-run state shows Bella Tank’s persisted description content is “2 customer(s) love it!” and its review records contain exactly two ratings of 4 stars or above.",
+        "rationale": "The official task requires a persisted description update derived from review ratings, while the released evaluator only verifies a hard-coded outgoing save POST and 302 response; that does not establish the durable product state or the count’s correctness.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Bella Tank product-record snapshot or export",
+            "question": "Does the persisted Bella Tank description contain the requested “2 customer(s) love it!” content?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.post_data"
+            ]
+          },
+          {
+            "artifact": "Post-run Bella Tank review-record snapshot or export",
+            "question": "Do exactly two Bella Tank reviews have ratings of 4 stars or above?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

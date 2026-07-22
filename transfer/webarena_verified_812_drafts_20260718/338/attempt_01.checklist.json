@@ -1,0 +1,118 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "338",
+  "domain": "webarena_verified",
+  "task_id": "338",
+  "native": {
+    "user_goal": {
+      "text": "Return the date of the user's most recent toothpaste order in YYYY-MM-DD format, or null if unavailable, with no additional details.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Task success is TaskEvalResult.score = 1.0: the sole AgentResponseEvaluator must score 1.0 after parsing and schema-normalizing the response to RETRIEVE/SUCCESS with retrieved_data equal, as an unordered array, to the official date value 12/04/2022. Any evaluator error or score below 1.0 yields task score 0.0.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs the sole AgentResponseEvaluator; TaskEvalResult.create composes its score into the task score.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained final response parse and normalize without error to task_type RETRIEVE, status SUCCESS, and exactly one retrieved date equal to 12/04/2022 under the configured date schema?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Can the HAR be parsed as the supplied NetworkTrace and, if environment URLs need reconstruction, provide the shopping base URL so evaluation reaches the response evaluator without an input or configuration error?",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Official evaluation completes without error, and the parsed response normalizes to the compared structure with task_type RETRIEVE, status SUCCESS, and a one-item retrieved_data array whose date equals 12/04/2022 under schema normalization. The sole evaluator therefore scores 1.0 and TaskEvalResult is SUCCESS with score 1.0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if the parsed response is absent or non-object, or normalized comparison finds a response-key, task_type, status, or retrieved_data mismatch. Missing/null data, a nonmatching date, and extra or missing retrieved items are benchmark-counted failures.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered"
+        ]
+      },
+      {
+        "text": "Fail if response or HAR parsing, normalization, evaluator execution, or orchestration produces an error; the released result constructors assign score 0.0 to such errors.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecided only when retention loss makes the evaluated final response unrecoverable, or leaves neither a readable HAR nor an official evaluation record sufficient to establish whether evaluation completed. Inputs that were actually missing or invalid at evaluation time are failures, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ],
+        "rationale": "This separates missing post-run evidence from evaluator-visible missing or malformed inputs."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "exact_iso_answer_surface",
+        "text": "In addition to native success, the raw final response conforms to the public response shape, has retrieved_data exactly [\"2022-12-04\"], and contains no nonempty extra answer details.",
+        "rationale": "The task explicitly requires YYYY-MM-DD with no additional details, while the native evaluator date-normalizes the non-ISO expected value 12/04/2022, coerces scalar retrieved data to a one-item sequence, and projects only configured fields; native score 1.0 therefore does not by itself verify the requested lexical format or absence of extra detail.",
+        "decisive_artifacts": [
+          {
+            "artifact": "agent_response.json",
+            "question": "Is the raw final response in the public response shape with retrieved_data exactly [\"2022-12-04\"] and no nonempty extra answer-detail content?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse",
+              "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[0].expected.retrieved_data",
+          "derived/task.json::eval[0].results_schema",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/types/agent_response.py::FinalAgentResponse"
+        ]
+      }
+    ]
+  }
+}

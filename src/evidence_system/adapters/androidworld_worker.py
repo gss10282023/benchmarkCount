@@ -172,7 +172,12 @@ def run_smoke_job(config: AndroidWorldSmokeConfig) -> dict[str, Any]:
 
     episode = dict(run_result["episode"])
     exception_info = episode.get(run_result["constants"].EpisodeConstants.EXCEPTION_INFO)
-    success = bool(episode.get(run_result["constants"].EpisodeConstants.IS_SUCCESSFUL)) if exception_info is None else None
+    native_score = (
+        episode.get(run_result["constants"].EpisodeConstants.IS_SUCCESSFUL)
+        if exception_info is None
+        else None
+    )
+    success = bool(native_score) if native_score is not None else None
 
     _write_json(config.output_dir / "task_context.json", _task_context_payload(config, run_result))
     _write_json(config.output_dir / "native_evaluator_input.json", _native_evaluator_input_payload(config, run_result))
@@ -194,6 +199,7 @@ def run_smoke_job(config: AndroidWorldSmokeConfig) -> dict[str, Any]:
             "task_name": run_result["task_name"],
             "goal": run_result["goal"],
             "success": success,
+            "native_score": _jsonable(native_score),
             "instance_id": episode.get(run_result["constants"].EpisodeConstants.INSTANCE_ID),
             "episode_length": episode.get(run_result["constants"].EpisodeConstants.EPISODE_LENGTH),
             "checkpoint_dir": str(config.output_dir / "evaluator_artifacts" / "checkpoint_dir"),

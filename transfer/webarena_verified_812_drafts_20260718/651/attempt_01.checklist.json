@@ -1,0 +1,108 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "651",
+  "domain": "webarena_verified",
+  "task_id": "651",
+  "native": {
+    "user_goal": {
+      "text": "Reply to the Reddit post on the current page with the comment “Yeah, pittsburgh traffic, you know...”",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Both released checks score 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the qualifying Reddit comment-submission event; TaskEvalResult then assigns score 1.0.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task-config order, then aggregates their scores with TaskEvalResult.create.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the response parse and normalize to the configured task_type MUTATE, status SUCCESS, and null retrieved_data without comparison assertions?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last evaluation event matching a POST to the configured Reddit comment URL a full evaluator match, including response status 302 and post field reply_to_submission_45899[comment] equal to “Yeah, pittsburgh traffic, you know...”?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both evaluator scores are 1.0: the retained agent response matches MUTATE/SUCCESS with null retrieved_data under released parsing and normalization, and the last matching POST event matches the configured Reddit URL, exact comment field and value, and 302 response status.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The task fails if AgentResponseEvaluator scores 0 or errors because the retained response is empty, unparsable, structurally mismatched, or does not normalize to task_type MUTATE and status SUCCESS with null retrieved_data.",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "The task fails if NetworkEventEvaluator scores 0 or errors because no qualifying POST event exists, or the last URL/method-matching event fails the configured URL, exact comment-field value, or 302-status comparison; either evaluator score below 1.0 makes the task score 0.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Either required run artifact is missing, unreadable, or truncated, so the two released checks cannot be reconstructed from retained evidence.",
+        "rationale": "Absence or corruption of retained evidence alone does not establish what response or network event the run produced."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_reddit_reply",
+        "text": "Post-run Reddit state shows a persisted comment by the acting account, attached to submission 45899, with text exactly “Yeah, pittsburgh traffic, you know...”",
+        "rationale": "The user asked for an actual reply, while the native NetworkEventEvaluator only verifies a matching POST/302 network event and does not inspect the resulting Reddit state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Reddit state snapshot or authenticated page capture for submission 45899",
+            "question": "Does it show the acting account’s persisted reply on submission 45899 with the exact requested text?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::start_urls[0]"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

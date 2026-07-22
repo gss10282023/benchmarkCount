@@ -1,0 +1,34 @@
+{
+  "contexts": [
+    {
+      "case_id": "185",
+      "original_case_zh": "原始任务是在 `shopping_admin` 站点检索库存恰好剩余 `3` 件的所有商品，并给出其 `material`；task type 为 `RETRIEVE`。官方指令是 `Give me the material of the products that have 3 units left`。",
+      "benchmark_measurement_zh": "仅配置一个 `AgentResponseEvaluator`，检查响应经解析和规范化后，显式配置的 `task_type`、`status`、`retrieved_data` 是否分别匹配 `RETRIEVE`、`SUCCESS` 和字符串数组 `['Cotton','Fleece']`。`results_schema` 是字符串数组，`ordered=false`，因此顺序不计，但值和重数必须完全一致，缺失、额外或重复元素均不匹配；稀疏配置未显式包含 `error_details`，所以物化出的 `error_details:null` 不参与比较。此 case 没有基于网络事件或 last-event 的 evaluator；`TaskEvalResult.score` 只有在唯一 evaluator 的分数等于 `1.0` 时才为 `1.0`。",
+      "original_draft_zh": "原 draft 声明 benchmark success 为 `TaskEvalResult.score = 1.0`，要求唯一的 `AgentResponseEvaluator` 得到 `1.0`，并将决定性 artifacts 列为 `agent_response.json` 和 `network.har`：前者检查规范化后的 `RETRIEVE`、`SUCCESS` 及无序的 `Cotton`/`Fleece`，后者用于确认 trace 可解析并能构造评估上下文。其 success 条件还要求所需输入可读、评估无编排或 evaluator 错误且数据精确匹配；failure 包括输入或评估错误、响应结构或状态不匹配，以及 `retrieved_data` 缺失、为空或在值和数量上不同。undecided 被定义为 artifacts 缺失、截断或无法关联到该 run，且其余证据既无决定性不匹配也无官方分数。`stronger.additional_conditions` 为空；源码 review 指出 draft 错把 `network.har` 及其可读性设为该纯响应检查的决定性条件。"
+    },
+    {
+      "case_id": "188",
+      "original_case_zh": "原始任务是在 `shopping` 站点取得最新一笔标记为 `\"cancelled\"` 的订单总价；task type 为 `RETRIEVE`。用户还要求只返回数字形式的值，例如 `10.99`，不得附加任何说明。",
+      "benchmark_measurement_zh": "仅配置 `AgentResponseEvaluator`：响应经提取、JSON 解析和规范化后，显式配置字段须匹配 `task_type=RETRIEVE`、`status=SUCCESS`，且 `retrieved_data` 在 `items.format='currency'`、`items.type='number'` 的数组 schema 下精确归一为 `[365.42]`。`ordered=false`，但这里只有单元素，任何缺失、错误或额外元素都不匹配；未显式配置的物化默认值 `error_details:null` 以及其他未配置原始键不参与比较。没有网络事件或 last-event evaluator，`TaskEvalResult.score` 仅在唯一 evaluator 得分为 `1.0` 时为 `1.0`。",
+      "original_draft_zh": "原 draft 声明原生 benchmark success 是 `TaskEvalResult.score = 1.0`，即唯一 `AgentResponseEvaluator` 接受规范化的 `RETRIEVE`、`SUCCESS` 和无序单元素货币结果 `[365.42]`；它把 `agent_response.json` 与用于构造 `NetworkTrace` 的 `network.har` 都列为决定性 artifacts。success 要求 artifacts 形成有效评估上下文且响应字段精确匹配；failure 包括响应为空或非对象、字段缺失或不匹配、数据不可规范化或并非恰好 `[365.42]`，以及 evaluator/编排错误；undecided 是无法从保留证据确定提交响应或官方 `TaskEvalResult`。它还提出两个非空 stronger conditions：`shopping_state_grounding` 要求 `network.har` 证明 `365.42` 确为按时间最新的 cancelled 订单总价，`number_only_user_output` 要求原始用户可见输出只有 `365.42`，没有 prose、code fence 或额外细节。源码 review 认为这两个 stronger conditions 合理，但指出原生部分错误地把 `network.har` 作为决定性前提。"
+    },
+    {
+      "case_id": "189",
+      "original_case_zh": "原始任务是在 `shopping` 站点取得最新一笔标记为 `\"pending\"` 的订单总价；task type 为 `RETRIEVE`。用户要求只返回数字，例如 `10.99`，不能包含其他细节。",
+      "benchmark_measurement_zh": "唯一的 `AgentResponseEvaluator` 检查 evaluator-visible 响应经解析和规范化后，显式字段是否为 `task_type=RETRIEVE`、`status=SUCCESS`，并使 `retrieved_data` 按 currency-number 数组 schema 精确归一为 `[754.99]`。比较设置为 `ordered=false`，不允许缺失、错误或额外元素；物化的 `error_details:null` 并非稀疏配置中的显式比较字段。没有网络事件或 last-event 语义；唯一 evaluator 必须得分 `1.0`，组合后的 `TaskEvalResult.score` 才为 `1.0`。",
+      "original_draft_zh": "原 draft 声明唯一 `AgentResponseEvaluator` 和整体 `TaskEvalResult` 均须得分 `1.0`，响应必须规范化为 `RETRIEVE`、`SUCCESS` 与无序货币数据 `[754.99]`；它列出的决定性 artifacts 是 `agent_response.json` 和泛称的 `retained TaskEvalResult`。success 要求规范化响应无缺失或额外数据且 evaluator 与总分均为 `1.0`；failure 包括无效响应、evaluator 错误、task type/status 不匹配或数据缺失、错误、额外；undecided 是既无可读响应也无保留的官方结果。非空 stronger condition `number_only_user_facing_answer` 要求保留的原始用户可见最终答案严格为裸数字 `754.99`，不得有 JSON wrapper 或其他文本。源码 review 认可这些判定语义和 stronger condition，但指出 draft 未要求 `agent_response.json` 完整且来源可信，并让非 packet 命名的 `retained TaskEvalResult` 替代了最小必要响应证据。"
+    },
+    {
+      "case_id": "191",
+      "original_case_zh": "原始任务是在 `shopping` 站点查找并报告最新一笔标记为 `\"processing\"` 的订单总价；task type 为 `RETRIEVE`。指令没有规定特定的输出格式。",
+      "benchmark_measurement_zh": "仅配置 `AgentResponseEvaluator`，其显式 expected 为 `task_type=RETRIEVE`、`status=NOT_FOUND_ERROR`、`retrieved_data=null`，`results_schema` 为 `{'type':'null'}`。响应可以是对象或可解析为 JSON 的字符串；规范化时若缺少 `task_type` 可使用 legacy alias `performed_operation`，缺失的 `retrieved_data` 按 `null` 处理，未配置键被忽略，而稀疏配置未包含的物化 `error_details:null` 不比较。`ordered=false` 在 null schema 下没有实际排序作用；没有网络事件或 last-event evaluator，且仅当该 evaluator 得分 `1.0` 时 `TaskEvalResult.score` 才为 `1.0`。",
+      "original_draft_zh": "原 draft 声明 benchmark success 要求唯一 `AgentResponseEvaluator` 得分 `1.0`，即解析和规范化后的响应匹配 `RETRIEVE`、`NOT_FOUND_ERROR` 与 null `retrieved_data`；它将 `agent_response.json` 和用于避免 trace 解析或编排错误的 `network.har` 都列为决定性 artifacts。success 允许以 `performed_operation` 作为 task type 的 legacy alias，并把缺失或规范化为 null 的 `retrieved_data` 视为匹配，同时要求 trace 可读；failure 包括非对象响应、task type/status 不匹配、非 null 数据及输入、evaluator 或编排错误；undecided 包括一个或两个 required artifacts 缺失、截断或无法归属于该 run。非空 stronger condition `corroborate_not_found_against_shopping_state` 要求 `network.har` 等购物证据确认不存在 processing 订单，以弥补响应 evaluator 不核验底层购物状态的问题。源码 review 认可该 stronger condition，但指出原生部分不应把 `network.har` 的可读性或留存设为 success、failure 或 undecided 的决定因素。"
+    },
+    {
+      "case_id": "192",
+      "original_case_zh": "原始任务是在 `shopping` 站点取得最新一笔未被取消的订单总价；task type 为 `RETRIEVE`。用户要求只返回数字形式的值，例如 `10.99`，不得添加其他说明。",
+      "benchmark_measurement_zh": "仅有一个 `AgentResponseEvaluator`，它对响应进行解析和 schema 规范化，并比较显式配置的 `task_type=RETRIEVE`、`status=SUCCESS` 及 `retrieved_data=[754.99]`。`retrieved_data` 使用 currency-number 数组 schema，`ordered=false`，所以按无序数组精确比较且不容许缺失或额外元素；物化但未显式配置的 `error_details:null` 不参与比较。不存在网络事件或 last-event evaluator；`TaskEvalResult.create` 只有在这个 evaluator 得分为 `1.0` 时才产生 `TaskEvalResult.score = 1.0`。",
+      "original_draft_zh": "原 draft 声明 `TaskEvalResult.score = 1.0` 要求评估无错误且唯一 `AgentResponseEvaluator` 匹配规范化的 `RETRIEVE`、`SUCCESS` 与无序单元素货币数据 `[754.99]`；它将 `agent_response.json` 和用于构造评估上下文的 `network.har` 均列为决定性 artifacts。success 要求 response 和 trace 成功加载并完成比较；failure 包括响应不可比较、task type/status 不匹配、`retrieved_data` 缺失、null、无效、数值错误或数组元素有缺失/额外，以及 trace、输入、evaluator 或编排错误；undecided 包括保留记录遗漏或截断实际提交的响应或 HAR。非空 stronger condition `strict_raw_response_format` 要求原始响应本身是独立的 `FinalAgentResponse` JSON 对象、无 prose 或 code fence，并且 `retrieved_data` 严格表示为数值数组 `[754.99]`，以排除 evaluator 可接受的 fenced JSON 和标量到单元素数组的强制转换。源码 review 认可该 stronger condition，但指出原生 draft 错把 `network.har` 及其加载情况设为决定性条件。"
+    }
+  ]
+}

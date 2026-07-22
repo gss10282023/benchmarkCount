@@ -1,0 +1,93 @@
+schema_version: case_checklist_v1
+case_unit_id: '83'
+domain: webarena_verified
+task_id: '83'
+native:
+  user_goal:
+    text: Using OSRM, determine the total duration of walking from Carnegie Mellon University to Apple Store Shadyside and then driving from there to Starbucks on Craig Street, returning only the duration in HH:MM:SS format.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The sole AgentResponseEvaluator scores 1.0: the submitted response parses and normalizes to task type RETRIEVE, status SUCCESS, and exactly one retrieved duration equal to `22min` under the `duration` schema; consequently TaskEvalResult.score is 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator parses the response, normalizes retrieved_data using the duration schema, performs structural and unordered value comparison, and TaskEvalResult requires every configured evaluator score—here, the single score—to equal 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/value_normalizer.py::ValueNormalizer.normalize_array
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted response parse without error to evaluator-visible fields whose normalized task type is RETRIEVE, status is SUCCESS, and retrieved_data is exactly one duration matching `22min`?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: 'The retained submitted response evaluates without error or comparison assertions: its normalized task type and status match RETRIEVE and SUCCESS, and its normalized retrieved_data contains exactly one duration matching `22min`; the sole evaluator and task scores are therefore 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: A retained submitted response is null, remains non-object after the evaluator's permitted JSON/code-block parsing, fails normalization, or has an evaluator-visible task type or status other than RETRIEVE and SUCCESS; such a mismatch or evaluator error yields score 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The response's retrieved_data is missing or empty, cannot be duration-normalized, contains an extra value, or otherwise does not normalize to exactly one duration matching `22min`.
+    support:
+    - derived/task.json::eval[0].expected.retrieved_data
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  undecided_if:
+  - text: The run's submitted agent_response.json is not retained or is known to be truncated or altered after submission, so the actual evaluator input cannot be reconstructed.
+    rationale: Missing or demonstrably incomplete stored evidence cannot distinguish a passing submitted response from a failing one; a retained response that was itself null or invalid is instead a native failure.
+stronger:
+  additional_conditions:
+  - id: literal_hhmmss_output
+    text: Beyond native scoring, the sole retrieved value must be the literal string `00:22:00`, with no explanatory text in that value.
+    rationale: The instruction requires HH:MM:SS-only output, whereas the native evaluator stores `22min` as the expected value and compares through duration normalization; native success therefore does not establish literal-format compliance.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Is there exactly one retrieved value, and is it a string literally equal to `00:22:00` without explanatory text?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].expected.retrieved_data
+      - derived/task.json::eval[0].results_schema
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected.retrieved_data
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+  - id: osrm_leg_and_mode_evidence
+    text: Beyond native scoring, network.har must show successful OSRM direction results for the specified walking leg and driving leg, and the submitted duration must equal the sum of those leg durations.
+    rationale: The task explicitly requires OSRM and two transport modes, but the configured response-only evaluator checks only the submitted answer and cannot establish how the duration was obtained.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the trace retain successful OSRM direction requests and responses for Carnegie Mellon University to Apple Store Shadyside using walking and Apple Store Shadyside to Starbucks on Craig Street using driving, with leg durations available for summation?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - artifact: agent_response.json
+      question: Does the submitted retrieved duration equal the sum of the two OSRM leg durations shown in network.har?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[0].expected.retrieved_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value

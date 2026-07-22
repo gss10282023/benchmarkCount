@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -533,7 +532,7 @@ def assert_batch_scorer_uses_codex_auth_by_default(batch_scorer_module) -> None:
             assert "CODEX_API_KEY" not in child_env
             assert "OPENAI_BASE_URL" not in child_env
             assert (task_home / "auth.json").exists()
-            assert (task_home / "config.toml").exists()
+            assert not (task_home / "config.toml").exists()
         finally:
             os.environ.clear()
             os.environ.update(old_env)

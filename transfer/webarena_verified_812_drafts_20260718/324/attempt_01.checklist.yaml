@@ -1,0 +1,50 @@
+schema_version: case_checklist_v1
+case_unit_id: '324'
+domain: webarena_verified
+task_id: '324'
+native:
+  user_goal:
+    text: Open the shopping search-results page for “chairs,” with listings sorted by ascending price.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task scores 1.0 only if both official checks score 1.0: AgentResponseEvaluator accepts the final response as NAVIGATE/SUCCESS, and NetworkEventEvaluator accepts the last navigation event as a successful GET to the shopping catalog-search endpoint with q=chairs, product_list_order=price, and product_list_dir=asc.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks the retained final response, NetworkEventEvaluator checks the retained network trace, and TaskEvalResult composes their scores by requiring both to equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response pass AgentResponseEvaluator’s normalized comparison to task_type NAVIGATE and status SUCCESS, with retrieved_data treated as null for this navigate task?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the evaluator-visible last navigation event pass the normalized comparison to a GET returning 200 for __SHOPPING__/catalogsearch/result/index/ with q=chairs, product_list_order=price, and product_list_dir=asc?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff AgentResponseEvaluator scores the retained response 1.0 for NAVIGATE/SUCCESS and NetworkEventEvaluator scores the last navigation event 1.0 for the specified endpoint, query parameters, GET method, and 200 response; both scores together yield task score 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Fail if either official evaluator does not score 1.0: the response is malformed or does not normalize to NAVIGATE/SUCCESS, or the trace has no navigation event or its last navigation event fails the specified endpoint/query/GET/200 comparison. Evaluator or task-evaluation errors also score 0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when agent_response.json or network.har is absent, truncated, or unreadable enough that one or both official evaluator outcomes cannot be reconstructed; a readable response or trace that fails a check is failure, not undecided.
+    rationale: Both retained inputs are needed to determine the benchmark’s conjunctive two-evaluator score.
+stronger:
+  additional_conditions: []

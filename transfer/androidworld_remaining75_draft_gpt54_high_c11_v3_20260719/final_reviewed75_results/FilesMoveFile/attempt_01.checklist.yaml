@@ -1,0 +1,74 @@
+schema_version: case_checklist_v1
+case_unit_id: FilesMoveFile
+domain: androidworld
+task_id: FilesMoveFile
+native:
+  user_goal:
+    text: Move `file_name` from `source_folder` under the emulator storage root to `destination_folder` under the same storage root.
+    support:
+    - official/install/android_world/task_evals/single/files.py::FilesMoveFile.template
+  benchmark_success:
+    text: Native success requires the run to terminate with `done=true`, and then `FilesMoveFile` must score 1.0 by delegating to `MoveFile.is_successful`, which returns success iff `file_name` is absent from `EMULATOR_DATA/source_folder` and present in `EMULATOR_DATA/destination_folder` at evaluation time.
+    support:
+    - official/install/android_world/suite_utils.py::suite_utils._run_task
+    - official/install/android_world/task_evals/single/files.py::FilesMoveFile.is_successful
+    - official/install/android_world/task_evals/common_validators/file_validators.py::MoveFile.is_successful
+    - official/install/android_world/env/device_constants.py::EMULATOR_DATA
+  checked_by:
+    text: Official runner termination gate plus `FilesMoveFile.is_successful`, which delegates to `file_validators.MoveFile.is_successful`.
+    support:
+    - official/install/android_world/suite_utils.py::suite_utils._run_task
+    - official/install/android_world/task_evals/single/files.py::FilesMoveFile.is_successful
+    - official/install/android_world/task_evals/common_validators/file_validators.py::MoveFile.is_successful
+  decisive_artifacts:
+  - artifact: Retained episode trace or runner record with terminal `done` state
+    question: Does retained execution evidence show the episode reached `done=true` or `done=false`?
+    support:
+    - official/install/android_world/suite_utils.py::suite_utils._run_task
+  - artifact: Post-run filesystem evidence for `EMULATOR_DATA/source_folder/file_name`
+    question: At evaluation time, is `file_name` absent from the source path under the emulator storage root?
+    support:
+    - official/install/android_world/task_evals/common_validators/file_validators.py::MoveFile.is_successful
+    - official/install/android_world/env/device_constants.py::EMULATOR_DATA
+  - artifact: Post-run filesystem evidence for `EMULATOR_DATA/destination_folder/file_name`
+    question: At evaluation time, is `file_name` present at the destination path under the emulator storage root?
+    support:
+    - official/install/android_world/task_evals/common_validators/file_validators.py::MoveFile.is_successful
+    - official/install/android_world/env/device_constants.py::EMULATOR_DATA
+  success_if:
+  - text: Retained execution evidence shows the episode terminated with `done=true`.
+    support:
+    - official/install/android_world/suite_utils.py::suite_utils._run_task
+  - text: Post-run filesystem evidence shows `file_name` is absent from `EMULATOR_DATA/source_folder` and present in `EMULATOR_DATA/destination_folder`.
+    support:
+    - official/install/android_world/task_evals/common_validators/file_validators.py::MoveFile.is_successful
+    - official/install/android_world/env/device_constants.py::EMULATOR_DATA
+  fail_if:
+  - text: Retained execution evidence shows terminal `done=false`; the runner then records failure regardless of the task evaluator state.
+    support:
+    - official/install/android_world/suite_utils.py::suite_utils._run_task
+  - text: With `done=true`, post-run filesystem evidence shows `file_name` still exists at `EMULATOR_DATA/source_folder/file_name`.
+    support:
+    - official/install/android_world/task_evals/common_validators/file_validators.py::MoveFile.is_successful
+    - official/install/android_world/env/device_constants.py::EMULATOR_DATA
+  - text: With `done=true`, post-run filesystem evidence shows `file_name` is missing from `EMULATOR_DATA/destination_folder/file_name`.
+    support:
+    - official/install/android_world/task_evals/common_validators/file_validators.py::MoveFile.is_successful
+    - official/install/android_world/env/device_constants.py::EMULATOR_DATA
+  undecided_if:
+  - text: Underlying evidence for the terminal `done` state or for either post-run filesystem path is missing or unusable, and the remaining retained evidence does not independently establish the native success condition or its negation.
+    rationale: The checklist lock treats missing underlying execution evidence, exceptions, NaN summary fields, and summary-only evaluator outputs as non-decisive unless other retained evidence independently establishes success or failure.
+stronger:
+  additional_conditions:
+  - id: same_file_identity
+    text: Beyond the native criterion, retained evidence shows the destination item is the same file that began in `source_folder`, not merely a same-named replacement after the source entry was removed.
+    rationale: The official task says to move the file, but the released evaluator only checks name absence in the source path and name presence in the destination path.
+    decisive_artifacts:
+    - artifact: Retained file-operation trace, provenance log, or equivalent post-run identity evidence
+      question: Does retained evidence show the destination file derives from the original source file rather than from a replacement same-named file created separately?
+      support:
+      - official/install/android_world/task_evals/single/files.py::FilesMoveFile.template
+      - official/install/android_world/task_evals/common_validators/file_validators.py::MoveFile.is_successful
+    support:
+    - official/install/android_world/task_evals/single/files.py::FilesMoveFile.template
+    - official/install/android_world/task_evals/common_validators/file_validators.py::MoveFile.is_successful

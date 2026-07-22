@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: '648'
+domain: webarena_verified
+task_id: '648'
+native:
+  user_goal:
+    text: Post in the dataisbeautiful forum with the title "What could large language models help the dataisbeautiful field?"
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native score is 1.0 only if both configured evaluator scores are 1.0: AgentResponseEvaluator accepts the final response as a successful MUTATE, and NetworkEventEvaluator accepts the last matching Reddit POST to either configured submit path with forum value 10042, the configured title, and response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerified evaluator parses the retained final response and HAR, runs AgentResponseEvaluator followed by NetworkEventEvaluator, and computes TaskEvalResult.score using all-of composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize to a comparison with no assertions against task_type MUTATE, status SUCCESS, and null retrieved_data?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last evaluation event matching POST and either configured submit path compare without assertions, including submission[forum]=10042, the configured submission[title], and response_status=302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: AgentResponseEvaluator scores 1.0 on agent_response.json and NetworkEventEvaluator scores 1.0 on network.har; therefore every configured evaluator score is 1.0 and TaskEvalResult.score is 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: With both artifacts available, any non-1.0 or error result from either evaluator establishes native failure and yields task score 0.0, including an unaccepted final response, no accepted configured POST, or a mismatch in the selected POST's compared fields.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecided only if it omits agent_response.json or network.har, so one native check cannot be evaluated; a present malformed response or a present HAR with no accepted event is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    rationale: The native all-of score cannot be reconstructed without evidence for both configured evaluator inputs.
+stronger:
+  additional_conditions:
+  - id: persisted_post_state
+    text: In addition to native success, retained post-run Reddit state shows a newly created post in dataisbeautiful with the instructed title.
+    rationale: The official intent requires creating a post, while the released evaluator checks only a claimed successful MUTATE and a matching submission request with HTTP 302; it does not inspect post-run Reddit state to verify that the post exists.
+    decisive_artifacts:
+    - artifact: Post-run Reddit state export
+      question: Does the retained state contain the created post in dataisbeautiful with title "What could large language models help the dataisbeautiful field?"?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

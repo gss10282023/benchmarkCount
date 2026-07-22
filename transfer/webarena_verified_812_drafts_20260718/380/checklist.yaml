@@ -1,0 +1,78 @@
+schema_version: case_checklist_v1
+case_unit_id: '380'
+domain: webarena_verified
+task_id: '380'
+native:
+  user_goal:
+    text: Show bars near Carnegie Music Hall on the map.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The case succeeds only when both configured evaluator results score 1.0: AgentResponseEvaluator accepts the final response as NAVIGATE/SUCCESS, and NetworkEventEvaluator accepts the selected map-search navigation for "bars near Carnegie Music Hall"; otherwise TaskEvalResult.score is 0.0.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator, then TaskEvalResult.create AND-composes their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize without evaluator error to exactly the compared mapping task_type=NAVIGATE, status=SUCCESS, and retrieved_data=null, with legacy performed_operation allowed for task_type and no extra normalized error_details key?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the final navigation event selected for this NAVIGATE/GET task normalize to a GET of __MAP__/search with query parameter query=["bars near Carnegie Music Hall"] and response status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks score 1.0: the response normalizes without error to the accepted NAVIGATE/SUCCESS mapping, and the selected final navigation event matches the configured map-search URL, query, GET method, and 200 response under the released normalizer/comparator.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: AgentResponseEvaluator fails or errors because the retained response does not parse and normalize to the accepted NAVIGATE/SUCCESS mapping.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: NetworkEventEvaluator fails or errors because no final navigation event exists, the selected final navigation event does not match the configured map-search URL/query, GET method, and 200 status, or the HAR cannot be parsed by the released evaluator.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+  - text: Any evaluator or task-orchestration error, or either evaluator score below 1.0, makes the composed task score 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The evidence package did not retain a complete copy of either agent_response.json or network.har, so one of the two official comparisons cannot be reconstructed; a retained malformed artifact is a benchmark failure/error rather than undecided.
+    rationale: Both evaluator inputs are necessary to verify the AND-composed score, while missing post-run evidence does not establish what the evaluator observed.
+stronger:
+  additional_conditions:
+  - id: rendered_map_results_visible
+    text: Beyond native scoring, a retained final browser capture must show the rendered map visibly presenting bar results for the Carnegie Music Hall vicinity.
+    rationale: The task asks to show bars on the map, but the released checks establish only a self-reported successful navigation and a matching 200 GET navigation event; they do not inspect the rendered map or its visible results.
+    decisive_artifacts:
+    - artifact: Final browser screenshot or equivalent retained visual capture
+      question: Does the rendered map visibly show bar search results, such as result entries or markers, for the Carnegie Music Hall vicinity?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

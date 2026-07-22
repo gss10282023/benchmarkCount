@@ -1,0 +1,75 @@
+schema_version: case_checklist_v1
+case_unit_id: '330'
+domain: webarena_verified
+task_id: '330'
+native:
+  user_goal:
+    text: Return the total amount spent shopping at One Stop Market in March 2023, excluding shipping, as a number only and without additional details.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: Task 330 succeeds iff its sole AgentResponseEvaluator scores 1.0, making TaskEvalResult.score 1.0. The submitted response must parse and normalize to task_type RETRIEVE, status SUCCESS, and exactly one currency value equal to 53.31; retrieved-data order is not significant.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator parses the submitted response, normalizes its expected fields and retrieved data under the configured currency-array schema, and structurally compares them; TaskEvalResult.create then requires every configured evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted response parse and normalize to task_type RETRIEVE, status SUCCESS, and exactly one retrieved currency value equal to 53.31 under AgentResponseEvaluator?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the required trace parseable as a NetworkTrace and, if configured shopping URLs are unavailable, sufficient for evaluator context validation without an orchestration error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: The submitted response normalizes to the official task_type RETRIEVE and status SUCCESS and has exactly one currency-normalized retrieved value equal to 53.31.
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].results_schema
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: Evaluator orchestration completes without error, the sole AgentResponseEvaluator score is 1.0, and therefore TaskEvalResult.score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The submitted response is null or does not normalize to the required response mapping, its task_type or status mismatches, or its retrieved data is missing, empty, has a different count, or does not currency-normalize to 53.31.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator.compare
+  - text: Evaluator or context processing errors, or any configured evaluator score is not 1.0, producing TaskEvalResult.score 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained response or trace evidence is missing, truncated, or otherwise insufficient to reconstruct what the official evaluator consumed and whether it completed successfully.
+    rationale: Loss of review evidence after a run does not establish either a native match or a benchmark-counted failure.
+stronger:
+  additional_conditions:
+  - id: original-number-only-format
+    text: Beyond native scoring, the original pre-transformation response must present 53.31 as its sole answer content, encode it as a number rather than quoted text, and contain no explanation or code fencing.
+    rationale: The official instruction requires a number only without additional details, while the native evaluator can extract JSON from code fences and can score a transformed response without checking the original response's presentation.
+    decisive_artifacts:
+    - artifact: agent_response.json original response
+      question: Before any evaluator transformation, is 53.31 the sole answer content, represented numerically and without explanation or code fencing?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+      - official/src/webarena_verified/types/eval.py::TransformedAgentResponse
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/types/eval.py::TransformedAgentResponse

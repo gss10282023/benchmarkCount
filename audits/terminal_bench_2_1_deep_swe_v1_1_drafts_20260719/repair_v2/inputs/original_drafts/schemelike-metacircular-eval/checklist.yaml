@@ -1,0 +1,91 @@
+schema_version: case_checklist_v1
+case_unit_id: schemelike-metacircular-eval
+domain: terminal_bench_2_1
+task_id: terminal-bench/schemelike-metacircular-eval
+native:
+  user_goal:
+    text: Produce `eval.scm`, a Scheme metacircular evaluator for the `interp.py` language that reads one file-path line from stdin, interprets that `.scm` file, forwards remaining stdin/stdout to the interpreted program, and can run the visible test programs and itself.
+    support:
+    - official/instruction.md::1-11
+  benchmark_success:
+    text: The official verifier succeeds iff `official/tests/test.sh` runs `pytest` on `official/tests/test_outputs.py` and `test_interp` finds every `.scm` file in `/tests/test` and `/tests/shadow_test` free of direct/eval timeout, free of the verifier's explicit direct-execution failure check, and matched on stdout under `compare_outputs`; for paths containing `05-simple`, `calculator.scm`, or `closures.scm`, the same normalized stdout must also match when `eval.scm` interprets itself once before the target program. `compare_outputs` uses `normalize_output`, which strips a trailing standalone `True` line before comparing stdout.
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_interp
+    - official/tests/test_outputs.py::find_test_files
+    - official/tests/test_outputs.py::run_scheme_through_eval
+    - official/tests/test_outputs.py::compare_outputs
+    - official/tests/test_outputs.py::normalize_output
+  checked_by:
+    text: Official task verifier `official/tests/test.sh`, which runs `pytest` over `official/tests/test_outputs.py` and writes CTRF output.
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_interp
+  decisive_artifacts:
+  - artifact: verifier/test-stdout.txt
+    question: 'Does the verifier log show every discovered `.scm` file reported `PASSED: OK`, or else show a concrete official failure mode such as timeout, direct execution failure, or normalized-output mismatch, including the extra metacircular comparison for `05-simple`, `calculator.scm`, and `closures.scm`?'
+    support:
+    - official/tests/test_outputs.py::test_interp
+    - official/tests/test_outputs.py::find_test_files
+    - official/tests/test_outputs.py::compare_outputs
+    - official/tests/test_outputs.py::run_scheme_through_eval
+  - artifact: verifier/test-stderr.txt
+    question: Does verifier stderr contain tracebacks or runtime failures needed to interpret whether `test_interp` completed the official comparisons?
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_interp
+  - artifact: verifier/ctrf.json
+    question: Does the retained pytest record for `test_interp` preserve the official test outcome and any captured failure details needed to confirm the stdout/stderr evidence?
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_interp
+  success_if:
+  - text: 'Retained verifier evidence shows that `test_interp` enumerated the official `/tests/test` and `/tests/shadow_test` `.scm` files and every required comparison reported `PASSED: OK`, including the extra metacircular comparison for paths containing `05-simple`, `calculator.scm`, or `closures.scm`.'
+    support:
+    - official/tests/test_outputs.py::test_interp
+    - official/tests/test_outputs.py::find_test_files
+    - official/tests/test_outputs.py::run_scheme_through_eval
+    - official/tests/test_outputs.py::compare_outputs
+  - text: The same retained evidence shows no official timeout occurred in direct or eval execution, and no direct execution hit the verifier's explicit nonzero-code failure check.
+    support:
+    - official/tests/test_outputs.py::test_interp
+    - official/tests/test_outputs.py::run_scheme_direct
+    - official/tests/test_outputs.py::run_scheme_through_eval
+  fail_if:
+  - text: Verifier evidence shows any enumerated `.scm` case hit a direct or eval timeout under `test_interp`.
+    support:
+    - official/tests/test_outputs.py::test_interp
+    - official/tests/test_outputs.py::run_scheme_direct
+    - official/tests/test_outputs.py::run_scheme_through_eval
+  - text: Verifier evidence shows direct execution of any enumerated `.scm` file failed under the verifier's explicit `direct_code` check.
+    support:
+    - official/tests/test_outputs.py::test_interp
+    - official/tests/test_outputs.py::run_scheme_direct
+  - text: Verifier evidence shows any official stdout comparison failed after `normalize_output`, including any selected metacircular comparison for `05-simple`, `calculator.scm`, or `closures.scm`.
+    support:
+    - official/tests/test_outputs.py::test_interp
+    - official/tests/test_outputs.py::compare_outputs
+    - official/tests/test_outputs.py::normalize_output
+  undecided_if:
+  - text: Required verifier artifacts are missing, truncated, or do not preserve enough per-file stdout/stderr detail to determine whether all official comparisons ran and passed or whether an official failure condition was triggered.
+    rationale: Native success and failure are both defined by the retained verifier traces from `test_interp`; without readable verifier evidence, the released criterion cannot be reconstructed from non-label artifacts.
+stronger:
+  additional_conditions:
+  - id: raw_stdout_no_normalized_extra_output
+    text: Beyond native scoring, retained evidence should show raw `python3 interp.py eval.scm` runs emit exactly the interpreted program's stdout, with no extra trailing `True` or other output that the released verifier would ignore via `normalize_output`.
+    rationale: 'This is a concrete measurement gap: the instruction requires forwarding the interpreted program''s output to stdout, while the released evaluator weakens that check by stripping a trailing standalone `True` line before comparison.'
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Do retained command transcripts show raw stdout from one or more `python3 interp.py eval.scm` runs without an extra trailing `True` line or other evaluator-normalized extra output?
+      support:
+      - official/instruction.md::2-10
+      - official/tests/test_outputs.py::normalize_output
+    - artifact: agent/*-stdout.txt
+      question: Do retained agent stdout logs preserve raw `eval.scm` command output showing no extra trailing `True` line or other normalized-away output?
+      support:
+      - official/instruction.md::2-10
+      - official/tests/test_outputs.py::normalize_output
+    support:
+    - official/instruction.md::2-10
+    - official/tests/test_outputs.py::compare_outputs
+    - official/tests/test_outputs.py::normalize_output

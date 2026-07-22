@@ -1,0 +1,68 @@
+schema_version: case_checklist_v1
+case_unit_id: qemu-startup
+domain: terminal_bench_2_1
+task_id: terminal-bench/qemu-startup
+native:
+  user_goal:
+    text: Start `/app/alpine.iso` in QEMU, leave it running in the background, and wait until `telnet 127.0.0.1 6665` reaches a login prompt so the user can log in.
+    support:
+    - official/instruction.md::1-1
+  benchmark_success:
+    text: 'Native success is the single official pytest check `test_version` passing: `official/tests/test.sh` runs `official/tests/test_outputs.py::test_version`, which invokes its bundled expect script and then requires `/tmp/data.txt` to be readable and to contain `6.6.4-1-lts`.'
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::expect
+    - official/tests/test_outputs.py::test_version
+  checked_by:
+    text: Checked by `official/tests/test.sh` running pytest against `official/tests/test_outputs.py::test_version` with CTRF reporting.
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_version
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the official pytest record show whether `test_version` passed, failed, or errored, and any attached failure message?
+    support:
+    - case_packet.md::59-69
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_version
+  - artifact: verifier/test-stdout.txt
+    question: Does the verifier output corroborate the `test_version` result and, on failure, show whether `/tmp/data.txt` was missing/unreadable or lacked `6.6.4-1-lts`?
+    support:
+    - case_packet.md::59-69
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_version
+  success_if:
+  - text: Retained verifier evidence shows `test_version` passed, meaning the released check completed and accepted the resulting `/tmp/data.txt` because it contained `6.6.4-1-lts` after the expect invocation.
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_version
+  fail_if:
+  - text: Retained verifier evidence shows `test_version` failed or errored, including because `/tmp/data.txt` was missing or unreadable after the expect invocation, or because its contents did not contain `6.6.4-1-lts`.
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_version
+  undecided_if:
+  - text: Retained non-label verifier artifacts are missing or too incomplete to determine whether official `test_version` passed or failed.
+    support:
+    - case_packet.md::47-53
+    - case_packet.md::59-69
+stronger:
+  additional_conditions:
+  - id: qemu_iso_background_state
+    text: Retained agent evidence should show that the agent launched QEMU using `/app/alpine.iso` as a backgrounded process and left that VM running when it finished; the native check does not directly verify the launch command or background/linger state.
+    rationale: The official instruction requires starting `/app/alpine.iso` in QEMU, leaving it running in the background, and blocking until ready, but the released evaluator operationalizes only the `test_version` check on the verifier side and does not inspect the agent's final QEMU command or process-management state.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained action trace show a QEMU launch command that uses `/app/alpine.iso` and backgrounds or daemonizes the VM?
+      support:
+      - case_packet.md::63-65
+      - official/instruction.md::1-1
+    - artifact: agent/*-stdout.txt
+      question: Do retained agent outputs include a final process or job-status check showing the launched QEMU instance was still running after startup?
+      support:
+      - case_packet.md::63-65
+      - official/instruction.md::1-1
+    support:
+    - official/instruction.md::1-1
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_version

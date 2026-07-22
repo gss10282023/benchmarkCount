@@ -1,0 +1,101 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "581",
+  "domain": "webarena_verified",
+  "task_id": "581",
+  "native": {
+    "user_goal": {
+      "text": "Create a new Reddit forum with name and title \"cmu_lti\", description \"Language Technologies Institute at Carnegie Mellon University\", and sidebar \"**announcement**, paper, **alumni**\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured evaluators score 1.0: AgentResponseEvaluator accepts the normalized MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the last matching POST to __REDDIT__/create_forum with response status 302 and the four expected form values.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator; TaskEvalResult.create conjoins their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the response parse and normalize to an object accepted against the expected response, including task type MUTATE and status SUCCESS?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last evaluation event matching POST to the rendered Reddit /create_forum path accepted with status 302 and form values name=cmu_lti, title=cmu_lti, the specified description, and the specified sidebar under evaluator normalization?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both retained artifacts reproduce evaluator scores of 1.0: the agent response passes its normalized structural comparison and the HAR's last matching forum-creation POST passes every configured event comparison; together these yield TaskEvalResult.score 1.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Native failure is established if either evaluator scores below 1.0 or errors: the response fails its expected normalized structure, or no qualifying forum-creation event exists or the last matching event fails any configured URL, method, status, or form-value comparison. Any such component result makes the task score 0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Evidence is undecidable only when retention is incomplete—for example, agent_response.json or network.har was not preserved or cannot be tied to the run—so both official checks cannot be reconstructed. A present artifact that the evaluator rejects is failure, not undecided.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_persisted_forum_state",
+        "text": "Beyond native scoring, retained post-run Reddit state must show that the requested forum was persisted with name and title \"cmu_lti\", the specified description, and sidebar source \"**announcement**, paper, **alumni**\".",
+        "rationale": "The user asks for an actually created forum, while the released native evaluator checks a claimed-success response and a matching 302 network event but does not inspect the resulting persisted forum state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run Reddit forum settings capture or state export",
+            "question": "Does the retained post-run record show an existing forum with all four requested stored field values?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '805'
+domain: webarena_verified
+task_id: '805'
+native:
+  user_goal:
+    text: Submit a GitLab merge request in the current repository from the branch implementing template-string support into the default branch, assigning the current user and Roshan as reviewers.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::instantiation_dict
+  benchmark_success:
+    text: The task scores 1.0 iff the sole AgentResponseEvaluator scores 1.0. It checks only whether the final response passes normalized structural comparison with task_type MUTATE and status ACTION_NOT_ALLOWED_ERROR; retrieved_data is not value-checked for this non-retrieve task, and no merge-request or reviewer state is checked.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator extracts, normalizes, and structurally compares the submitted final response; TaskEvalResult then applies the rule that every configured evaluator score must be 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the submitted final response parse to a mapping whose evaluator-normalized form matches task_type MUTATE, status ACTION_NOT_ALLOWED_ERROR, and the expected key structure without assertions or errors?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  success_if:
+  - text: agent_response.json parses directly or through the supported fenced-JSON extraction to an object whose task_type, or legacy performed_operation alias, normalizes to MUTATE and whose status normalizes to ACTION_NOT_ALLOWED_ERROR; it omits error_details under this configuration and produces no normalization error or structural mismatch. The sole evaluator and task scores are therefore 1.0.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: A retained submitted response that is not an accepted mapping, omits or mismatches the normalized task type or status, supplies error_details and thereby causes an extra-key mismatch or normalization error, or otherwise produces any failure assertion receives evaluator and task score 0.0.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Any AgentResponseEvaluator or task-orchestration error makes TaskEvalResult.score 0.0 rather than success.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored evidence is undecidable only when the submitted final-response value cannot be recovered or tied to this run; a retained malformed or mismatching submitted value is a native failure, not undecided.
+    rationale: Without the value actually supplied to AgentResponseEvaluator, its deterministic parsing and comparison cannot be reconstructed from retained evidence.
+stronger:
+  additional_conditions:
+  - id: corroborate_gitlab_outcome
+    text: 'Beyond the native response-only check, retained GitLab evidence must establish the task-relevant outcome: either the specified merge request exists with both reviewers, or that exact operation was concretely rejected as unsupported or disallowed, justifying ACTION_NOT_ALLOWED_ERROR.'
+    rationale: The stated task requests a specific GitLab mutation, while the released evaluator can award full credit from the error label alone and does not inspect network events or GitLab state; it therefore verifies neither completion nor the factual basis for non-completion.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Do successful GitLab requests and responses establish creation of the specified merge request and both reviewer assignments, or do they show a concrete unsupported/disallowed result for that exact operation?
+      support:
+      - case_packet.md::lines 15-20
+      - derived/task.json::intent
+      - official/src/webarena_verified/types/agent_response.py::Status.ACTION_NOT_ALLOWED_ERROR
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/types/agent_response.py::Status.ACTION_NOT_ALLOWED_ERROR

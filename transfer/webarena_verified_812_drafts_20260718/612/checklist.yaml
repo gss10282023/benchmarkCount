@@ -1,0 +1,77 @@
+schema_version: case_checklist_v1
+case_unit_id: '612'
+domain: webarena_verified
+task_id: '612'
+native:
+  user_goal:
+    text: Create a review post titled "big little lies" in f/books, then add the comment "can't stop it" to that created post.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: the AgentResponseEvaluator score, submission NetworkEventEvaluator score, and comment NetworkEventEvaluator score must each equal 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: One AgentResponseEvaluator and two NetworkEventEvaluator instances, aggregated conjunctively by TaskEvalResult.create.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response pass the evaluator's parsing, normalization, and structural comparison against task_type MUTATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har — submission event
+    question: Does the evaluator-selected last matching POST to __REDDIT__/submit or __REDDIT__/submit/books return 302 with submission[forum] = "10037" and submission[title] = "big little lies"?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - artifact: network.har — comment event
+    question: Does the evaluator-selected last matching POST to __REDDIT__/f/books/{{post_id}}/-/comment return 302 with reply_to_submission_{{post_id}}[comment] = "can't stop it" under the evaluator's URL and placeholder handling?
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Success iff all three conjuncts pass: the final response matches MUTATE/SUCCESS, the selected submission POST matches its configured URL, form fields, and 302 status, and the selected comment POST matches its configured dynamic post URL/form field, exact comment text, and 302 status.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if any of the three evaluator scores is not 1.0, including an invalid or mismatched final response, a complete HAR with no required evaluator-selected submission or comment event, any configured field/status mismatch, or an evaluator error.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retained review evidence is missing, truncated, or corrupt so that agent_response.json or the relevant network.har comparisons cannot be reconstructed; a complete HAR lacking a required event is failure, not undecided.
+    rationale: Both evaluator inputs are necessary to determine every score in the benchmark's three-part conjunction.
+stronger:
+  additional_conditions:
+  - id: persisted_same_post_and_comment
+    text: Beyond native scoring, require retained post-run Reddit state to show that this run created the f/books post titled "big little lies" and that the comment "can't stop it" is attached to that same post.
+    rationale: The official intent claims persisted mutations and a same-post relationship, while the native evaluator examines only the final response and selected HAR request/response fields; it does not inspect post-run Reddit state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit state snapshot or export
+      question: Do record identifiers, parent linkage, author, and creation metadata show a run-created f/books post with the exact title and the exact comment attached to that post?
+      support:
+      - derived/task.json::intent
+    - artifact: network.har
+      question: Do retained request, redirect, identifier, and timing details link those post-run records to this run's submission and comment requests?
+      support:
+      - derived/task.json::eval[1]
+      - derived/task.json::eval[2]
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

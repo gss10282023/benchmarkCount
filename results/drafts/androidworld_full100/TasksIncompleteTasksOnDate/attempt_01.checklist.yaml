@@ -4,52 +4,106 @@ domain: androidworld
 task_id: TasksIncompleteTasksOnDate
 native:
   user_goal:
-    text: Report the titles of the incomplete tasks the user still has to do by the specified date in Tasks app, as a comma-separated list if multiple.
+    text: Identify the Tasks-app tasks that are still incomplete and due by the requested date, and answer with the task titles only; if multiple, use a comma-separated list.
     support:
-    - derived/selected_task_source.json::task_template
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1673-1823
   benchmark_success:
-    text: 'This run succeeds iff the official InformationRetrieval evaluator returns 1.0 for this task instance: env.interaction_cache is non-empty and proto_utils.check_agent_answer accepts the recorded answer for the task; otherwise the evaluator returns 0.0.'
+    text: 'Native success requires `done=true` under the AndroidWorld runner gate and a non-empty final answer text that `check_agent_answer` accepts for this task: split on commas, trim whitespace, require the same item count as the expected titles, and STRING_MATCH-fuzzy-match each item against the expected titles derived from the initialized relevant Tasks state.'
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1673-1823
   checked_by:
-    text: Official InformationRetrieval.is_successful, using env.interaction_cache and proto_utils.check_agent_answer(self.task).
+    text: AndroidWorld runner `_run_task` done-gate, then `InformationRetrieval.is_successful`, which delegates to `proto_utils.check_agent_answer` over this task's proto success criteria.
     support:
-    - derived/selected_task_source.json::base_class_name
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
   decisive_artifacts:
-  - artifact: Run record with task id/prompt
-    question: Does it identify this run as TasksIncompleteTasksOnDate and show the instantiated date prompt?
+  - artifact: Retained episode completion / runner trace
+    question: Does retained runner evidence show whether this task instance ended with `done=true` or `done=false`?
     support:
-    - derived/selected_task_source.json::task_id
-    - derived/selected_task_source.json::task_template
-  - artifact: Official evaluator result
-    question: Did the official InformationRetrieval evaluator return 1.0 or 0.0 for this task instance?
+    - official/install/android_world/suite_utils.py::_run_task
+  - artifact: Retained final answer text or answer-action trace
+    question: What exact text was present in the evaluator-visible final answer field (`interaction_cache`) at evaluation time?
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
-  - artifact: Interaction transcript or final answer log
-    question: Was any agent answer recorded in env.interaction_cache, and what answer text was checked?
+    - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+  - artifact: Retained run-specific initialized task-state evidence
+    question: What expected incomplete-task titles did this run initialize for comparison, i.e. the titles due on or before the target date with `completed_date == 0` under the task proto and exclusion rule?
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1673-1823
+    - official/install/android_world/task_evals/information_retrieval/task_app_utils.py::check_task_conditions
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
   success_if:
-  - text: The run record identifies this TasksIncompleteTasksOnDate instance, and the retained official evaluator result for that same run is 1.0.
+  - text: Retained evidence shows `done=true`, the final answer text is present, and under the evaluator's comma-split/trim STRING_MATCH rule it has the same item count as and matches the expected incomplete-task titles derived from the run's initialized Tasks state.
     support:
-    - derived/selected_task_source.json::task_id
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1673-1823
   fail_if:
-  - text: The run record identifies this task instance, and the retained official evaluator result for that same run is 0.0.
+  - text: Retained runner evidence shows `done=false`.
     support:
-    - derived/selected_task_source.json::task_id
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
-  - text: Even without a retained score, if the interaction transcript shows no agent answer was recorded in env.interaction_cache, native evaluation is failure.
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: Retained evaluator-visible answer evidence shows the final answer field was empty at evaluation time.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+  - text: 'Retained evidence shows `done=true`, but the final answer text fails the evaluator rule against the expected titles: different answer count or at least one comma-split/trimmed item does not STRING_MATCH-fuzzy-match an expected title.'
+    support:
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1673-1823
   undecided_if:
-  - text: The official evaluator result is missing, and retained artifacts show only a non-empty answer text without enough evidence to determine whether proto_utils.check_agent_answer would accept it for this task instance.
+  - text: The retained record does not establish whether the episode ended with `done=true` or `done=false`, and no other retained artifact independently settles native failure.
     support:
-    - official/install/.venv311/lib/python3.11/site-packages/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
-  - text: Artifacts do not reliably identify the run as this TasksIncompleteTasksOnDate instance with its instantiated date, so any answer or score cannot be confidently attributed to the case.
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: Usable retained final answer text is missing or unreadable, and retained evidence does not separately show that the evaluator-visible answer field was empty.
     support:
-    - derived/selected_task_source.json::task_id
-    - derived/selected_task_source.json::task_template
+    - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+    - official/install/android_world/task_evals/information_retrieval/information_retrieval.py::InformationRetrieval.is_successful
+  - text: The retained run-specific initialized task-state / expected-answer evidence is missing or unusable, so the expected incomplete-task title set for this run cannot be derived from retained evidence.
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1673-1823
+    - official/install/android_world/task_evals/information_retrieval/task_app_utils.py::check_task_conditions
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
 stronger:
-  additional_conditions: []
+  additional_conditions:
+  - id: exact_titles_no_fuzzy
+    text: Measure success only if the answer uses the actual task titles exactly, not approximate title strings merely accepted by the native fuzzy STRING_MATCH rule.
+    rationale: The prompt asks for the task titles only, but native checking uses case-insensitive fuzzy matching (`fuzzy_match` threshold 0.9), so near-miss spellings or paraphrases can pass natively.
+    decisive_artifacts:
+    - artifact: Retained final answer text
+      question: What exact answer string did the agent submit?
+      support:
+      - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+    - artifact: Retained expected-title evidence for the run
+      question: What exact task titles were the incomplete due titles for this run's initialized Tasks state?
+      support:
+      - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1673-1823
+      - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1673-1823
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer
+    - official/install/android_world/utils/fuzzy_match_lib.py::fuzzy_match
+  - id: one_to_one_unique_titles
+    text: When multiple tasks are due, measure success only if each expected title appears exactly once in the answer; duplicates should not count as covering multiple expected tasks.
+    rationale: The prompt asks which tasks are due, but native checking only requires equal list lengths and that each submitted item matches some expected title, so repeated matching to the same expected title can still pass.
+    decisive_artifacts:
+    - artifact: Retained final answer text
+      question: Does the submitted list repeat any title instead of listing each due incomplete task once?
+      support:
+      - official/install/android_world/env/interface.py::AsyncAndroidEnv.execute_action
+    - artifact: Retained expected-title evidence for the run
+      question: How many distinct expected due incomplete task titles should the answer cover for this run?
+      support:
+      - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1673-1823
+      - official/install/android_world/task_evals/information_retrieval/proto_utils.py::get_expected_answer
+    support:
+    - official/install/android_world/task_evals/information_retrieval/proto/tasks.textproto::1673-1823
+    - official/install/android_world/task_evals/information_retrieval/proto_utils.py::check_agent_answer

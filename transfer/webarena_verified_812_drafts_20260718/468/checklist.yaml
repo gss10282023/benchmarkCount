@@ -1,0 +1,73 @@
+schema_version: case_checklist_v1
+case_unit_id: '468'
+domain: webarena_verified
+task_id: '468'
+native:
+  user_goal:
+    text: Add the product “DkRgVNY Lace Spcling Lingerie Womens Sexy Hollow Out Underwear Bodysuit One Piece Snap Crotch Clubwear Teddy Bodysuit” to the user's shopping wish list.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring both official checks to score 1.0: AgentResponseEvaluator accepts the response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the selected last matching POST to the wishlist-add endpoint with product 30843, quantity absent/null, and response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator and NetworkEventEvaluator, composed by TaskEvalResult so that every evaluator score must equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize without error to the evaluator-accepted response object with task_type MUTATE, status SUCCESS, and retrieved_data null, with no key-set mismatch after normalization?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among non-static evaluation events, does the last POST event matching the normalized wishlist-add endpoint also match the compared URL, product=30843, quantity absent/null, and response_status=302 fields?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events
+  success_if:
+  - text: 'Both retained artifacts yield evaluator score 1.0: the response passes the MUTATE/SUCCESS comparison and the selected last matching network event passes every configured comparison; therefore TaskEvalResult.score is 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Given complete artifacts, fail if the response comparison mismatches or errors, or if no qualifying network event exists or the selected last candidate mismatches any compared field. Either evaluator scoring below 1.0, or an evaluator/orchestration error, makes TaskEvalResult.score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Evidence review is undecided only when agent_response.json or network.har is not retained completely enough to apply its official check; absence or mismatch within a complete retained artifact is failure, not undecided.
+    rationale: Both evaluator inputs are necessary to establish the conjunctive native score from stored evidence.
+stronger:
+  additional_conditions:
+  - id: wishlist_state_contains_target
+    text: Beyond native scoring, require retained post-run wishlist-state evidence showing that product 30843, corresponding to the product named in the task, is present in the user's wish list.
+    rationale: The task requests a resulting wishlist mutation, while the released evaluator checks only an accepted response and a 302 POST request; it does not inspect the resulting wishlist state. The native checks can therefore pass without stored evidence of the requested final state.
+    decisive_artifacts:
+    - artifact: Post-run wishlist state capture
+      question: Does a retained wishlist page/state response show product 30843, corresponding to the product named in the task, in the user's wish list?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data.product
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

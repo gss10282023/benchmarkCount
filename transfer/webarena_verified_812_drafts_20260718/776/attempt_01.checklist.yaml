@@ -1,0 +1,69 @@
+schema_version: case_checklist_v1
+case_unit_id: '776'
+domain: webarena_verified
+task_id: '776'
+native:
+  user_goal:
+    text: Delete every shopping-admin review from the scammer Carlo.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task scores 1.0 only if all three configured checks score 1.0: the AgentResponseEvaluator accepts the response as MUTATE/SUCCESS, one NetworkEventEvaluator accepts the last matching POST to /review/product/delete/id/109/ with response status 302, and the other accepts the last matching POST to /review/product/delete/id/93/ with response status 302.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+  checked_by:
+    text: The released AgentResponseEvaluator checks agent_response.json, two released NetworkEventEvaluator instances check network.har, and TaskEvalResult composes their scores with an all-must-pass rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize such that AgentResponseEvaluator scores it 1.0 against the configured MUTATE/SUCCESS expectation?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: For /review/product/delete/id/109/, does the last evaluation event matching the expected POST path normalize to the expected URL and method with response status 302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - artifact: network.har
+    question: For /review/product/delete/id/93/, does the last evaluation event matching the expected POST path normalize to the expected URL and method with response status 302?
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success iff the response check and both separate POST/302 network-event checks each score 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if the response check is rejected or errors, either required last matching POST event is absent or mismatches its configured URL/method/status, or any of the three evaluator scores is not 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only when agent_response.json or network.har is missing, unreadable, or incomplete enough that one or more of the three evaluator outcomes cannot be reconstructed; an intact artifact showing a mismatch is failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalContext
+stronger:
+  additional_conditions:
+  - id: post_run_state_has_no_carlo_reviews
+    text: Beyond the native response-and-traffic checks, a complete retained post-run shopping-admin review-state snapshot must show zero reviews authored by Carlo.
+    rationale: The task asks that all Carlo reviews be deleted, but the released evaluator verifies two POST/302 events and does not inspect the resulting review collection.
+    decisive_artifacts:
+    - artifact: Complete post-run shopping-admin review-state snapshot or export
+      question: Does the complete post-run review collection contain zero reviews authored by Carlo?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

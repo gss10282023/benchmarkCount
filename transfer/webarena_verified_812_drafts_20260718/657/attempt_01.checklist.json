@@ -1,0 +1,137 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "657",
+  "domain": "webarena_verified",
+  "task_id": "657",
+  "native": {
+    "user_goal": {
+      "text": "Populate, but do not submit, the shopping site's Contact Us form to request a refund for the speaker from order #148, stating \"it broke after just three days of use\" and including order #148 and the product SKU.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured evaluator scores are 1.0: AgentResponseEvaluator accepts the final response against the expected MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the last matching GET to __SHOPPING__/contact with response status 200.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator applies AgentResponseEvaluator to agent_response.json and NetworkEventEvaluator to network.har, then composes their scores using TaskEvalResult.create.",
+      "support": [
+        "case_packet.md::Benchmark Task Summary",
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Under the released parsing, normalization, and comparison rules, does the retained response receive AgentResponseEvaluator score 1.0 against the configured MUTATE/SUCCESS response?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Among the retained non-static evaluation events, does the last matching event satisfy the configured GET to __SHOPPING__/contact and HTTP 200 comparison?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both checks pass with score 1.0: the retained final response passes the expected MUTATE/SUCCESS comparison, and the retained HAR passes the last-matching GET /contact with HTTP 200 comparison.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "With complete readable artifacts, failure occurs if either check is nonpassing: the response fails the released expected-response comparison, or the HAR lacks an accepted last-matching GET /contact event or that event fails the configured GET/URL/HTTP-200 comparison. An evaluator error or any evaluator score of 0 also makes the task score 0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when agent_response.json or network.har is absent, unreadable, or incomplete enough that a configured comparison cannot be reconstructed. A retained invalid or empty response, a complete HAR with no accepted event, or a recorded evaluator error is failure rather than undecided.",
+        "rationale": "Missing or incomplete retained evidence cannot establish either evaluator outcome, whereas evidence that affirmatively produces a nonpassing check is decisive failure."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_form_contents",
+        "text": "Beyond native scoring, require retained final form state to show a refund request for the speaker in order #148, the exact statement \"it broke after just three days of use\", order number 148, and the SKU belonging to that ordered speaker.",
+        "rationale": "The official instruction requires these populated values, but the released checks examine only the final response and a successful GET of /contact; they do not inspect form controls or their contents.",
+        "decisive_artifacts": [
+          {
+            "artifact": "final browser DOM/form-control snapshot",
+            "question": "Do the populated Contact Us controls contain the refund request, speaker reference, exact breakage statement, order number 148, and an entered product SKU?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          },
+          {
+            "artifact": "shopping application state snapshot containing order #148",
+            "question": "Does order #148 identify the purchased speaker's SKU, and does it match the SKU retained in the final form snapshot?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::instantiation_dict"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      },
+      {
+        "id": "verify_not_submitted",
+        "text": "Beyond native scoring, require evidence that the Contact Us form was not submitted during the run.",
+        "rationale": "The official instruction explicitly says not to submit, while the native network check only requires an accepted GET of /contact and does not reject additional submission events.",
+        "decisive_artifacts": [
+          {
+            "artifact": "complete network.har",
+            "question": "Does the complete run trace contain no request that submits the Contact Us form?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+            ]
+          },
+          {
+            "artifact": "final browser DOM/form-control snapshot",
+            "question": "Does the final page retain the filled form without a submission-confirmation state?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

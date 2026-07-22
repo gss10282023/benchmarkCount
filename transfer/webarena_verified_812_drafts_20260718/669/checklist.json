@@ -1,0 +1,107 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "669",
+  "domain": "webarena_verified",
+  "task_id": "669",
+  "native": {
+    "user_goal": {
+      "text": "Open a new issue in the current GitLab project to discuss implementing dark mode, using an appropriate issue title.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native score is 1.0 iff both configured evaluators score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the last qualifying POST to the target project's issues endpoint with HTTP 302 and `issue[title]` matching `^.*dark.*mode.*$`.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order; TaskEvalResult.create assigns 1.0 only when every evaluator score is 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the final response normalize and structurally compare without assertions to the expected response, notably task_type MUTATE and status SUCCESS?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last evaluation event matching the configured POST issues URL a full match for the target endpoint, HTTP 302, and an `issue[title]` matching `^.*dark.*mode.*$`?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success requires both checks to pass: the response comparison emits no assertions for the expected MUTATE/SUCCESS response, and the last qualifying POST event fully matches the configured issues URL, HTTP 302, and title regex; consequently both evaluator scores are 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The native task score is 0.0 if either evaluator fails or errors: the response is not accepted under its normalization/structural comparison, or no qualifying POST exists, or the selected last POST mismatches the configured URL, HTTP 302, or title regex.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Retained evidence is undecidable only when agent_response.json or network.har is absent or unreadable, or the HAR omits fields needed to identify and compare the selected event, so the two evaluator outcomes cannot be reconstructed reliably.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace",
+          "official/src/webarena_verified/types/tracing.py::NetworkTrace.from_content"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "issue_body_discusses_implementation",
+        "text": "Beyond the native title-only check, the retained issue-creation POST contains a non-empty `issue[description]` addressing dark-mode implementation.",
+        "rationale": "The official intent asks for an issue that discusses implementation, but the released network check expects only `issue[title]` and filters comparison to expected post-data keys, so native success does not establish any implementation discussion in the issue body.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har request postData",
+            "question": "Does the qualifying issue-creation POST include a non-empty `issue[description]` that addresses implementation of dark mode?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/types/tracing.py::NetworkEvent.post_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected.post_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field"
+        ]
+      }
+    ]
+  }
+}

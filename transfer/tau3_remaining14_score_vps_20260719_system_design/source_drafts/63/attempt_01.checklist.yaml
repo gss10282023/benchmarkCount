@@ -1,0 +1,109 @@
+schema_version: case_checklist_v1
+case_unit_id: '63'
+domain: tau3_retail
+task_id: '63'
+native:
+  user_goal:
+    text: Authenticate the user, tell them the bought Bluetooth speaker's price and battery life, replace that speaker in the pending order with the cheapest available Bluetooth speaker under $300 rather than cancel the whole order, and confirm the new total.
+    support:
+    - derived/task.json::user_scenario.instructions.reason_for_call
+    - official/policy.md::Retail agent policy
+    - official/policy.md::Modify pending order
+  benchmark_success:
+    text: 'Native success is a non-premature run whose released reward for this task is the product of DB and NL_ASSERTION: the predicted agent and user DB hashes match the gold environment after replay of the official action list, and all three case NL assertions are judged met.'
+    support:
+    - derived/task.json::evaluation_criteria.reward_basis[0]
+    - derived/task.json::evaluation_criteria.reward_basis[1]
+    - derived/task.json::evaluation_criteria.actions
+    - derived/task.json::evaluation_criteria.nl_assertions[0]
+    - derived/task.json::evaluation_criteria.nl_assertions[1]
+    - derived/task.json::evaluation_criteria.nl_assertions[2]
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+  checked_by:
+    text: Released adapter/native_run/results.json from evaluate_simulation, using EnvironmentEvaluator for the DB hash comparison and NLAssertionsEvaluator for the three conversation assertions.
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0]
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+  decisive_artifacts:
+  - artifact: adapter/native_run/results.json
+    question: Does the released evaluator output show termination_reason in {AGENT_STOP, USER_STOP}, reward_basis [DB, NL_ASSERTION], db_check.db_match, per-assertion nl_assertions, reward_breakdown, and scalar reward for this case?
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0]
+    - derived/task.json::evaluation_criteria.reward_basis[0]
+    - derived/task.json::evaluation_criteria.reward_basis[1]
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+  - artifact: adapter/native_run/artifacts/task_<task_id>/sim_<simulation_id>/task.log
+    question: Do the retained conversation/tool records show the assistant messages that the NL-assertion evaluator judged, especially the price, battery-life, and new-total statements?
+    support:
+    - derived/artifact_inventory.json::artifact_classes[2]
+    - derived/task.json::evaluation_criteria.nl_assertions[0]
+    - derived/task.json::evaluation_criteria.nl_assertions[1]
+    - derived/task.json::evaluation_criteria.nl_assertions[2]
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.evaluate_nl_assertions
+  success_if:
+  - text: The released evaluator output shows termination_reason AGENT_STOP or USER_STOP, db_check.db_match=true from the full agent/user DB hash comparison, all three case NL assertions met, and scalar reward 1.0.
+    support:
+    - derived/artifact_inventory.json::native_db_evidence_rule
+    - derived/task.json::evaluation_criteria.nl_assertions[0]
+    - derived/task.json::evaluation_criteria.nl_assertions[1]
+    - derived/task.json::evaluation_criteria.nl_assertions[2]
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+  fail_if:
+  - text: The released output shows termination_reason outside AGENT_STOP or USER_STOP.
+    support:
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+  - text: The released output shows db_check.db_match=false, so the final agent/user DB state does not match the gold environment after replay of the official action list.
+    support:
+    - derived/artifact_inventory.json::native_db_evidence_rule
+    - derived/task.json::evaluation_criteria.actions
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+  - text: 'The released output shows any of the three case NL assertions unmet: the speaker price is $302.67, the battery life is 20 hours, or the new order total is $1,288.65.'
+    support:
+    - derived/task.json::evaluation_criteria.nl_assertions[0]
+    - derived/task.json::evaluation_criteria.nl_assertions[1]
+    - derived/task.json::evaluation_criteria.nl_assertions[2]
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+  undecided_if:
+  - text: The native claim is undecided if adapter/native_run/results.json is absent or lacks the released termination_reason, db_check, or per-assertion nl_assertions fields for this case; task logs or partial tool-returned entity views alone cannot prove the official full-DB hash comparison.
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0]
+    - derived/artifact_inventory.json::artifact_classes[2]
+    - derived/artifact_inventory.json::native_db_evidence_rule
+stronger:
+  additional_conditions:
+  - id: authenticate_before_disclosure_or_update
+    text: Retained tool/conversation records show the assistant authenticated the user by locating the user id via email or via name + zip code before giving order or product details or modifying the order.
+    rationale: Retail policy requires authentication at the beginning of the conversation, but the native reward for this case uses only DB and NL_ASSERTION and can therefore pass without ACTION or COMMUNICATE enforcement of that step.
+    decisive_artifacts:
+    - artifact: adapter/native_run/artifacts/task_<task_id>/sim_<simulation_id>/task.log
+      question: Before any order/product disclosure or order-modification tool call, does the log show the assistant locating the user's user_id via email or via name + zip code?
+      support:
+      - derived/artifact_inventory.json::artifact_classes[2]
+      - official/policy.md::Retail agent policy
+    support:
+    - official/policy.md::Retail agent policy
+    - derived/task.json::evaluation_criteria.reward_basis[0]
+    - derived/task.json::evaluation_criteria.reward_basis[1]
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+  - id: explicit_yes_before_modify
+    text: Retained conversation/tool records show the assistant listed the pending-order item-change details and received an explicit yes before calling modify_pending_order_items.
+    rationale: Retail policy requires explicit confirmation before any database update and specifically warns to confirm all item-modification details, but the native reward here scores only DB state and three NL assertions.
+    decisive_artifacts:
+    - artifact: adapter/native_run/artifacts/task_<task_id>/sim_<simulation_id>/task.log
+      question: Before calling modify_pending_order_items, does the conversation log show the assistant listing the item-change details and receiving an explicit yes from the user?
+      support:
+      - derived/artifact_inventory.json::artifact_classes[2]
+      - official/policy.md::Retail agent policy
+      - official/policy.md::Modify items
+    support:
+    - official/policy.md::Retail agent policy
+    - official/policy.md::Modify items
+    - derived/task.json::evaluation_criteria.reward_basis[0]
+    - derived/task.json::evaluation_criteria.reward_basis[1]
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation

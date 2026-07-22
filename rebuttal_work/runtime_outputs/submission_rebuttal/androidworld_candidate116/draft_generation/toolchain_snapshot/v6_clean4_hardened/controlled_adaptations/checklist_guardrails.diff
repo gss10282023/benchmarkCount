@@ -1,0 +1,91 @@
+--- live/checklist_guardrails.py
++++ snapshot/checklist_guardrails.py
+@@ -147,7 +147,7 @@
+ def case_packet_support_paths(case_packet_text: str) -> set[str]:
+     """Return the only source paths a draft may cite from one rendered packet."""
+ 
+-    allowed = {"case_packet.md"}
++    allowed: set[str] = set()
+     in_inventory = False
+     for line in case_packet_text.splitlines():
+         if line == "## Source Inventory":
+@@ -159,7 +159,7 @@
+             match = re.fullmatch(r"- `([^`]+)`", line.strip())
+             if match:
+                 allowed.add(match.group(1).replace("\\", "/"))
+-    if len(allowed) == 1:
++    if not allowed:
+         raise ChecklistGuardrailError("Case packet has no parseable Source Inventory entries.")
+     return allowed
+ 
+@@ -201,7 +201,7 @@
+         )
+     if allowed_source_paths is not None and path_part not in allowed_source_paths:
+         violations.append(
+-            f"{field_name} must cite case_packet.md or an exact Source Inventory path: {pointer}"
++            f"{field_name} must cite an exact Source Inventory path: {pointer}"
+         )
+ 
+ 
+@@ -241,6 +241,61 @@
+     allowed_source_paths: set[str] | None = None,
+ ) -> list[str]:
+     violations: list[str] = []
++
++    native = checklist.get("native", {})
++    for singleton_name in ("user_goal", "benchmark_success", "checked_by"):
++        singleton = native.get(singleton_name)
++        support = singleton.get("support") if isinstance(singleton, dict) else None
++        if not isinstance(support, list) or not support or any(
++            not isinstance(pointer, str) or not pointer.strip() for pointer in support
++        ):
++            violations.append(f"native.{singleton_name}.support must be a non-empty source-pointer list")
++    for list_name in ("success_if", "fail_if", "undecided_if", "decisive_artifacts"):
++        values = native.get(list_name)
++        if not isinstance(values, list) or not values:
++            violations.append(f"native.{list_name} must be a non-empty list")
++            continue
++        for index, item in enumerate(values):
++            support = item.get("support") if isinstance(item, dict) else None
++            if not isinstance(support, list) or not support or any(
++                not isinstance(pointer, str) or not pointer.strip() for pointer in support
++            ):
++                violations.append(
++                    f"native.{list_name}[{index}].support must be a non-empty source-pointer list"
++                )
++    stronger_items = checklist.get("stronger", {}).get("additional_conditions", [])
++    for index, item in enumerate(stronger_items):
++        support = item.get("support") if isinstance(item, dict) else None
++        if not isinstance(support, list) or not support or any(
++            not isinstance(pointer, str) or not pointer.strip() for pointer in support
++        ):
++            violations.append(
++                f"stronger.additional_conditions[{index}].support must be a non-empty source-pointer list"
++            )
++        for artifact_index, artifact in enumerate(
++            item.get("decisive_artifacts", []) if isinstance(item, dict) else []
++        ):
++            artifact_support = artifact.get("support") if isinstance(artifact, dict) else None
++            if not isinstance(artifact_support, list) or not artifact_support or any(
++                not isinstance(pointer, str) or not pointer.strip()
++                for pointer in artifact_support
++            ):
++                violations.append(
++                    "stronger.additional_conditions"
++                    f"[{index}].decisive_artifacts[{artifact_index}].support "
++                    "must be a non-empty source-pointer list"
++                )
++
++    for field_name, pointers in _iter_support_pointer_lists(checklist):
++        raw_paths = [
++            pointer.strip().replace("\\", "/").partition(SOURCE_POINTER_SPLIT)[0]
++            for pointer in pointers
++            if isinstance(pointer, str)
++        ]
++        if not any(path.startswith("official/") for path in raw_paths):
++            violations.append(
++                f"{field_name} must include at least one raw official/... source pointer"
++            )
+ 
+     for field_name, pointers in _iter_support_pointer_lists(checklist):
+         for index, pointer in enumerate(pointers):

@@ -1,0 +1,94 @@
+schema_version: case_checklist_v1
+case_unit_id: '741'
+domain: webarena_verified
+task_id: '741'
+native:
+  user_goal:
+    text: Display on the map the OSRM route from Carnegie Mellon University to the home stadium of Boston's home NBA team, using the provided Wikipedia place pages for the coordinates and searching both endpoints by coordinate.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: both configured checks must score 1.0—the AgentResponseEvaluator must accept the NAVIGATE/SUCCESS response and the NetworkEventEvaluator must accept the HAR''s last navigation event against the configured route request.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator on the retained agent response and NetworkEventEvaluator on the retained network trace, then combines their scores with an all-of rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize without error to the compared object with task_type NAVIGATE, status SUCCESS, and retrieved_data null for this non-retrieve task?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation navigation event a GET returning 200 whose normalized URL matches ^.*/route/v1/.*/-71.0621475,42.3662922;-79.9427192,40.4441897.*$, with query-parameter names ignored?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: AgentResponseEvaluator scores 1.0 because the retained response's normalized compared fields match NAVIGATE, SUCCESS, and null retrieved_data.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: NetworkEventEvaluator also scores 1.0 because the HAR's last navigation event matches the configured route URL, GET method, and 200 response; both evaluator scores being 1.0 makes the task score 1.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The response check fails if the retained response is not an acceptable object, its evaluated fields do not normalize to NAVIGATE/SUCCESS/null retrieved_data, or response evaluation errors.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: The network check fails if there is no navigation event, the last navigation event does not match the configured URL/GET/200 criteria, or trace evaluation errors; either evaluator failing or erroring makes the task score 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored evidence is undecidable only when a faithful retained copy of agent_response.json or network.har is unavailable or truncated so that both official checks cannot be reconstructed; a retained malformed response, invalid trace, or trace with no matching event is failure, not undecided.
+    rationale: The two files are the evaluator inputs needed to reproduce the composed score; evidentiary non-retention does not establish what the evaluator observed during the run.
+stronger:
+  additional_conditions:
+  - id: intent_route_direction_and_display
+    text: Beyond native scoring, retained evidence must show a route displayed on the map with Carnegie Mellon University as the origin and the Boston NBA team's home stadium as the destination.
+    rationale: 'Measurement gap: the instruction requires Carnegie Mellon University to stadium direction, while the configured OSRM pattern places the Boston-area coordinate (-71.0621475,42.3662922) before the Carnegie Mellon coordinate (-79.9427192,40.4441897), and the evaluator checks only the selected network event rather than the rendered map state.'
+    decisive_artifacts:
+    - artifact: network.har
+      question: Do the final route-related requests corroborate Carnegie Mellon University (-79.9427192,40.4441897) as origin and the stadium (-71.0621475,42.3662922) as destination, rather than the reversed native pattern?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.url
+    - artifact: final browser screenshot
+      question: Does the final map visibly identify Carnegie Mellon University as the route origin and the Boston NBA home stadium as its destination?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.url
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - id: required_wikipedia_coordinate_searches
+    text: Beyond native scoring, retained browser evidence must contain visits to the relevant provided-Wikipedia place pages and coordinate-based map searches for both endpoints.
+    rationale: 'Measurement gap: the instruction explicitly requires the provided wiki and coordinate searches for both source and destination, but the released checks assert only the final response fields and one navigation event.'
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the trace contain requests to the relevant Carnegie Mellon University and stadium pages on the provided Wikipedia, plus coordinate-based map searches for both source and destination?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria

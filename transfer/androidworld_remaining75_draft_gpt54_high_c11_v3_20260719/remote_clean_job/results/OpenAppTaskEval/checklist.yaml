@@ -1,0 +1,75 @@
+schema_version: case_checklist_v1
+case_unit_id: OpenAppTaskEval
+domain: androidworld
+task_id: OpenAppTaskEval
+native:
+  user_goal:
+    text: Open the requested `app_name` app and clear any permission pop-ups by granting the permissions required.
+    support:
+    - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.template
+  benchmark_success:
+    text: 'Native success is the runner-composed result: the episode must finish with `done=true`, and the terminal foreground activity''s package must equal the official package mapped from the task''s `app_name`.'
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful
+    - official/install/android_world/task_evals/single/system.py::_APP_NAME_TO_PACKAGE_NAME
+  checked_by:
+    text: Runner done-gate evidence plus the evaluator's terminal current-activity package comparison against the official `app_name` to package map.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful
+    - official/install/android_world/task_evals/single/system.py::_APP_NAME_TO_PACKAGE_NAME
+  decisive_artifacts:
+  - artifact: Retained task prompt or params
+    question: Which `app_name` was requested, so which official package should be active at evaluation time?
+    support:
+    - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.schema
+    - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.template
+    - official/install/android_world/task_evals/single/system.py::_APP_NAME_TO_PACKAGE_NAME
+  - artifact: Retained terminal foreground-activity observation
+    question: When the run ended, did the foreground activity parse to the official package mapped from the requested `app_name`?
+    support:
+    - official/install/android_world/env/adb_utils.py::get_current_activity
+    - official/install/android_world/task_evals/single/system.py::parse_component_name
+    - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful
+  - artifact: Retained episode completion evidence
+    question: Did the episode terminate with `done=true`, so the runner did not force the task score to 0.0?
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  success_if:
+  - text: Retained completion evidence establishes `done=true`, and the retained terminal foreground activity parses to the official package for the requested `app_name`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+    - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful
+    - official/install/android_world/task_evals/single/system.py::_APP_NAME_TO_PACKAGE_NAME
+  fail_if:
+  - text: Retained completion evidence establishes `done=false`.
+    support:
+    - official/install/android_world/suite_utils.py::_run_task
+  - text: Retained terminal foreground activity is usable and its parsed package differs from the official package for the requested `app_name`.
+    support:
+    - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful
+    - official/install/android_world/task_evals/single/system.py::_APP_NAME_TO_PACKAGE_NAME
+  undecided_if:
+  - text: Retained evidence does not preserve a usable `done` determination and terminal foreground-activity/package comparison, and no other retained underlying evidence independently establishes those native components.
+    rationale: Native success depends on both the runner's done gate and the evaluator's terminal package comparison. If either underlying component is missing or unusable in retained evidence, the native claim is non-decisive unless the remaining retained evidence still proves success or failure.
+stronger:
+  additional_conditions:
+  - id: grant-required-permissions-if-prompted
+    text: 'Measurement gap beyond native: if permission pop-ups appeared, retained UI/trace evidence should show the required permissions were granted and the requested app was left open without a blocking permission dialog, not merely that the terminal package matched.'
+    rationale: The official task text requires clearing pop-ups by granting required permissions, but the released native evaluator only checks terminal package match and the runner's `done=true` gate.
+    decisive_artifacts:
+    - artifact: Retained step UI trace or screenshots around permission dialogs
+      question: If permission dialogs appeared, do retained UI/action records show the required permissions were granted rather than denied, dismissed, or bypassed?
+      support:
+      - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.template
+      - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful
+    - artifact: Retained terminal UI/activity evidence
+      question: After any permission handling, is the requested app open without a remaining blocking permission prompt?
+      support:
+      - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.template
+      - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful
+    support:
+    - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.template
+    - official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful
+    - official/install/android_world/suite_utils.py::_run_task

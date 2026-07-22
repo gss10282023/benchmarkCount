@@ -1,0 +1,106 @@
+schema_version: case_checklist_v1
+case_unit_id: tune-mjcf
+domain: terminal_bench_2_1
+task_id: terminal-bench/tune-mjcf
+native:
+  user_goal:
+    text: Produce `/app/model.xml` that speeds the MuJoCo simulation to at most 60% of the reference runtime for the same 2.0-second scene, reaches the same full physics state within `atol=1e-5` without NaN/Inf, and leaves `/app/model_ref.xml` unchanged.
+    support:
+    - official/instruction.md::1-6
+  benchmark_success:
+    text: 'The official verifier in `official/tests/test.sh` succeeds only if its pytest run over `official/tests/test_outputs.py` passes all four official checks: `test_model_ref_unchanged`, `test_tuned_model_exists`, `test_correctness`, and `test_model_speed`.'
+    support:
+    - official/tests/test.sh::18-29
+    - official/tests/test_outputs.py::test_model_ref_unchanged
+    - official/tests/test_outputs.py::test_tuned_model_exists
+    - official/tests/test_outputs.py::test_correctness
+    - official/tests/test_outputs.py::test_model_speed
+  checked_by:
+    text: '`official/tests/test.sh` running `pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`.'
+    support:
+    - official/tests/test.sh::18-29
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the retained CTRF report show pass/fail outcomes for `test_model_ref_unchanged`, `test_tuned_model_exists`, `test_correctness`, and `test_model_speed`?
+    support:
+    - case_packet.md::62-74
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::test_model_ref_unchanged
+    - official/tests/test_outputs.py::test_tuned_model_exists
+    - official/tests/test_outputs.py::test_correctness
+    - official/tests/test_outputs.py::test_model_speed
+  - artifact: verifier/test-stdout.txt
+    question: Does the pytest stdout confirm the official test run completed and, when needed, show the printed `Final state difference` and `Time pctg` outputs from the correctness and speed checks?
+    support:
+    - case_packet.md::62-74
+    - official/tests/test.sh::18-23
+    - official/tests/test_outputs.py::test_correctness
+    - official/tests/test_outputs.py::test_model_speed
+  - artifact: verifier/test-stderr.txt
+    question: Does stderr show collection/import/runtime errors that affect interpretation of the official pytest outcomes?
+    support:
+    - case_packet.md::62-74
+    - official/tests/test.sh::18-29
+  success_if:
+  - text: Retained verifier evidence establishes that `test_model_ref_unchanged` passed, so `/app/model_ref.xml` matched the verifier's reference copy.
+    support:
+    - official/tests/test_outputs.py::test_model_ref_unchanged
+  - text: Retained verifier evidence establishes that `test_tuned_model_exists` passed, so `/app/model.xml` existed for verification.
+    support:
+    - official/tests/test_outputs.py::test_tuned_model_exists
+  - text: Retained verifier evidence establishes that `test_correctness` passed, so the tuned model loaded, simulated 2.0 seconds, produced no NaN/Inf in the final full-physics state, and `np.allclose(..., atol=1e-5)` held against the reference model.
+    support:
+    - official/tests/test_outputs.py::test_correctness
+    - official/tests/test_outputs.py::simulate_model
+  - text: Retained verifier evidence establishes that `test_model_speed` passed, so after 20 timing runs per model with 5th/95th percentile extremes dropped, mean `act_time_pctg` was `<= 0.6`.
+    support:
+    - official/tests/test_outputs.py::test_model_speed
+    - official/tests/test_outputs.py::simulation_time
+    - official/tests/test_outputs.py::drop_extreme_percentiles
+  fail_if:
+  - text: Retained verifier evidence establishes that `test_model_ref_unchanged` failed, so `/app/model_ref.xml` was changed relative to the verifier's reference copy.
+    support:
+    - official/tests/test_outputs.py::test_model_ref_unchanged
+  - text: Retained verifier evidence establishes that `test_tuned_model_exists` failed, so `/app/model.xml` was missing.
+    support:
+    - official/tests/test_outputs.py::test_tuned_model_exists
+  - text: Retained verifier evidence establishes that `test_correctness` failed, including model-load failure, NaN/Inf in the final state, or final-state mismatch beyond `atol=1e-5`.
+    support:
+    - official/tests/test_outputs.py::test_correctness
+    - official/tests/test_outputs.py::simulate_model
+  - text: Retained verifier evidence establishes that `test_model_speed` failed because the measured mean `act_time_pctg` after percentile trimming exceeded `0.6`.
+    support:
+    - official/tests/test_outputs.py::test_model_speed
+    - official/tests/test_outputs.py::simulation_time
+    - official/tests/test_outputs.py::drop_extreme_percentiles
+  - text: Retained verifier evidence establishes that the official pytest run errored before satisfying the four-check success condition, such as collection/import/runtime failure reported by pytest.
+    support:
+    - official/tests/test.sh::18-29
+    rationale: '`test.sh` treats a nonzero pytest exit as verifier failure even if the nonzero exit comes from pytest error states rather than an assertion failure in a named test.'
+  undecided_if:
+  - text: Retained non-label evidence does not provide a complete, interpretable record of the official pytest outcomes, so it cannot establish either that all four official checks passed or that any specific official failure condition occurred.
+    support:
+    - case_packet.md::62-74
+    - official/tests/test.sh::18-29
+stronger:
+  additional_conditions:
+  - id: preserve-body-physical-properties
+    text: Beyond native scoring, retained tuned-MJCF evidence should show that body physical properties were not changed, not merely that the resulting simulation happened to pass the released correctness and speed tests.
+    rationale: The official task materials state that physical body properties must not change, but the released verifier operationalizes only reference-file identity, tuned-model existence, final-state agreement, and speed.
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: Does retained output include the final tuned `model.xml` so its body physical-property fields can be compared directly against the reference model?
+      support:
+      - case_packet.md::62-74
+      - official/README.md::7-13
+    - artifact: agent/trajectory.json
+      question: If the final model file is not otherwise retained, does the trajectory preserve the final file contents or patch needed to determine whether body physical-property fields changed?
+      support:
+      - case_packet.md::62-74
+      - official/README.md::7-13
+    support:
+    - official/README.md::7-13
+    - official/tests/test_outputs.py::test_model_ref_unchanged
+    - official/tests/test_outputs.py::test_tuned_model_exists
+    - official/tests/test_outputs.py::test_correctness
+    - official/tests/test_outputs.py::test_model_speed

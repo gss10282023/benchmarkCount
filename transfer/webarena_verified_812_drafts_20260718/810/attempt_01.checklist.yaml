@@ -1,0 +1,82 @@
+schema_version: case_checklist_v1
+case_unit_id: '810'
+domain: webarena_verified
+task_id: '810'
+native:
+  user_goal:
+    text: Assign the issue about the flash alert bug in the primer/design GitLab repository to the acting user.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 iff both configured evaluators score 1.0: the final response passes AgentResponseEvaluator as a MUTATE with SUCCESS, and NetworkEventEvaluator accepts the last matching PUT for primer/design issue 316 with response status 200 and $.issue.assignee_ids equal to [2330].'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  checked_by:
+    text: AgentResponseEvaluator checks agent_response.json; NetworkEventEvaluator checks the relevant events in network.har using last_event_only; TaskEvalResult.create AND-composes their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize without error to the compared mapping task_type=MUTATE, status=SUCCESS, and retrieved_data=null, with no AgentResponseEvaluator assertion?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among non-static evaluation events, does the last PUT matching the normalized primer/design issue-316 URL also match response status 200 and post-data $.issue.assignee_ids=[2330], with serializer ignored as configured?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field
+  success_if:
+  - text: Success iff the response comparison passes as MUTATE/SUCCESS and the selected network event matches the configured issue-316 PUT, status 200, and assignee array [2330]; both evaluator scores must be 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if AgentResponseEvaluator produces any mismatch or evaluation error for the retained final response, making its score non-1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Fail if no qualifying PUT exists, the last URL-and-method-matching PUT fails any configured URL, status, or assignee-data comparison, or NetworkEventEvaluator errors; either evaluator being non-1.0 makes the overall score 0.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when a retained response or HAR is missing, truncated, unreadable, or cannot be tied to the same run, so the evaluator inputs cannot be reconstructed; an artifact actually supplied to the evaluator that parses or compares unsuccessfully is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: This separates insufficient retained evidence from an observed evaluator-counted mismatch or error.
+stronger:
+  additional_conditions:
+  - id: post_run_assignment_state
+    text: Beyond native scoring, require retained post-run GitLab issue state showing primer/design issue 316 remains assigned to the acting user identified by assignee ID 2330.
+    rationale: The official goal is an assignment state, but the released native evaluator checks only a recorded PUT request, its submitted assignee value, and HTTP status; it does not inspect the issue's resulting or final state.
+    decisive_artifacts:
+    - artifact: Post-run GitLab issue snapshot or API response
+      question: Does retained post-run data for primer/design issue 316 show the acting user, assignee ID 2330, as its assignee?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

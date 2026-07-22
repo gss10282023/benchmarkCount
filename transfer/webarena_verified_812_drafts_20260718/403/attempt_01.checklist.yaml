@@ -1,0 +1,66 @@
+schema_version: case_checklist_v1
+case_unit_id: '403'
+domain: webarena_verified
+task_id: '403'
+native:
+  user_goal:
+    text: Change the signed-in user's discussion-forum bio to "Awesome Prompt Artist".
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final MUTATE/SUCCESS response, and NetworkEventEvaluator accepts at least one matching biography-update POST event; otherwise the task score is 0.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official AgentResponseEvaluator and NetworkEventEvaluator, composed with all-evaluators-must-pass semantics.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse to a mapping that AgentResponseEvaluator normalizes to exactly task_type=MUTATE, status=SUCCESS, and retrieved_data=null, without an evaluator-visible extra error_details key?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the trace contain at least one accepted event with method POST, normalized URL __REDDIT__/user/MarvelsGrantMan136/edit_biography, form field user_biography[biography]="Awesome Prompt Artist", and response status 302?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both components pass: agent_response.json produces no AgentResponseEvaluator mismatch against the configured MUTATE/SUCCESS response, and network.har contains at least one event matching all configured POST, URL, biography-value, and 302-status criteria.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'The task fails if either evaluator scores 0.0 or errors: the final response has a format, normalized-key, task-type, or status mismatch, or no single HAR event matches every configured network criterion.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored evidence is undecidable when agent_response.json or network.har is missing, truncated, or unreadable and no retained official per-evaluator result establishes the missing check's outcome.
+    rationale: Both independent evaluator inputs are needed to reconstruct the all-must-pass native score; incomplete retention does not reveal whether the original evaluator input passed.
+stronger:
+  additional_conditions:
+  - id: final_bio_state
+    text: Beyond native scoring, retained end-of-run forum state must show that MarvelsGrantMan136's bio is exactly "Awesome Prompt Artist".
+    rationale: The user requests a changed bio, while the released evaluator only establishes that a matching POST received status 302; it does not verify the final persisted profile state, so non-persistence or a later reversal can still pass natively.
+    decisive_artifacts:
+    - artifact: Post-run forum profile or account-state capture
+      question: Does the retained end-of-run state show MarvelsGrantMan136's biography exactly as "Awesome Prompt Artist"?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

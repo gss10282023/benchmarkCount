@@ -1,0 +1,67 @@
+schema_version: case_checklist_v1
+case_unit_id: '353'
+domain: webarena_verified
+task_id: '353'
+native:
+  user_goal:
+    text: Show the shopping page for competitive swimwear with products sorted by ascending price.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult score 1.0: AgentResponseEvaluator must accept the response as NAVIGATE with status SUCCESS and retrieved_data null, and NetworkEventEvaluator must accept the last evaluator-visible navigation as a 200 GET to the competitive-swimwear category URL with product_list_order=price. Both evaluator scores must be 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: Run the released WebArenaVerifiedEvaluator for task 353 on the retained agent response and HAR, then inspect both EvaluatorResult scores and the composed TaskEvalResult score/status.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response normalize and compare without assertions to task_type NAVIGATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the HAR yield a last evaluator-visible navigation event matching a 200 GET to __SHOPPING__/clothing-shoes-jewelry/sport-specific-clothing/competitive-swimwear.html with product_list_order=price under the released normalization and comparison rules?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/tracing.py::NetworkEvent.is_navigation_event
+  success_if:
+  - text: The response passes AgentResponseEvaluator and the HAR passes NetworkEventEvaluator for the specified final navigation; both component scores are 1.0, so the composed task score is 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Native failure occurs if either component is not 1.0: the response fails its normalized comparison, the required last navigation event is absent or mismatched, or an evaluator/task error occurs; the composed task score is then 0.0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only when agent_response.json or network.har is absent, unreadable, or too incomplete to apply the corresponding released check; an observed mismatch or evaluator error is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: Both retained evaluator inputs are needed to reconstruct the benchmark's conjunctive result.
+stronger:
+  additional_conditions:
+  - id: rendered_listing_content_and_order
+    text: A retained final-page DOM or accessibility snapshot shows a competitive-swimwear product listing whose displayed prices are in nondecreasing order.
+    rationale: The task asks for products to be shown in ascending-price order, while the native checks accept a self-reported success plus matching navigation request metadata and do not inspect the rendered product sequence.
+    decisive_artifacts:
+    - artifact: final_page_dom_or_accessibility_snapshot
+      question: Does the final rendered page identify the listing as competitive swimwear and show its products in nondecreasing displayed-price order?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data

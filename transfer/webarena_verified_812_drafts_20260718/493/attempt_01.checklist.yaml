@@ -1,0 +1,65 @@
+schema_version: case_checklist_v1
+case_unit_id: '493'
+domain: webarena_verified
+task_id: '493'
+native:
+  user_goal:
+    text: Notify Grace Nguyen through their most recent pending order with the message “sorry we are bankrupt, please contact our customer service for refund”.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Task 493 succeeds only if both configured checks score 1.0: AgentResponseEvaluator accepts the final response and NetworkEventEvaluator accepts the selected last matching notification POST.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator followed by NetworkEventEvaluator, and TaskEvalResult.create applies all-of score composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the official response evaluator accept it as a MUTATE/SUCCESS response under its non-retrieve parsing, normalization, and comparison rules, without an evaluator error?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the last evaluation event matching a POST to /sales/order/addComment/order_id/65 have HTTP 200 and, under official normalization, the requested history[comment] and history[is_customer_notified]=1, with isAjax ignored?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: The response is accepted as MUTATE/SUCCESS and the selected last matching HAR POST satisfies the configured URL, method, form-data, and response-status criteria, so both evaluator scores and the task score equal 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Either evaluator has score 0.0 or ERROR—including an unaccepted response, no matching notification POST, or a mismatch in the selected last POST—so the task score is 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Retained evidence is undecided only when it cannot establish both passes and also does not already establish either evaluator’s failure, such as when one required artifact is absent or unreadable while the available artifact is not a decisive failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    rationale: All-of composition requires evidence for both passes to prove success, but one demonstrated evaluator failure is enough to prove failure.
+stronger:
+  additional_conditions:
+  - id: persisted_notification_outcome
+    text: Beyond native trace acceptance, retained post-run shopping-admin state must show that Grace Nguyen’s most recent pending order contains the exact requested message and records that the customer was notified.
+    rationale: The task states an outcome tied to a named customer and relative order, while the native evaluator checks a POST to fixed order_id 65, its form values, and HTTP 200 without inspecting persisted order state.
+    decisive_artifacts:
+    - artifact: Post-run shopping-admin order-state snapshot or export
+      question: Does it identify order 65 as Grace Nguyen’s most recent pending order and show the exact comment persisted with a customer-notified indicator?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data

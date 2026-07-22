@@ -1,0 +1,103 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "490",
+  "domain": "webarena_verified",
+  "task_id": "490",
+  "native": {
+    "user_goal": {
+      "text": "Change the page title of the site's \"About us\" page to \"Secret\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "The official task score is 1.0 iff both evaluator scores are 1.0: AgentResponseEvaluator accepts a final response normalizing to task_type=MUTATE, status=SUCCESS, and retrieved_data=null, and NetworkEventEvaluator accepts the last matching POST to __SHOPPING_ADMIN__/cms/page/save/back/edit with response status 302 and post fields is_active=1, page_id=5, store_id[0]=0, and title=Secret.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator; TaskEvalResult.create requires every evaluator score to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained final response pass the official response parsing, normalization, and comparison for task_type=MUTATE and status=SUCCESS?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching the configured save POST pass the URL, response-status 302, and required post-data comparisons?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff both official checks score 1.0: agent_response.json passes the normalized response comparison, and network.har's last matching save POST passes every configured network-event comparison.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either official check scores other than 1.0 or errors: the response fails its normalized comparison, or no eligible save POST exists or its last eligible event fails any configured comparison. Any one failed or errored evaluator makes the task score 0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only if retained review evidence omits or truncates agent_response.json or network.har so that one of the two checks cannot be reconstructed, and no retained official per-evaluator result resolves that check.",
+        "support": [
+          "case_packet.md::9-20",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task"
+        ],
+        "rationale": "This is an evidence-retention gap; a missing or malformed input that the official evaluator actually scored as non-1.0 is a native failure, not undecided."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_page_title",
+        "text": "Beyond native success, a retained server-backed post-run CMS record for page_id 5 confirms that its persisted title is \"Secret\".",
+        "rationale": "The native network check verifies only a matching save request and 302 response; it does not inspect persisted CMS state, while the stated task requires the page title itself to be changed.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run server-backed CMS page record",
+            "question": "Does a fresh post-run state export or page/API response for page_id 5 report the title \"Secret\"?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected.post_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

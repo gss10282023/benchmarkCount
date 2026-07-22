@@ -1,0 +1,69 @@
+schema_version: case_checklist_v1
+case_unit_id: '611'
+domain: webarena_verified
+task_id: '611'
+native:
+  user_goal:
+    text: Create a review post titled "Harry Potter" in Reddit f/books, then add the comment "Wonderful journey" to that created post.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring all three configured evaluator scores to equal 1.0: the final-response check, the Reddit submission-event check, and the comment-event check.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator over agent_response.json and two NetworkEventEvaluator checks over network.har, then combines their scores with an all-of rule.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize to the expected mutate-task response, with task_type (or legacy performed_operation) MUTATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: 'Do both network checks pass: the last matching POST to /submit or /submit/books has response 302 and fields submission[forum]=10037 and submission[title]=Harry Potter; and the last matching POST to /f/books/{post_id}/-/comment has response 302 and the post-id-specific comment field equal to Wonderful journey?'
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'All three checks score 1.0: the response normalizes to MUTATE/SUCCESS, the selected submission POST matches its configured URL, form fields, and 302 status, and the selected comment POST matches its configured post-id URL, comment value, and 302 status.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native failure occurs if any of the three evaluators scores 0.0 or errors, including a response-format/value mismatch, a missing or mismatching selected submission event, or a missing or mismatching selected comment event; any such result makes TaskEvalResult.score 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  undecided_if:
+  - text: Evidence review is undecided only when agent_response.json or network.har is absent, unreadable, or incomplete and no retained official evaluator result resolves every affected check.
+    rationale: This denotes insufficient retained evidence, not a recorded evaluator failure or error, which is native failure.
+stronger:
+  additional_conditions:
+  - id: submission_precedes_comment
+    text: Beyond native success, require the qualifying submission event to occur earlier in network.har than the qualifying comment event.
+    rationale: The official instruction says to create the post and then comment, while the two released network evaluators independently select their last matching events and do not compare the events' cross-evaluator positions.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the qualifying Harry Potter submission POST precede the qualifying Wonderful journey comment POST in trace order?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - derived/task.json::eval[2]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

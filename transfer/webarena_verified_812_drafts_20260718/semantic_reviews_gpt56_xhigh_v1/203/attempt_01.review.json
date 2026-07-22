@@ -1,0 +1,253 @@
+{
+  "decision": "revise",
+  "checklist_items": [
+    {
+      "id": "identity_and_scope",
+      "status": "pass",
+      "rationale": "The domain, case unit, and task identifiers match case 203, and the checklist remains case-specific and within the packet boundary.",
+      "evidence": [
+        "case_packet.md::Case Metadata",
+        "checklist.yaml::case_unit_id",
+        "checklist.yaml::domain",
+        "checklist.yaml::task_id"
+      ]
+    },
+    {
+      "id": "native_user_goal",
+      "status": "pass",
+      "rationale": "The stated goal preserves the request to retrieve the most recent pending order's purchase date and order ID in the requested purchase_date output shape.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary.official instruction",
+        "derived/task.json::intent",
+        "checklist.yaml::native.user_goal"
+      ]
+    },
+    {
+      "id": "official_evaluator_semantics",
+      "status": "pass",
+      "rationale": "The checklist correctly identifies the three explicitly configured response fields, the RETRIEVE/SUCCESS expectations, schema-based date and order_id normalization, exact object structure, and unordered retrieved-data comparison. It does not incorrectly score the materialized error_details default.",
+      "evidence": [
+        "derived/tag_task.json::eval[0]",
+        "derived/task.json::eval[0]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+        "checklist.yaml::native.benchmark_success"
+      ]
+    },
+    {
+      "id": "evaluator_composition",
+      "status": "pass",
+      "rationale": "The checklist identifies exactly one AgentResponseEvaluator and correctly requires its score to equal 1.0 for TaskEvalResult.score to equal 1.0, treating mismatches and evaluator errors as failures.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary.evaluator sequence",
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "checklist.yaml::native.checked_by"
+      ]
+    },
+    {
+      "id": "decisive_post_run_evidence",
+      "status": "fail",
+      "rationale": "The checklist incorrectly makes network.har decisive even though the sole configured check is AgentResponseEvaluator and no packet-represented trace contents affect this case's date/order response comparison. The complete attributable agent_response.json is the minimal sufficient retained evidence.",
+      "evidence": [
+        "derived/tag_task.json::eval",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+        "checklist.yaml::native.decisive_artifacts[1]"
+      ]
+    },
+    {
+      "id": "decision_rules",
+      "status": "fail",
+      "rationale": "Success and undecided are improperly conditioned on retention and parsing of network.har. Missing or retention-damaged HAR evidence does not prevent reconstruction of this case's only configured response check; undecided should be limited to loss, truncation, or provenance ambiguity of agent_response.json.",
+      "evidence": [
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]",
+        "derived/task.json::eval"
+      ]
+    },
+    {
+      "id": "source_support_pointers",
+      "status": "pass",
+      "rationale": "The cited derived paths and official symbols are represented in the packet, and no evaluator instance or expected value is invented.",
+      "evidence": [
+        "case_packet.md::Source Inventory",
+        "checklist.yaml::native.benchmark_success.support",
+        "checklist.yaml::stronger.additional_conditions[0].support"
+      ]
+    },
+    {
+      "id": "stronger_conditions",
+      "status": "pass",
+      "rationale": "The additional condition is explicitly separate from native scoring and captures the concrete case-specific conflict between the requested purchase_date/ISO output and the evaluator's date/May 31, 2023 schema. It is measurable from agent_response.json.",
+      "evidence": [
+        "derived/task.json::intent",
+        "derived/task.json::eval[0].expected.retrieved_data[0]",
+        "derived/task.json::eval[0].results_schema.items.properties",
+        "checklist.yaml::stronger.additional_conditions[0]"
+      ]
+    },
+    {
+      "id": "minimality_and_no_run_leakage",
+      "status": "fail",
+      "rationale": "There is no run leakage, but the native checklist is not minimal or fully coherent because it adds network.har as a decisive artifact and propagates that unnecessary requirement through success, failure, and undecided rules.",
+      "evidence": [
+        "checklist.yaml::native.decisive_artifacts",
+        "checklist.yaml::native.success_if",
+        "checklist.yaml::native.undecided_if",
+        "derived/tag_task.json::eval"
+      ]
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "nondecisive_network_artifact",
+      "checklist_item_id": "decisive_post_run_evidence",
+      "message": "network.har is named as decisive although this case config contains only an AgentResponseEvaluator and the trace does not affect the configured response comparison.",
+      "required_change": "Remove network.har from decisive_artifacts and use complete, attributable agent_response.json as the minimal sufficient post-run evidence.",
+      "evidence": [
+        "derived/tag_task.json::eval",
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+      ]
+    },
+    {
+      "id": "har_contaminates_decision_rules",
+      "checklist_item_id": "decision_rules",
+      "message": "The rules require a retained parseable HAR for success and classify missing HAR as undecided, even though its absence does not prevent reconstruction of the sole configured evaluator check.",
+      "required_change": "Remove HAR retention and parsing from the reconstruction rules. Restrict undecided to loss, truncation, or provenance ambiguity of agent_response.json; complete invalid or mismatching responses and evidenced evaluator errors remain failures.",
+      "evidence": [
+        "checklist.yaml::native.success_if[0]",
+        "checklist.yaml::native.fail_if[1]",
+        "checklist.yaml::native.undecided_if[0]",
+        "derived/task.json::eval"
+      ]
+    },
+    {
+      "id": "nonminimal_native_body",
+      "checklist_item_id": "minimality_and_no_run_leakage",
+      "message": "The unnecessary HAR artifact and its repeated conditions make the checklist nonminimal and create a false evidence dependency.",
+      "required_change": "Collapse the native evidence and rules around the one configured AgentResponseEvaluator and its complete agent_response.json artifact, while retaining the accurate composition and error semantics.",
+      "evidence": [
+        "checklist.yaml::native.decisive_artifacts",
+        "checklist.yaml::native.success_if",
+        "checklist.yaml::native.undecided_if",
+        "case_packet.md::Benchmark Task Summary.evaluator sequence"
+      ]
+    }
+  ],
+  "revised_checklist": {
+    "native": {
+      "user_goal": {
+        "text": "Retrieve the purchase date and order ID of the most recent pending shopping-admin order, returning only a list of objects with purchase_date in YYYY-MM-DD format (or null if unavailable) and order_id.",
+        "support": [
+          "derived/task.json::intent"
+        ]
+      },
+      "benchmark_success": {
+        "text": "Native success is TaskEvalResult.score = 1.0: the sole AgentResponseEvaluator must finish without error and score 1.0. After released response extraction and normalization, the explicitly configured task_type, status, and retrieved_data fields must match RETRIEVE, SUCCESS, and an unordered singleton whose object has exactly date and order_id values equivalent under the configured schema to May 31, 2023 and 000000299. performed_operation is accepted only as the legacy task_type alias when task_type is absent. The sparse expected configuration does not explicitly set error_details, and other raw top-level response fields do not enter this configured comparison.",
+        "support": [
+          "derived/tag_task.json::eval[0]",
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "checked_by": {
+        "text": "The released WebArenaVerifiedEvaluator runs exactly the configured AgentResponseEvaluator. An assertion-free, error-free evaluator result scores 1.0, and TaskEvalResult scores 1.0 only when every configured evaluator score—here, that sole score—is 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "decisive_artifacts": [
+        {
+          "artifact": "agent_response.json",
+          "question": "Does the complete, attributable exact submitted response, under released string/code-block JSON extraction and configured-field normalization, yield no evaluator error or comparison assertion: task_type RETRIEVE (or performed_operation when task_type is absent), status SUCCESS, and retrieved_data normalizing to an unordered singleton object with exactly date and order_id values equivalent to May 31, 2023 and 000000299?",
+          "support": [
+            "derived/tag_task.json::eval[0].expected",
+            "derived/task.json::eval[0].results_schema",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+          ]
+        }
+      ],
+      "success_if": [
+        {
+          "text": "The complete attributable response passes released parsing and normalization with task_type and status matching RETRIEVE and SUCCESS, while retrieved_data normalizes to an unordered one-element collection whose object has exactly date and order_id values equivalent under the schema to May 31, 2023 and 000000299, producing no assertions or evaluator error.",
+          "support": [
+            "derived/task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects"
+          ]
+        },
+        {
+          "text": "The sole AgentResponseEvaluator consequently scores 1.0, so TaskEvalResult has status success and score 1.0.",
+          "support": [
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "fail_if": [
+        {
+          "text": "Fail when a complete attributable submission yields invalid or non-object content after released extraction, a missing or mismatching configured task_type or status, missing/null/empty expected retrieved data, an extra or missing retrieved row, an extra or missing retrieved-object key, a wrong normalized value, or any other official comparison assertion.",
+          "support": [
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_recursive"
+          ]
+        },
+        {
+          "text": "Fail when applying the released configured check produces an evaluator or orchestration error or when the sole evaluator score is not 1.0; these conditions produce TaskEvalResult.score = 0.0 rather than undecided.",
+          "support": [
+            "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+            "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "undecided_if": [
+        {
+          "text": "Undecided only when agent_response.json is absent, truncated, or cannot be attributed to this run, preventing reconstruction of the exact submitted response. A completely retained null, malformed, invalid, or mismatching response is failure, not undecided.",
+          "rationale": "The exact submitted response is the minimal sufficient run evidence for this case's sole configured AgentResponseEvaluator; no NetworkEventEvaluator is configured."
+        }
+      ]
+    },
+    "stronger": {
+      "additional_conditions": [
+        {
+          "id": "task_requested_output_shape",
+          "text": "Independently of native scoring, require the user-facing retrieved result to be a one-element list whose sole object has exactly purchase_date = 2023-05-31 and order_id = 000000299, with no additional object fields; do not substitute the evaluator-only key date.",
+          "rationale": "The task expressly requests a list using purchase_date in YYYY-MM-DD form, while the released evaluator instead structurally requires date and uses May 31, 2023 as the configured expected value. Native success therefore does not establish, and conflicts with, the task-requested key shape.",
+          "decisive_artifacts": [
+            {
+              "artifact": "agent_response.json",
+              "question": "Is the user-facing retrieved result exactly a one-element list containing only purchase_date = 2023-05-31 and order_id = 000000299, with no additional object properties?",
+              "support": [
+                "derived/task.json::intent",
+                "derived/task.json::eval[0].expected.retrieved_data[0]",
+                "derived/task.json::eval[0].results_schema.items.properties"
+              ]
+            }
+          ],
+          "support": [
+            "derived/task.json::intent",
+            "derived/task.json::eval[0].expected.retrieved_data[0]",
+            "derived/task.json::eval[0].results_schema.items.properties",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects"
+          ]
+        }
+      ]
+    }
+  }
+}

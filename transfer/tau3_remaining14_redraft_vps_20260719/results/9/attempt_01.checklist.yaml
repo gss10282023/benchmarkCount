@@ -1,0 +1,95 @@
+schema_version: case_checklist_v1
+case_unit_id: '9'
+domain: tau3_retail
+task_id: '9'
+native:
+  user_goal:
+    text: 'Help Mei Kovacs with a delivered-order exchange: she initially wants to exchange the water bottle and desk lamp, but when asked to confirm she changes her mind and wants only the desk lamp exchanged for a brighter same-product variant.'
+    support:
+    - derived/task.json::user_scenario.instructions.reason_for_call
+    - official/policy.md::Exchange delivered order
+  benchmark_success:
+    text: 'Native benchmark success is the released evaluator marking the run successful: the simulation ends with `AGENT_STOP` or `USER_STOP`, the DB component passes by full agent/user DB hash match against the environment produced by replaying the official action list, and the NL_ASSERTION component is 1.0 here because this task has no `nl_assertions`.'
+    support:
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+    - derived/task.json::evaluation_criteria.reward_basis
+    - derived/task.json::evaluation_criteria.nl_assertions
+    - derived/task.json::evaluation_criteria.actions
+  checked_by:
+    text: Checked by the released native evaluator output in `adapter/native_run/results.json`, read against the task’s official `reward_basis` and the released evaluator’s termination and DB-hash rules.
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0].path_pattern
+    - derived/task.json::evaluation_criteria.reward_basis
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+  decisive_artifacts:
+  - artifact: adapter/native_run/results.json
+    question: Does the retained native evaluator output show non-premature termination, `db_check.db_match=true`, and scalar `reward=1.0` for this run?
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0].path_pattern
+    - derived/artifact_inventory.json::artifact_classes[0].contents[0]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[2]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[6]
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+    - derived/task.json::evaluation_criteria.reward_basis
+    - derived/task.json::evaluation_criteria.nl_assertions
+  success_if:
+  - text: The retained native evaluator output shows `termination_reason` as `AGENT_STOP` or `USER_STOP` and `db_check.db_match=true`, which is the released DB criterion for the run’s final agent and user databases matching the environment produced by replaying the official action list.
+    support:
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - derived/artifact_inventory.json::native_db_evidence_rule
+    - derived/task.json::evaluation_criteria.actions
+  - text: The same output shows native `reward=1.0` under task `reward_basis` [`DB`,`NL_ASSERTION`]; on this task the NL_ASSERTION side is vacuously satisfied because `nl_assertions` is null/empty.
+    support:
+    - derived/task.json::evaluation_criteria.reward_basis
+    - derived/task.json::evaluation_criteria.nl_assertions
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+  fail_if:
+  - text: The retained native evaluator output shows a termination reason other than `AGENT_STOP` or `USER_STOP`; the released evaluator then assigns `reward=0.0` without further task scoring.
+    support:
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+  - text: The retained native evaluator output shows `db_check.db_match=false`; because `DB` is in this task’s `reward_basis`, native success fails even if partial conversation or tool evidence looks plausible.
+    support:
+    - derived/task.json::evaluation_criteria.reward_basis
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - derived/artifact_inventory.json::native_db_evidence_rule
+    - derived/artifact_inventory.json::artifact_classes[2].limitations[0]
+  undecided_if:
+  - text: The released native evaluator output for the run is missing, unreadable, or lacks the fields needed to read the native decision (`termination_reason`, `db_check`, or `reward`); task logs, traces, or partial tool-return views alone are insufficient to establish the required full DB-hash comparison.
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0].contents[0]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[2]
+    - derived/artifact_inventory.json::artifact_classes[0].contents[6]
+    - derived/artifact_inventory.json::native_db_evidence_rule
+    - derived/artifact_inventory.json::artifact_classes[2].limitations[0]
+    - derived/artifact_inventory.json::artifact_classes[4].limitations[0]
+stronger:
+  additional_conditions:
+  - id: policy_auth_and_revised_confirmation
+    text: Beyond native success, the retained conversation/tool record should show that the agent authenticated the caller via name + zip and then obtained explicit `yes` confirmation for the revised one-item exchange before calling `exchange_delivered_order_items`; the released evaluator can still accept a DB-matching run that skips these policy-required steps.
+    rationale: The policy requires authentication at the beginning of the conversation and explicit user confirmation before any database-updating exchange. This task’s scenario also says the user changes her mind at confirmation time and wants only the desk lamp exchanged. Native scoring does not check those procedural steps because the task `reward_basis` is only `DB` and `NL_ASSERTION`, `ACTION` is excluded, and `nl_assertions` is empty.
+    decisive_artifacts:
+    - artifact: adapter/native_run/artifacts/task_<task_id>/sim_<simulation_id>/task.log
+      question: Does the retained conversation/tool log show name+zip authentication, then explicit user confirmation of only the desk-lamp exchange, before the `exchange_delivered_order_items` call?
+      support:
+      - derived/artifact_inventory.json::artifact_classes[2].path_pattern
+      - official/policy.md::Retail agent policy
+      - official/policy.md::Exchange delivered order
+      - derived/task.json::user_scenario.instructions.reason_for_call
+      - derived/task.json::evaluation_criteria.actions[0]
+      - derived/task.json::evaluation_criteria.actions[5]
+    support:
+    - official/policy.md::Retail agent policy
+    - official/policy.md::Exchange delivered order
+    - derived/task.json::user_scenario.instructions.reason_for_call
+    - derived/task.json::evaluation_criteria.actions[0]
+    - derived/task.json::evaluation_criteria.actions[5]
+    - derived/task.json::evaluation_criteria.reward_basis
+    - derived/task.json::evaluation_criteria.nl_assertions
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation

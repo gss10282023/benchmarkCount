@@ -1,0 +1,62 @@
+schema_version: case_checklist_v1
+case_unit_id: '770'
+domain: webarena_verified
+task_id: '770'
+native:
+  user_goal:
+    text: Update shopping-admin inventory to account for 12 received white Cora Parachute Pants in size 28 and 56 received blue ones in size 29.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring all three checks to score 1.0: the response matches task_type MUTATE, status SUCCESS, and null retrieved_data; the last matching product-1836 save POST has quantity 112 and response status 302; and the last matching product-1838 save POST has quantity 156 and response status 302.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official AgentResponseEvaluator and two NetworkEventEvaluator instances, composed conjunctively by TaskEvalResult.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the complete response pass AgentResponseEvaluator against the expected MUTATE, SUCCESS, and null-retrieved-data values?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the trace contain, as the last matching POST for each expected save URL, product 1836 with qty 112 and product 1838 with qty 156, each returning 302?
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+  success_if:
+  - text: 'Success if and only if all three official checks score 1.0: the response check passes and both last-matching save-POST checks pass with their respective URL, quantity, and 302-status criteria.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Fail if any check mismatches or errors: the response does not pass its expected comparison, the product-1836 check lacks a qualifying last matching POST with qty 112 and status 302, or the product-1838 check lacks one with qty 156 and status 302; any one makes the task score 0.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retained material is not the complete evaluator input—for example, only excerpts or summaries remain—and no official TaskEvalResult is retained, so the three evaluator outcomes cannot be reconstructed.
+    rationale: Incomplete post-run retention cannot establish whether the complete response and HAR matched or mismatched the official checks.
+stronger:
+  additional_conditions:
+  - id: persisted_inventory_state
+    text: Beyond native success, a retained post-run catalog-state snapshot confirms quantity 112 for the requested white size-28 variant and quantity 156 for the requested blue size-29 variant.
+    rationale: The task asks for inventory to be updated, but the released evaluators inspect a success response and matching POST/302 trace events rather than the final persisted catalog state.
+    decisive_artifacts:
+    - artifact: Post-run shopping-admin catalog-state snapshot or export
+      question: Do product records 1836 and 1838 identify the requested white/28 and blue/29 variants and show quantities 112 and 156, respectively?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - derived/task.json::eval[2]
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

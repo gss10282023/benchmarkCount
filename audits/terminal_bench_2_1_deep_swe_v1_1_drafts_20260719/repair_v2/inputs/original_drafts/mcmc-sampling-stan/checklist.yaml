@@ -1,0 +1,116 @@
+schema_version: case_checklist_v1
+case_unit_id: mcmc-sampling-stan
+domain: terminal_bench_2_1
+task_id: terminal-bench/mcmc-sampling-stan
+native:
+  user_goal:
+    text: Install RStan 2.32.7 and Stan dependencies, load `/app/data.csv`, implement the specified hierarchical binomial/Beta model with hyperprior `(alpha + beta)^(-5/2)`, run posterior sampling from `/app/analysis.R`, and save posterior mean estimates plus the Stan and R source files.
+    support:
+    - official/instruction.md::1-21
+  benchmark_success:
+    text: 'Native success is that the official verifier run by `official/tests/test.sh` passes all six pytest checks in `official/tests/test_outputs.py`: `rstan` loads; `/app/hierarchical_model.stan` exists and `stan_model(...)` returns 0; `/app/analysis.R` exists and either returns 0 or avoids the fatal stderr phrases the test scans for; `Rscript /app/analysis.R` returns 0 and emits at least one sampling pattern; and any existing posterior-mean files parse to first numeric values within alpha `[2.84, 2.91]` and beta `[16.1, 16.7]`.'
+    support:
+    - official/tests/test.sh::21-32
+    - official/tests/test_outputs.py::8-26
+    - official/tests/test_outputs.py::29-54
+    - official/tests/test_outputs.py::57-86
+    - official/tests/test_outputs.py::89-138
+    - official/tests/test_outputs.py::141-180
+  checked_by:
+    text: Pytest in `official/tests/test_outputs.py`, invoked by `official/tests/test.sh` with CTRF reporting.
+    support:
+    - official/tests/test.sh::21-32
+    - official/tests/test_outputs.py::8-180
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the structured pytest report show pass/fail status for each of the six official checks, and if any failed, which assertion failed?
+    support:
+    - case_packet.md::77-89
+    - official/tests/test.sh::21-32
+  - artifact: verifier/test-stdout.txt
+    question: Does verifier stdout preserve the pytest summary and the sampling-output context relevant to `test_stan_model_sampling`?
+    support:
+    - case_packet.md::77-89
+    - official/tests/test_outputs.py::141-177
+  - artifact: verifier/test-stderr.txt
+    question: Does verifier stderr preserve the R/Stan or assertion output needed to confirm package-load, Stan-parse, or script-execution failures?
+    support:
+    - case_packet.md::77-89
+    - official/tests/test_outputs.py::8-86
+  success_if:
+  - text: 'Retained verifier artifacts show all six official pytest checks passed: `rstan` load, Stan-file existence and parse, `analysis.R` existence and non-fatal `R` execution under the released rule, successful `Rscript` sampling-pattern run, and any existing alpha/beta files within the stated numeric ranges.'
+    support:
+    - official/tests/test.sh::21-32
+    - official/tests/test_outputs.py::8-26
+    - official/tests/test_outputs.py::29-54
+    - official/tests/test_outputs.py::57-86
+    - official/tests/test_outputs.py::89-138
+    - official/tests/test_outputs.py::141-180
+  fail_if:
+  - text: Retained verifier artifacts show failure of `test_rstan_package_installed`, `test_hierarchical_model_implemented`, `test_r_script_created_and_used_rstan`, or `test_stan_model_sampling`.
+    support:
+    - official/tests/test_outputs.py::8-26
+    - official/tests/test_outputs.py::29-54
+    - official/tests/test_outputs.py::57-86
+    - official/tests/test_outputs.py::141-180
+  - text: Retained verifier artifacts show that `/app/posterior_alpha_mean.txt` existed but was empty, had no parseable first numeric value, or its first numeric value was outside `[2.84, 2.91]`.
+    support:
+    - official/tests/test_outputs.py::89-112
+  - text: Retained verifier artifacts show that `/app/posterior_beta_mean.txt` existed but was empty, had no parseable first numeric value, or its first numeric value was outside `[16.1, 16.7]`.
+    support:
+    - official/tests/test_outputs.py::115-138
+  undecided_if:
+  - text: Retained non-label verifier artifacts are missing or too incomplete to determine whether all six official pytest checks passed or to identify a specific failed assertion.
+    support:
+    - case_packet.md::65-89
+    - official/tests/test.sh::21-32
+stronger:
+  additional_conditions:
+  - id: require_posterior_output_files
+    text: Require evidence that `/app/posterior_alpha_mean.txt` and `/app/posterior_beta_mean.txt` were actually produced with numeric contents, because the instruction requires saving both files but the native evaluator only checks them if they already exist.
+    rationale: 'This closes a concrete instruction/evaluator gap on required deliverables: native success can occur with one or both posterior-mean files absent.'
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: Do retained workspace artifacts include both posterior-mean files with non-empty numeric contents?
+      support:
+      - case_packet.md::77-89
+      - official/instruction.md::17-19
+    - artifact: agent/trajectory.json
+      question: If the workspace snapshot is incomplete, does the retained trajectory show both posterior-mean files being written?
+      support:
+      - case_packet.md::77-89
+      - official/instruction.md::17-19
+    support:
+    - official/instruction.md::17-19
+    - official/tests/test_outputs.py::89-138
+  - id: require_exact_rstan_version
+    text: Require evidence that the installed and used `rstan` version was exactly `2.32.7`, because the instruction specifies that version but the native evaluator accepts any loadable `rstan`.
+    rationale: The released test invokes `packageVersion('rstan')` yet asserts only a zero exit status, so version mismatches are outside the native pass/fail boundary.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show installation or use of `rstan` 2.32.7?
+      support:
+      - case_packet.md::77-89
+      - official/instruction.md::4-4
+    - artifact: agent/*-stdout.txt
+      question: Do retained R or package-manager logs report `rstan` version 2.32.7?
+      support:
+      - case_packet.md::77-89
+      - official/instruction.md::4-4
+    support:
+    - official/instruction.md::4-4
+    - official/tests/test_outputs.py::11-18
+  - id: require_model_and_data_fidelity
+    text: Require retained source artifacts to show that `analysis.R` loads `/app/data.csv` and that `hierarchical_model.stan` implements `y_i ~ Binomial(n_i, theta_i)`, `theta_i ~ Beta(alpha, beta)`, and hyperprior `(alpha + beta)^(-5/2)`, because native checks only Stan parseability, script execution, sampling-like output, and optional numeric ranges.
+    rationale: This closes the concrete task-specification gap where the released evaluator does not directly verify that the instructed data source and model structure were the ones actually implemented.
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: Do retained source artifacts include `analysis.R` and `hierarchical_model.stan`, and do their contents show the instructed data load and model structure?
+      support:
+      - case_packet.md::77-89
+      - official/instruction.md::5-21
+    support:
+    - official/instruction.md::5-21
+    - official/tests/test_outputs.py::29-54
+    - official/tests/test_outputs.py::57-86
+    - official/tests/test_outputs.py::141-180

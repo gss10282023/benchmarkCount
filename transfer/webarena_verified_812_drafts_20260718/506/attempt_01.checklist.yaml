@@ -1,0 +1,96 @@
+schema_version: case_checklist_v1
+case_unit_id: '506'
+domain: webarena_verified
+task_id: '506'
+native:
+  user_goal:
+    text: Buy the highest-rated meat-substitute product priced between $100 and $200, without retaining any pre-existing cart items.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if all five configured checks score 1.0: the response passes the MUTATE/SUCCESS expectation, and the last matching HAR event passes each check for adding product 22490, a one-item cart containing "Beyond Meat Beef Beefy Crumble, 5 Pound -- 2 per case.", submitting payment information for customer 27, and reaching checkout success; every checked response status is 200.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - derived/task.json::eval[4]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs one AgentResponseEvaluator and four NetworkEventEvaluator instances, then applies the all-evaluators-must-score-1.0 composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - derived/task.json::eval
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the released AgentResponseEvaluator parse the retained response and return score 1.0 for the configured MUTATE/SUCCESS expectation?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: 'Do all four released network checks return score 1.0 for their configured last matching events: POST add product 22490 with product=22490; GET cart totals with items_qty=1 and the specified product name; POST payment-information with billingAddress.customerId=27; and GET checkout/onepage/success, each with status 200?'
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - derived/task.json::eval[4]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: The retained agent response receives AgentResponseEvaluator score 1.0 for the configured MUTATE/SUCCESS response comparison.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: The retained HAR makes each of the four configured NetworkEventEvaluator instances score 1.0 for the add-product, one-item-cart, payment-information, and checkout-success checks.
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - derived/task.json::eval[4]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  fail_if:
+  - text: The retained response is evaluable and its AgentResponseEvaluator score is not 1.0, including a response mismatch or evaluator error.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: The retained HAR is evaluable and any configured network check scores less than 1.0 or errors, including when its required last matching event is absent or mismatches any expected field.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The retained evidence package omits or truncates agent_response.json or network.har so that the exact inputs supplied for the official checks cannot be reconstructed and replayed.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    rationale: Both artifacts are required to determine all five evaluator outcomes from stored run evidence.
+stronger:
+  additional_conditions:
+  - id: durable_order_and_catalog_constraints
+    text: Beyond native scoring, retained post-run shopping evidence must show one durable completed order containing only product 22490, with its product price between $100 and $200, and a contemporaneous catalog snapshot must show that product has the maximum rating among meat-substitute products in that price range.
+    rationale: The official intent requires an actual purchase satisfying category, rating, budget, and cart-clearing constraints, while the released evaluator only ANDs independently matched response and HAR checks and does not inspect a durable order record or compare the live eligible catalog.
+    decisive_artifacts:
+    - artifact: Post-run shopping account order record
+      question: Does the account show a completed order containing only product 22490, priced between $100 and $200, with no other cart item carried into the order?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - derived/task.json::eval[2]
+      - derived/task.json::eval[3]
+      - derived/task.json::eval[4]
+    - artifact: Retained post-run meat-substitute catalog snapshot
+      question: Does product 22490 belong to the meat-substitute category and have the maximum rating among products priced between $100 and $200?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::instantiation_dict
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - derived/task.json::eval[3]
+    - derived/task.json::eval[4]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create

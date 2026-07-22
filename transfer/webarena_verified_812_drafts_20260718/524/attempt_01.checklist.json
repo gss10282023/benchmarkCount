@@ -1,0 +1,121 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "524",
+  "domain": "webarena_verified",
+  "task_id": "524",
+  "native": {
+    "user_goal": {
+      "text": "Star the eight most-starred repositories in GitLab.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when the AgentResponseEvaluator and all eight configured NetworkEventEvaluators each score 1.0.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs one response check and eight network-event checks, then applies the all-evaluators-must-pass composition.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the submitted response normalize under the released evaluator to task_type=MUTATE, status=SUCCESS, and retrieved_data=null?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "For each configured toggle_star endpoint, does the complete HAR show a last matching POST event whose response has status 200 and the required star_count?",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "The response evaluator accepts the normalized response as task_type=MUTATE, status=SUCCESS, and retrieved_data=null.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "text": "All eight network checks pass: the last matching POST to each repository's toggle_star.json endpoint returns HTTP 200 with star_count umano/AndroidSlidingUpPanel=56, facebook/create-react-app=53, kkroening/ffmpeg-python=52, mk-j/PHP_XLSXWriter=48, koush/AndroidAsync=47, eriklindernoren/PyTorch-GAN=46, thoughtbot/administrate=45, and keycloak/keycloak=44.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The response evaluator rejects or errors on the submitted response because it does not normalize and structurally compare to the required MUTATE/SUCCESS response.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator.evaluate",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "Any one of the eight network checks lacks its required matching POST event, finds that the selected last event mismatches HTTP 200 or the required star_count, or errors; any such non-passing evaluator makes the task score 0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The stored review evidence does not retain enough of agent_response.json or network.har to reconstruct what the evaluator saw. An actually submitted empty, malformed, or incomplete artifact is a native non-success, not an undecided case.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ],
+        "rationale": "Non-retention creates an evidence-review gap; evaluator-visible missing or invalid inputs receive a zero or error outcome."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "final_star_state_exactness",
+        "text": "Beyond native scoring, require a retained GitLab star-membership diff showing all eight target repositories starred at run end and no non-target star membership changed.",
+        "rationale": "The official intent requests a GitLab state change, while the released evaluator checks only the declared response and endpoint-specific network events; it does not inspect final star membership or reject unrelated star-state changes.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Retained GitLab starred-project state diff",
+            "question": "Does the before/after state comparison show all eight target memberships present at run end and no changed membership for any non-target repository?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '502'
+domain: webarena_verified
+task_id: '502'
+native:
+  user_goal:
+    text: Mark all Gobi HeatTec Tee products out of stock in shopping admin.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the normalized MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the last matching product-save POST for product 446 with stock flag "0" and response status 302.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then requires every evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize without error so AgentResponseEvaluator finds task_type MUTATE, status SUCCESS, and no structural mismatch in its comparison object?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last POST whose normalized URL matches ^__SHOPPING_ADMIN__/catalog/product/save/id/446/type/configurable/store/0/set/\d+/back/edit$ recorded with response status 302 and parsed post_data product[quantity_and_stock_status][is_in_stock] equal to "0" under evaluator normalization?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks pass: agent_response.json normalizes to the accepted MUTATE/SUCCESS response, and the selected last matching POST in network.har matches the configured URL, stock flag "0", and 302 response status.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The benchmark is unsuccessful if AgentResponseEvaluator does not score 1.0, including a response parse/normalization error or a task_type, status, or comparison-structure mismatch.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: 'The benchmark is unsuccessful if NetworkEventEvaluator does not score 1.0: no matching POST exists, the selected last matching POST lacks stock flag "0" or status 302, or trace evaluation errors.'
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable if either agent_response.json or network.har is absent from retention; the remaining artifact cannot determine the other evaluator's score.
+    rationale: Native success is a conjunction of two checks that consume separate retained run artifacts.
+stronger:
+  additional_conditions:
+  - id: persisted_all_matching_products_out_of_stock
+    text: Beyond native scoring, a retained post-run inventory snapshot shows every product or variant named Gobi HeatTec Tee persisted as out of stock.
+    rationale: The task asks to mark all matching products out of stock, while the native network check accepts one qualifying save request for product 446 with a 302 response and does not inspect final persisted inventory state.
+    decisive_artifacts:
+    - artifact: Post-run shopping-admin product inventory snapshot
+      question: Does the snapshot enumerate every Gobi HeatTec Tee product or variant and show each one persisted as out of stock?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

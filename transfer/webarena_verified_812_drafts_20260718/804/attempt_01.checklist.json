@@ -1,0 +1,103 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "804",
+  "domain": "webarena_verified",
+  "task_id": "804",
+  "native": {
+    "user_goal": {
+      "text": "Assign the GitLab issue about flash alerts in dialog components to the current user and tag primer so primer is included as a participant.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Task score is 1.0 only when all three configured checks score 1.0: the agent-response check, the issue-assignment PUT check, and the @primer note POST check. Any non-1.0 result or evaluator error makes the task score 0.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator checks agent_response.json; two separately configured NetworkEventEvaluator instances check network.har; WebArenaVerifiedEvaluator composes their results.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the response parse and normalize without structural mismatch against task_type MUTATE, status SUCCESS, and retrieved_data null for this non-retrieve task?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Do both last-event checks pass: a PUT to /primer/design/-/issues/104.json with status 200 and $.issue.assignee_ids exactly [2330], and a POST to /primer/design/notes with target_id=83759, target_type=Issue, status 200, and $.note.note matching ^.*@primer.*$?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "All three evaluator results are 1.0: the response normalizes to the configured MUTATE/SUCCESS shape, the last method/path-matching assignment PUT satisfies every configured URL, body, and status comparison, and the last method/path-matching note POST satisfies every configured URL, query, body, and status comparison.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "With readable complete artifacts, fail if any configured check is non-1.0 or errors, including a response mismatch, a missing or mismatching last assignment PUT, or a missing or mismatching last @primer note POST.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecidable only when agent_response.json or a complete network.har is unavailable or known to be truncated, preventing reconstruction of at least one configured check; a present malformed response or a complete HAR with no qualifying event is failure.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "derived/task.json::eval"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_resulting_issue_state",
+        "text": "Beyond native success, an immediate post-run issue-state capture shows the authenticated user among the assignees, a posted note containing @primer, and primer in the issue participant list.",
+        "rationale": "The stated goal requires resulting assignment and participation, while the released evaluator accepts matching response/request evidence—including only an @primer text match—and does not inspect the resulting issue state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Immediate post-run GitLab issue 104 page or API snapshot",
+            "question": "Does it show the authenticated user assigned, a posted note containing @primer, and primer listed as a participant?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]",
+              "derived/task.json::eval[2]"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

@@ -5,6 +5,34 @@ from types import SimpleNamespace
 from evidence_system.cli import run_full
 
 
+def test_run_full_execution_lock_is_permanently_plan_only(monkeypatch, capsys) -> None:
+    calls = {"plan": 0, "execute": 0}
+
+    def forbidden_plan(**_kwargs):
+        calls["plan"] += 1
+        raise AssertionError("execution-lock bypass reached planner")
+
+    def forbidden_execute(*_args, **_kwargs):
+        calls["execute"] += 1
+        raise AssertionError("execution-lock bypass reached executor")
+
+    monkeypatch.setattr(run_full, "plan_smoke_jobs", forbidden_plan)
+    monkeypatch.setattr(run_full, "execute_planned_jobs", forbidden_execute)
+    status = run_full.main(
+        [
+            "--domain",
+            "agentdojo",
+            "--execution-lock",
+            "execution_lock.json",
+            "--case-count",
+            "1",
+        ]
+    )
+    assert status == 1
+    assert calls == {"plan": 0, "execute": 0}
+    assert "permanently non-executable" in capsys.readouterr().err
+
+
 def test_run_full_executes_domains_and_agents_in_order(monkeypatch, capsys) -> None:
     planned_order: list[tuple[str, str]] = []
     executed_order: list[tuple[str, str, int | None]] = []
@@ -95,6 +123,11 @@ def test_run_full_runs_webarena_preflight_once_before_first_execution(monkeypatc
         return [SimpleNamespace(planned=item, execution_result={"status": "completed"})]
 
     monkeypatch.setattr(run_full, "plan_smoke_jobs", fake_plan_smoke_jobs)
+    monkeypatch.setattr(
+        run_full,
+        "load_mapping",
+        lambda _path: {"domains": [{"domain": "webarena_verified", "experiment_type": "main"}]},
+    )
     monkeypatch.setattr(run_full, "_run_webarena_preflight", fake_preflight)
     monkeypatch.setattr(run_full, "execute_planned_jobs", fake_execute_planned_jobs)
 
@@ -158,6 +191,11 @@ def test_run_full_stops_when_webarena_preflight_fails(monkeypatch, capsys) -> No
         return [SimpleNamespace(planned=planned[0], execution_result={"status": "completed"})]
 
     monkeypatch.setattr(run_full, "plan_smoke_jobs", fake_plan_smoke_jobs)
+    monkeypatch.setattr(
+        run_full,
+        "load_mapping",
+        lambda _path: {"domains": [{"domain": "webarena_verified", "experiment_type": "main"}]},
+    )
     monkeypatch.setattr(run_full, "_run_webarena_preflight", fake_preflight)
     monkeypatch.setattr(run_full, "execute_planned_jobs", fake_execute_planned_jobs)
 

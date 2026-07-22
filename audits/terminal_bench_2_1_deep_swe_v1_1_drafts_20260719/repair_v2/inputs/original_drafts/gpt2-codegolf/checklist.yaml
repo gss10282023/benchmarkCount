@@ -1,0 +1,67 @@
+schema_version: case_checklist_v1
+case_unit_id: gpt2-codegolf
+domain: terminal_bench_2_1
+task_id: terminal-bench/gpt2-codegolf
+native:
+  user_goal:
+    text: Write `/app/gpt2.c`, a dependency-free C program compilable with `gcc -O3 -lm` that reads `gpt2-124M.ckpt` and `vocab.bpe` and continues a supplied input with GPT-2 arg-max output for the next 20 tokens while staying under 5000 bytes.
+    support:
+    - official/instruction.md::1-1
+  benchmark_success:
+    text: 'Native success is established when retained verifier evidence shows the single official pytest case `test_gpt2_implementation` passed: `/app/gpt2.c` exists, its size is under 5000 bytes, `gcc -O3 /app/gpt2.c -lm` succeeds, and `/app/a.out gpt2-124M.ckpt vocab.bpe "THIS SOFTWARE IS PROVIDED \"AS IS\", WITHOUT"` exits 0 with stdout containing `WARRANTY OF ANY KIND, EXPRESS OR IMPLIED`.'
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_gpt2_implementation
+  checked_by:
+    text: The task-specific verifier runs `pytest` on `official/tests/test_outputs.py`, with the decisive native check implemented by `test_gpt2_implementation`.
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_gpt2_implementation
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the official pytest case `test_gpt2_implementation` pass or fail, and if it fails which official assertion is reported?
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_gpt2_implementation
+  - artifact: verifier/test-stdout.txt
+    question: Does retained pytest stdout confirm the same case outcome and expose the compile, execution, or substring-check failure details if the case failed?
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_gpt2_implementation
+  - artifact: verifier/test-stderr.txt
+    question: Does retained verifier stderr contain compile/runtime errors or traceback details needed to interpret the official test outcome?
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_gpt2_implementation
+  success_if:
+  - text: 'Retained verifier evidence establishes that `test_gpt2_implementation` passed, meaning all official checks held: `/app/gpt2.c` existed, was under 5000 bytes, compiled with `gcc -O3 -lm`, and the compiled program returned 0 and printed stdout containing `WARRANTY OF ANY KIND, EXPRESS OR IMPLIED` for the verifier prompt.'
+    support:
+    - official/tests/test_outputs.py::test_gpt2_implementation
+  fail_if:
+  - text: 'Retained verifier evidence establishes that `test_gpt2_implementation` failed on any official assertion: missing `/app/gpt2.c`, size at least 5000 bytes, compile failure, nonzero program exit, or stdout missing `WARRANTY OF ANY KIND, EXPRESS OR IMPLIED`.'
+    support:
+    - official/tests/test_outputs.py::test_gpt2_implementation
+  undecided_if:
+  - text: The retained verifier artifacts do not reliably establish whether `test_gpt2_implementation` passed or failed, or they are missing or contradictory in a way that prevents determining which official assertion outcome occurred.
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_gpt2_implementation
+stronger:
+  additional_conditions:
+  - id: instruction_requires_real_gpt2_continuation
+    text: Beyond native scoring, retained source evidence should show the final `/app/gpt2.c` reads the provided checkpoint and BPE files and performs 20-step arg-max GPT-2 continuation, rather than merely producing output that satisfies the verifier's single substring check for one prompt.
+    rationale: The official instruction requires a GPT-2 arg-max continuation program over the supplied `.ckpt` and `.bpe` for the next 20 tokens, but the released verifier operationalizes only file existence/size, compilation, zero exit, and one expected substring for one fixed prompt.
+    decisive_artifacts:
+    - artifact: artifacts/**
+      question: Do retained artifacts include the final `/app/gpt2.c` or equivalent source showing that it reads the checkpoint and BPE files and implements multi-token arg-max continuation rather than a canned-response stub?
+      support:
+      - official/instruction.md::1-1
+      - official/tests/test_outputs.py::test_gpt2_implementation
+    - artifact: agent/trajectory.json
+      question: If the final source is not separately retained, does the trajectory preserve the final `/app/gpt2.c` contents or equivalent evidence of that implementation?
+      support:
+      - official/instruction.md::1-1
+      - official/tests/test_outputs.py::test_gpt2_implementation
+    support:
+    - official/instruction.md::1-1
+    - official/tests/test_outputs.py::test_gpt2_implementation

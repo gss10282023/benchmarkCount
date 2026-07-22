@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '795'
+domain: webarena_verified
+task_id: '795'
+native:
+  user_goal:
+    text: Change the delivery address for the second-most-recent order to 6726 McPherson Blvd, Pittsburgh, PA.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if both configured evaluators score 1.0: AgentResponseEvaluator accepts the normalized MUTATE/ACTION_NOT_ALLOWED_ERROR response, and NetworkEventEvaluator accepts the last matching GET to __SHOPPING__/sales/order/history/ with response status 200.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs AgentResponseEvaluator on the submitted response and NetworkEventEvaluator on the network trace; TaskEvalResult.create conjunctively composes their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After released parsing and normalization, does the response produce no comparison assertions against the configured MUTATE/ACTION_NOT_ALLOWED_ERROR response?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the trace contain a matching GET to the rendered shopping /sales/order/history/ URL whose last matching event has response status 200 and passes the normalized event comparison?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Both artifacts are evaluable, the response comparison has no assertions, and the last matching history-page GET passes the URL, method, and HTTP-200 comparison; therefore both evaluator scores and the task score equal 1.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The task fails if the submitted response mismatches the released normalized response comparison or AgentResponseEvaluator errors.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: The task fails if no matching history-page GET exists, its selected last match fails any configured criterion, or NetworkEventEvaluator errors.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: Any task-level evaluation-orchestration error yields task score 0.0 and is a native failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Stored evidence is undecidable only if a required submitted artifact was not retained or cannot be associated with this run, preventing reconstruction of one or both released comparisons.
+    rationale: Missing review evidence does not establish what input the evaluator received; a retained artifact that is itself malformed remains a native failure.
+stronger:
+  additional_conditions:
+  - id: actual_delivery_address_change
+    text: Beyond native scoring, retained shopping state must show that the second-most-recent order's delivery address is 6726 McPherson Blvd, Pittsburgh, PA.
+    rationale: The stated task requires an order-state mutation, while the released evaluator accepts an ACTION_NOT_ALLOWED_ERROR response plus a successful GET of order history and never inspects the order's delivery address.
+    decisive_artifacts:
+    - artifact: Post-run shopping order-state snapshot
+      question: Does the retained state identify orders by recency and show the second-most-recent order's delivery address as 6726 McPherson Blvd, Pittsburgh, PA?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::instantiation_dict
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[1].expected

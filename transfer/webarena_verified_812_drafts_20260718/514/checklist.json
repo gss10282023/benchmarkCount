@@ -1,0 +1,107 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "514",
+  "domain": "webarena_verified",
+  "task_id": "514",
+  "native": {
+    "user_goal": {
+      "text": "Add a white desk to the user's shopping wish list.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the configured wishlist-add network event.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released AgentResponseEvaluator and NetworkEventEvaluator, aggregated conjunctively by TaskEvalResult.create.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the released response parser and comparator accept it as task_type MUTATE and status SUCCESS, with retrieved_data normalized under the non-retrieve-task rule and no structural mismatch?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last evaluation event matching a POST to __SHOPPING__/wishlist/index/add/ normalize to response status 302, post_data.qty null, and a mage-messages response cookie matching the configured white/desk wishlist-add regex?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both evaluators score 1.0: the agent response passes the released MUTATE/SUCCESS comparison and the last matching wishlist-add POST event passes every configured URL, method, status, post-data, and response-cookie comparison.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Either evaluator fails or errors—for example, the response does not pass its structural/value comparison, or no qualifying last wishlist-add POST event exists or that event mismatches any configured criterion—causing the task score to be 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Retained evidence is undecidable if agent_response.json or network.har is absent, unreadable, or incomplete enough that an evaluator input cannot be reconstructed, and no retained official evaluation result settles both component scores.",
+        "support": [
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+        ],
+        "rationale": "Native success is a conjunction of two checks, so evidence that cannot establish one component cannot establish the task score."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "persisted_white_desk_wishlist_membership",
+        "text": "Beyond native scoring, require a retained post-run authenticated wishlist view or state snapshot to show a shopping-site-identified white desk in the user's wishlist.",
+        "rationale": "The official intent requires actual wishlist membership, while the released evaluator checks a self-reported success response and a matching HTTP event/cookie without inspecting persisted wishlist contents or binding the request to a specific white-desk product identity.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run authenticated wishlist page capture (DOM or accessibility snapshot, with screenshot)",
+            "question": "Does the user's wishlist contain an item identified by the shopping site as a white desk?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

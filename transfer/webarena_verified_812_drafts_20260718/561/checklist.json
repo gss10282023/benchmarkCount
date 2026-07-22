@@ -1,0 +1,126 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "561",
+  "domain": "webarena_verified",
+  "task_id": "561",
+  "native": {
+    "user_goal": {
+      "text": "Create the GitLab repository `bafta_awards_nolan`; use the provided wiki as needed; create `README.md` through the Web IDE with the repository name as the main heading and a bulleted list of Christopher Nolan films nominated for BAFTA Awards; and commit it to the default branch.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is `TaskEvalResult.score == 1.0`, requiring all three configured evaluator instances to score 1.0: the agent-response check, the repository-creation POST check, and the README-commit POST check.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released `AgentResponseEvaluator` checks the final response, two released `NetworkEventEvaluator` instances check evaluation events from the network trace, and `TaskEvalResult.create` AND-composes their scores.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained response normalize without error to exactly the evaluator-expected fields `task_type=MUTATE`, `status=SUCCESS`, and `retrieved_data=null`?",
+        "support": [
+          "derived/task.json::eval[0].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Do the selected last matching POSTs pass both configured comparisons: repository creation at `__GITLAB__/projects` with status 302 and the required project fields, and README commit at `__GITLAB__/api/v4/projects/byteblaze%2Fbafta_awards_nolan/repository/commits` with status 201 and all required commit fields?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff: (1) the response normalizes to `MUTATE`/`SUCCESS`/null retrieved data; (2) the last matching project POST has status 302 and `project[name]=project[path]=bafta_awards_nolan`, `project[namespace_id]=2505`; and (3) the last matching commit POST has status 201, branch `main`, action 0 matching `create|update` on `README.md`, markdown-normalized content headed `bafta_awards_nolan` with bullets Batman Begins, The Dark Knight, Inception, The Dark Knight Rises, Interstellar, Dunkirk, and Tenet, and an absent/null `actions[1].action`. All three comparisons must score 1.0.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Failure if any configured comparison fails or errors: the response cannot normalize or mismatches; no URL/method-matching project or commit event exists; or the selected last matching event has a status, POST field, or README-content mismatch. Any evaluator score below 1.0 makes the task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Undecided only when the retained review package is incomplete or corrupt and therefore does not establish the response or relevant HAR events actually supplied to evaluation. If a missing or invalid input was itself evaluator-visible, it is native failure/error, not undecided.",
+        "support": [
+          "case_packet.md::Benchmark Task Summary",
+          "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "final_repository_state",
+        "text": "Beyond native success, a retained post-run GitLab state snapshot confirms that `byteblaze/bafta_awards_nolan` exists and its actual default branch contains `README.md` with the configured heading and seven-film bullet list.",
+        "rationale": "The task requests persistent repository state, while the released oracle only checks a final response and successful-looking network events; it does not inspect post-run GitLab state, which could later be changed or deleted.",
+        "decisive_artifacts": [
+          {
+            "artifact": "post-run GitLab repository-state snapshot",
+            "question": "Does the snapshot show the repository path, actual default branch, and required `README.md` content in the resulting state?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected",
+              "derived/task.json::eval[2].expected"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      },
+      {
+        "id": "web_ide_usage",
+        "text": "Beyond native success, retained browser evidence confirms that `README.md` was created through GitLab's Web IDE.",
+        "rationale": "Web IDE use is explicit in the task, but the released network oracle accepts the matching commit endpoint event without checking Web IDE page or UI context.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har",
+            "question": "Does the trace show Web IDE context for this repository and connect the accepted README commit request to that context, such as through its page requests or referer?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

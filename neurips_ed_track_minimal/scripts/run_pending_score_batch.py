@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import json
-import os
 import sys
 import threading
 import traceback
@@ -71,14 +70,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model",
-        default="gpt-5.4-mini",
-        help="Model used for resumed scoring (default: gpt-5.4-mini).",
+        default=None,
+        help="Model used for resumed scoring (default: inherit source task_plan.json).",
     )
     parser.add_argument(
         "--reasoning-effort",
-        default="high",
-        choices=["minimal", "low", "medium", "high", "xhigh"],
-        help="Reasoning effort used for resumed scoring (default: high).",
+        default=None,
+        choices=["minimal", "low", "medium", "high", "xhigh", "max"],
+        help="Reasoning effort used for resumed scoring (default: inherit source task_plan.json).",
     )
     parser.add_argument(
         "--sandbox",
@@ -154,6 +153,21 @@ def load_source_batch(source_batch_dir: Path) -> tuple[dict[str, Any], list[dict
             continue
         rows.append(json.loads(raw))
     return plan, rows
+
+
+def resolve_resume_model_settings(
+    *,
+    requested_model: str | None,
+    requested_reasoning_effort: str | None,
+    source_plan: dict[str, Any],
+) -> tuple[str, str]:
+    model = str(requested_model or source_plan.get("model") or batch_module.DEFAULT_MODEL)
+    reasoning_effort = str(
+        requested_reasoning_effort
+        or source_plan.get("reasoning_effort")
+        or batch_module.DEFAULT_REASONING_EFFORT
+    )
+    return model, reasoning_effort
 
 
 def pending_source_tasks(
@@ -236,13 +250,33 @@ def main() -> int:
 
     source_batch_dir = args.source_batch_dir.resolve()
     batch_root = (args.batch_root or source_batch_dir.parent).resolve()
+    if any(
+        batch_module.path_touches_formal_score_scope(path)
+        for path in (source_batch_dir, batch_root, args.score_output_root)
+    ):
+        raise PendingBatchResumeError(
+            "formal AgentDojo score namespaces cannot use the legacy pending-resume entrypoint"
+        )
     plan, result_rows = load_source_batch(source_batch_dir)
+    if plan.get("formal_prescore_join") is not None or any(
+        batch_module.path_touches_formal_score_scope(repo_path(task.get("out_prefix", "")))
+        for task in plan.get("tasks", [])
+        if isinstance(task, dict)
+    ):
+        raise PendingBatchResumeError(
+            "formal AgentDojo score sessions are immutable and cannot be resumed by this entrypoint"
+        )
+    model, reasoning_effort = resolve_resume_model_settings(
+        requested_model=args.model,
+        requested_reasoning_effort=args.reasoning_effort,
+        source_plan=plan,
+    )
     source_tasks = pending_source_tasks(plan=plan, result_rows=result_rows, retry_failed=args.retry_failed)
     pending_tasks = build_pending_tasks(
         source_tasks=source_tasks,
         slot_count=args.slot_count,
-        model=args.model,
-        reasoning_effort=args.reasoning_effort,
+        model=model,
+        reasoning_effort=reasoning_effort,
         score_output_root=args.score_output_root.resolve() if args.score_output_root else None,
     )
 
@@ -280,8 +314,8 @@ def main() -> int:
         "auth_mode": sorted({config.mode for config in key_configs.values()}),
         "auth_source_codex_home": batch_module.shared_codex_home_for_all_configs(key_configs),
         "auth_by_slot": batch_module.auth_config_summary(key_configs),
-        "model": args.model,
-        "reasoning_effort": args.reasoning_effort,
+        "model": model,
+        "reasoning_effort": reasoning_effort,
         "sandbox": args.sandbox,
         "codex_timeout_seconds": args.codex_timeout_seconds,
         "score_process_timeout_seconds": score_process_timeout_seconds,
@@ -304,8 +338,8 @@ def main() -> int:
         "auth_mode": sorted({config.mode for config in key_configs.values()}),
         "auth_source_codex_home": batch_module.shared_codex_home_for_all_configs(key_configs),
         "auth_by_slot": batch_module.auth_config_summary(key_configs),
-        "model": args.model,
-        "reasoning_effort": args.reasoning_effort,
+        "model": model,
+        "reasoning_effort": reasoning_effort,
         "sandbox": args.sandbox,
         "codex_timeout_seconds": args.codex_timeout_seconds,
         "score_process_timeout_seconds": score_process_timeout_seconds,
@@ -341,8 +375,8 @@ def main() -> int:
                     batch_module.run_single_task,
                     task=task,
                     key_config=key_configs[slot],
-                    model=args.model,
-                    reasoning_effort=args.reasoning_effort,
+                    model=model,
+                    reasoning_effort=reasoning_effort,
                     sandbox=args.sandbox,
                     max_attempts=args.max_attempts,
                     codex_timeout_seconds=args.codex_timeout_seconds,

@@ -1,0 +1,101 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "419",
+  "domain": "webarena_verified",
+  "task_id": "419",
+  "native": {
+    "user_goal": {
+      "text": "Set the user's GitLab status to \"Enjoying life.\"",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult scores 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final mutation-success response, and NetworkEventEvaluator accepts the selected GitLab status-update event.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order, then TaskEvalResult.create composes their scores.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the released response parser and comparator accept it as task type MUTATE (including the performed_operation alias) with status SUCCESS under the configured non-retrieve comparison?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Among evaluation events, does the last PUT whose normalized URL path matches __GITLAB__/api/v4/user/status pass the full comparison for URL, method PUT, body fields availability=\"busy\", clear_status_after=null, message=\"Enjoying life.\", and response status 200?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff agent_response.json gives AgentResponseEvaluator score 1.0 and network.har gives NetworkEventEvaluator score 1.0 for the configured selected event; the composed task score is then 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if either configured evaluator scores 0.0 or errors: the response fails its mutation-success comparison, or no qualifying status PUT exists or its selected last event mismatches any required field; either outcome makes the composed task score 0.0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored-evidence review is undecided only if agent_response.json or network.har is missing, unreadable, truncated, or otherwise insufficient to apply its check; a mismatch in complete evidence is failure.",
+        "rationale": "Both evaluator inputs are needed to determine the conjunctive native score from retained evidence."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "final_gitlab_status_state",
+        "text": "A retained state capture taken after the run confirms that the authenticated user's current GitLab status message is exactly \"Enjoying life.\"",
+        "rationale": "The native event check requires a matching PUT and HTTP 200 but configures no response-content or final-state assertion, so it does not directly observe the resulting GitLab status.",
+        "decisive_artifacts": [
+          {
+            "artifact": "post-run GitLab status state capture",
+            "question": "Does a post-run GitLab API response or UI snapshot show the authenticated user's current status message as exactly \"Enjoying life.\"?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1].expected",
+              "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data"
+        ]
+      }
+    ]
+  }
+}

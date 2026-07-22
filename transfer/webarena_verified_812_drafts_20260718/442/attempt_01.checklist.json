@@ -1,0 +1,108 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "442",
+  "domain": "webarena_verified",
+  "task_id": "442",
+  "native": {
+    "user_goal": {
+      "text": "Using GitLab's simple online file editor, update the current project's website code and commit it to main so the browser tab title is \"Welcome to my site\".",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both official evaluators score 1.0: the final response passes AgentResponseEvaluator as a MUTATE/SUCCESS response, and the last matching POST event passes NetworkEventEvaluator for the configured GitLab file update.",
+      "support": [
+        "derived/task.json::eval[0]",
+        "derived/task.json::eval[1]",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "AgentResponseEvaluator checks the retained final response, NetworkEventEvaluator checks the retained network trace, and TaskEvalResult composes both scores with an all-pass rule.",
+      "support": [
+        "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the response normalize to task_type MUTATE, status SUCCESS, and null non-retrieve retrieved_data under AgentResponseEvaluator?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Is the last matching POST event for __GITLAB__/byteblaze/gimmiethat.space/-/update/main/index.html a 302 response with _method=put, branch_name=main, original_branch=main, file_path=index.html, and content matching the configured title regex?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both checks pass: agent_response.json normalizes to the configured MUTATE/SUCCESS response, and network.har's last matching POST event has the configured URL, 302 status, branch and file fields, and HTML content matching the regex containing <title>Welcome to my site</title>.",
+        "support": [
+          "derived/task.json::eval[0]",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "The retained response is sufficient to run AgentResponseEvaluator and that evaluator scores 0.0 or errors, including a response-format, task-type, or status mismatch.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create"
+        ]
+      },
+      {
+        "text": "The retained HAR is sufficient to run NetworkEventEvaluator and that evaluator scores 0.0 or errors, including no qualifying last POST event or a mismatch in its configured URL, status, post-data fields, or content regex.",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Retained evidence is missing or retention-damaged such that either the final-response check or the network-event check cannot be reconstructed.",
+        "rationale": "Both evaluator inputs are necessary to decide the all-pass native score; loss of a retained input does not reveal what its check would have returned."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_persisted_main_commit",
+        "text": "Beyond native success, post-run GitLab state must show a committed main-branch revision whose index.html contains <title>Welcome to my site</title>.",
+        "rationale": "The task asks for an actual commit to main, while the native evaluator checks a self-reported success and a matching POST/302 trace event without inspecting the repository's persisted post-run commit state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run GitLab main-branch commit record and index.html blob",
+            "question": "Does a committed revision on main contain index.html with the requested title?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

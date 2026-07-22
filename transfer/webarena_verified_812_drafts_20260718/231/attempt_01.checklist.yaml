@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '231'
+domain: webarena_verified
+task_id: '231'
+native:
+  user_goal:
+    text: Return the order number of the user's most recent cancelled shopping order.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: Official evaluation completes without error and the sole AgentResponseEvaluator scores 1.0, making TaskEvalResult.score 1.0. After evaluator parsing and normalization, the response must structurally match task_type RETRIEVE, status SUCCESS, and unordered retrieved_data normalized to exactly one item matching `^#?\s*0*170$` under the string schema.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator; an assertion-free evaluator result scores 1.0, and the task scores 1.0 only when every configured evaluator scores 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the released evaluator parse and normalize the retained final response to the expected structure, with task_type RETRIEVE, status SUCCESS, and exactly one retrieved value matching `^#?\s*0*170$`?
+    support:
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[0].ordered
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Can the retained HAR be parsed into the NetworkTrace required for the evaluation context without causing trace, configuration, or orchestration error?
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+  success_if:
+  - text: The retained HAR forms a valid evaluation context and evaluation completes without a task-level or evaluator-level error.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: 'The retained response normalizes to an exact evaluator-visible structural match: task_type RETRIEVE, status SUCCESS, and a singleton retrieved_data collection whose item matches `^#?\s*0*170$`; the sole evaluator and task therefore both score 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: A supplied run artifact cannot be parsed or evaluation setup, orchestration, or the AgentResponseEvaluator errors; the resulting task score is 0.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: The response is not evaluator-parseable to the required object structure, or its normalized task_type or status is missing or differs from RETRIEVE or SUCCESS.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: Normalized retrieved_data is absent or empty, has other than one item, contains an extra item, or its sole item does not match `^#?\s*0*170$`; the sole evaluator and task score 0.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: A retained copy of agent_response.json or network.har is absent, truncated, or otherwise insufficient to reconstruct what was supplied to evaluation.
+    rationale: This denotes insufficient post-run evidence only; a known missing, null, malformed, or invalid artifact actually supplied to the evaluator is a native failure.
+stronger:
+  additional_conditions: []

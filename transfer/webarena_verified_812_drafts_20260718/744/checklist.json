@@ -1,0 +1,103 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "744",
+  "domain": "webarena_verified",
+  "task_id": "744",
+  "native": {
+    "user_goal": {
+      "text": "Create a new public GitLab project named \"AutoAGI\" and add primer as a member.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only if all three configured checks score 1.0: the AgentResponseEvaluator accepts the mutation response, one NetworkEventEvaluator accepts the project-creation POST, and the other accepts the member-addition POST.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs the task's AgentResponseEvaluator and two NetworkEventEvaluator configurations; EvaluatorResult scores each check, and TaskEvalResult composes them with an all-must-pass rule.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the retained final response parse, normalize, and compare successfully against the expected MUTATE/SUCCESS response?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Do the evaluator-selected last matching POSTs both pass: a 201 project creation with name AutoAGI and visibility public, and a 201 request to the configured numeric-project members URL with user_id 2367 and access_level 30?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "derived/task.json::eval[2]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "All three checks score 1.0 together: the response passes MUTATE/SUCCESS comparison; the last POST matching the projects endpoint has response status 201 and post data name=AutoAGI and visibility=public; and the last POST matching the numeric-project members pattern has response status 201 and post data user_id=2367 and access_level=30.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Any configured check scores below 1.0 or errors, including a malformed or nonmatching final response, no URL/method-matching network event, or an evaluator-selected last matching event with the wrong status or required post-data value; an earlier qualifying event does not rescue a later mismatch when last_event_only is true.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "The evidence review is undecidable only if agent_response.json or network.har was not retained intact enough to reconstruct all three checks; a complete supplied artifact that is malformed or lacks a qualifying event is failure, not undecided.",
+        "rationale": "This distinguishes incomplete post-run retention from evaluator-visible missing or mismatching content."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "bind_membership_to_created_project",
+        "text": "Beyond native scoring, verify that the successful member-addition POST targets the same project ID returned by the successful AutoAGI project-creation response.",
+        "rationale": "The task intent couples primer membership to the newly created AutoAGI project, but the native checks are independent: project creation does not check its returned ID, while the membership URL accepts any numeric project ID.",
+        "decisive_artifacts": [
+          {
+            "artifact": "network.har with retained response bodies",
+            "question": "Does the 201 AutoAGI creation response identify project ID P, and does the passing 201 member-addition request target /api/v4/projects/P/members with user_id 2367 and access_level 30?",
+            "support": [
+              "derived/task.json::eval[1].expected",
+              "derived/task.json::eval[2].expected",
+              "official/src/webarena_verified/types/tracing.py::NetworkEvent.response_content"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1].expected",
+          "derived/task.json::eval[2].expected",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

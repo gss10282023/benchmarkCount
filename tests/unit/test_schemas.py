@@ -538,7 +538,7 @@ def test_manifest_requires_agent_rationale_and_records_short_split_exception() -
     assert_invalid("experiment_manifest", payload, "hash mismatch")
 
 
-def test_formal_manifest_enforces_fixed_p0_main_denominator() -> None:
+def test_formal_manifest_enforces_declared_p0_main_denominator() -> None:
     payload = load_fixture("valid_experiment_manifest.json")
     assert_valid("experiment_manifest", payload, formal=True, labels=paper_mapping_labels())
 
@@ -565,6 +565,7 @@ def test_formal_manifest_enforces_fixed_p0_main_denominator() -> None:
     assert_invalid("experiment_manifest", low_denominator, "record_slot_count must equal case_unit_count x 3", formal=True)
 
     case_mismatch = deepcopy(payload)
+    case_mismatch["domains"][0]["case_unit_target"] = 100
     case_mismatch["domains"][0]["case_unit_count"] = 90
     assert_invalid("experiment_manifest", case_mismatch, "case_unit_count must match planned eligible case units", formal=True)
 
@@ -585,6 +586,19 @@ def test_formal_manifest_enforces_fixed_p0_main_denominator() -> None:
         }
     ]
     assert_valid("experiment_manifest", split_exception, formal=True, labels=paper_mapping_labels())
+
+    parameterized_target = deepcopy(payload)
+    for domain in parameterized_target["domains"]:
+        domain["case_unit_target"] = 120
+        domain["case_unit_count"] = 120
+        domain["official_split_eligible_case_units"] = 812
+        domain["record_slot_count"] = 360
+    assert_valid(
+        "experiment_manifest",
+        parameterized_target,
+        formal=True,
+        labels=paper_mapping_labels(),
+    )
 
 
 def test_formal_agent_config_fails_on_unresolved_probe_rationale_placeholders() -> None:

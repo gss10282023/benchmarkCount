@@ -1,0 +1,56 @@
+schema_version: case_checklist_v1
+case_unit_id: '194'
+domain: webarena_verified
+task_id: '194'
+native:
+  user_goal:
+    text: Get the total payment amount of the last five completed orders and return only the numeric value, without additional details.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'The task scores 1.0 iff its sole AgentResponseEvaluator scores 1.0: the parsed response normalizes to task_type RETRIEVE, status SUCCESS, and an unordered singleton retrieved_data value currency-equal to 555.2; evaluator or orchestration errors score 0.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator; EvaluatorResult.create assigns 1.0 when comparison produces no failing assertions, and TaskEvalResult.create requires every configured evaluator score to equal 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: When parsed and normalized by AgentResponseEvaluator, does the response have task_type RETRIEVE, status SUCCESS, and exactly one retrieved currency value equal to 555.2?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+  - artifact: network.har
+    question: Is the HAR parseable as this run's network trace and sufficient for evaluation context validation to complete without error? No network-event content is otherwise scored for this task.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: The retained response and trace allow official evaluation to complete; the response normalizes to RETRIEVE, SUCCESS, and the singleton currency value 555.2; the sole AgentResponseEvaluator and resulting TaskEvalResult both score 1.0.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: The response is present but is not a parsable structured response, its required normalized task_type or status mismatches, or retrieved_data is missing, empty, or not exactly a singleton currency value equal to 555.2, causing the AgentResponseEvaluator and task score to be 0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: A present response or HAR causes a parsing, context-validation, evaluator, or orchestration error; official error semantics assign task score 0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Required retained evidence is absent, unreadable, truncated, or cannot be attributed to this run, and no official TaskEvalResult is retained, so the evaluator outcome cannot be reconstructed.
+    rationale: Missing review evidence does not establish whether the completed run passed or failed the native evaluator.
+stronger:
+  additional_conditions: []

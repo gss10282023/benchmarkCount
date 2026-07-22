@@ -1,0 +1,67 @@
+schema_version: case_checklist_v1
+case_unit_id: '663'
+domain: webarena_verified
+task_id: '663'
+native:
+  user_goal:
+    text: Create an issue in the GitLab metaseq repository titled "Llama model support timeline" whose body asks for the team's plan to support Llama and other Llama-family models.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS, and NetworkEventEvaluator accepts the last matching issue-creation POST with the configured title and HTTP 201 response.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::_get_actual_value
+  checked_by:
+    text: The released AgentResponseEvaluator checks agent_response.json, the released NetworkEventEvaluator checks network.har, and TaskEvalResult applies an all-evaluators-must-pass composition.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response pass the configured parsing, normalization, and comparison for task_type MUTATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Does the last POST matching the normalized GitLab path /api/v4/projects/33/issues have a title matching "Llama model support timeline" under evaluator comparison and response status 201?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::_filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::_get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::_compare_values
+  success_if:
+  - text: 'Both official checks score 1.0: the final response passes AgentResponseEvaluator, and the last matching issue-creation POST passes NetworkEventEvaluator for method, normalized URL, configured title, and HTTP 201 status.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Either official check scores below 1.0 or errors: the response is not accepted as MUTATE/SUCCESS, or no matching issue-creation POST exists, or its last matching event fails any configured method, URL, title, or response-status comparison.'
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::_compare_values
+  undecided_if:
+  - text: The retained agent response or HAR is missing, truncated, or otherwise insufficient to reconstruct one or both official checks; a preserved mismatch or evaluator error is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::_parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::_parse_network_trace
+    rationale: Both evaluator inputs are needed to reconstruct the all-of native score from retained evidence.
+stronger:
+  additional_conditions:
+  - id: issue_body_asks_support_plan
+    text: The created issue's description asks for the team's plan to support Llama and other Llama-family models.
+    rationale: The official intent requires this question, but the released network check expects only post_data.title and filters the actual POST body to expected keys, so an issue with an absent or unrelated description can pass natively.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the full body or 201 response of the accepted issue-creation POST preserve a description asking for the team's Llama and other Llama-family support plan?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent.post_data
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent.response_content
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.post_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::_normalize_post_data_field

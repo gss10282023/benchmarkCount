@@ -1,0 +1,136 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "TurnOnWifiAndOpenApp",
+  "domain": "androidworld",
+  "task_id": "TurnOnWifiAndOpenApp",
+  "native": {
+    "user_goal": {
+      "text": "Turn on WiFi and then open the specified `app_name` app.",
+      "support": [
+        "official/install/android_world/task_evals/composite/system.py::TurnOnWifiAndOpenApp",
+        "official/install/android_world/task_metadata.json::/113/task_template"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native full success requires an ended episode (`done=true`) and a composite evaluator score of `1.0`: the WiFi-on subcheck passes and the open-app subcheck passes. The released composite score is `(wifi_score + open_app_score) / 2`, and the suite runner records `0.0` when the episode does not end.",
+      "support": [
+        "official/install/android_world/task_evals/composite/system.py::TurnOnWifiAndOpenApp.is_successful",
+        "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful",
+        "official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful",
+        "official/install/android_world/suite_utils.py::_run_task"
+      ]
+    },
+    "checked_by": {
+      "text": "The released checker is `TurnOnWifiAndOpenApp.is_successful`, which averages `SystemWifiTurnOn.is_successful` and `OpenAppTaskEval.is_successful`, with `suite_utils._run_task` applying the episode-`done` gate before recording `is_successful`.",
+      "support": [
+        "official/install/android_world/task_evals/composite/system.py::TurnOnWifiAndOpenApp.is_successful",
+        "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful",
+        "official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful",
+        "official/install/android_world/suite_utils.py::_run_task"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "task instance record",
+        "question": "What concrete `app_name` was assigned for this run, so the expected foreground package can be identified?",
+        "support": [
+          "official/install/android_world/task_evals/composite/system.py::TurnOnWifiAndOpenApp.initialize_task",
+          "official/install/android_world/task_evals/single/system.py::_APP_NAME_TO_PACKAGE_NAME"
+        ]
+      },
+      {
+        "artifact": "episode completion record",
+        "question": "Does retained run evidence show the episode ended with `done=true`, so the suite runner did not force the recorded score to `0.0`?",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task"
+        ]
+      },
+      {
+        "artifact": "end-of-run evaluator-visible system state",
+        "question": "At evaluation time, does retained state or retained ADB output show `settings get global wifi_on` in `{1,2}` and the foreground activity package equal to the package mapped from the concrete `app_name`?",
+        "support": [
+          "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful",
+          "official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful",
+          "official/install/android_world/task_evals/single/system.py::_APP_NAME_TO_PACKAGE_NAME"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Retained evidence identifies the run's concrete `app_name`, shows the episode ended with `done=true`, shows `wifi_on` was `1` or `2` at evaluation time, and shows the foreground activity package matched the package mapped from that `app_name`.",
+        "support": [
+          "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful",
+          "official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful",
+          "official/install/android_world/task_evals/single/system.py::_APP_NAME_TO_PACKAGE_NAME",
+          "official/install/android_world/suite_utils.py::_run_task"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Retained evidence shows the episode did not end with `done=true`; the suite runner therefore records `is_successful` as `0.0` regardless of evaluator state.",
+        "support": [
+          "official/install/android_world/suite_utils.py::_run_task"
+        ]
+      },
+      {
+        "text": "With `done=true`, retained evaluator-visible state shows `wifi_on` was not `1` or `2` at evaluation time.",
+        "support": [
+          "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful"
+        ]
+      },
+      {
+        "text": "With `done=true`, retained evaluator-visible state shows the foreground activity package did not equal the package mapped from the run's concrete `app_name`.",
+        "support": [
+          "official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful",
+          "official/install/android_world/task_evals/single/system.py::_APP_NAME_TO_PACKAGE_NAME"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence does not fix the concrete `app_name`, or does not show whether the episode ended with `done=true`, or lacks end-of-run WiFi or foreground-app evidence needed to recompute the released checks.",
+        "support": [
+          "official/install/android_world/task_evals/composite/system.py::TurnOnWifiAndOpenApp.initialize_task",
+          "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful",
+          "official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful",
+          "official/install/android_world/suite_utils.py::_run_task"
+        ]
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "enforce_stated_order",
+        "text": "Beyond the native evaluator, require retained ordered trace or timestamped state evidence showing WiFi was turned on before the target app was first opened, because the official task text is sequential but the released evaluator only checks end-state WiFi and foreground app.",
+        "rationale": "The official task says \"Turn on Wifi, then open the {app_name} app\", but `TurnOnWifiAndOpenApp.is_successful` only averages the final WiFi-on and open-app checks and does not inspect action or state order.",
+        "decisive_artifacts": [
+          {
+            "artifact": "ordered interaction trace or timestamped state timeline",
+            "question": "Does retained ordered evidence show WiFi becomes on before the target app package is first brought to the foreground during the run?",
+            "support": [
+              "official/install/android_world/task_evals/composite/system.py::TurnOnWifiAndOpenApp",
+              "official/install/android_world/task_evals/composite/system.py::TurnOnWifiAndOpenApp.is_successful",
+              "official/install/android_world/task_evals/single/system.py::_SystemWifiToggle.is_successful",
+              "official/install/android_world/task_evals/single/system.py::OpenAppTaskEval.is_successful"
+            ]
+          },
+          {
+            "artifact": "task instance record",
+            "question": "What concrete `app_name` and corresponding target package define the app whose first opening must come after WiFi is turned on?",
+            "support": [
+              "official/install/android_world/task_evals/composite/system.py::TurnOnWifiAndOpenApp.initialize_task",
+              "official/install/android_world/task_evals/single/system.py::_APP_NAME_TO_PACKAGE_NAME"
+            ]
+          }
+        ],
+        "support": [
+          "official/install/android_world/task_evals/composite/system.py::TurnOnWifiAndOpenApp",
+          "official/install/android_world/task_evals/composite/system.py::TurnOnWifiAndOpenApp.is_successful",
+          "official/install/android_world/task_evals/single/system.py::_APP_NAME_TO_PACKAGE_NAME"
+        ]
+      }
+    ]
+  }
+}

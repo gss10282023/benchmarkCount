@@ -1,0 +1,63 @@
+schema_version: case_checklist_v1
+case_unit_id: '673'
+domain: webarena_verified
+task_id: '673'
+native:
+  user_goal:
+    text: Create a post in the game-related discussion forum titled "real user feedback on Racing Wheel Overdrive for Xbox X" whose body lists the OneStopShop 1-star review titles, in source order, as quoted Markdown bullets.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success requires both configured evaluator scores to equal 1.0: AgentResponseEvaluator accepts the final response as MUTATE/SUCCESS under its expected-response comparison, and NetworkEventEvaluator accepts the last matching Reddit submission POST with response 302 and the configured forum, title, and ordered body fields.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator; TaskEvalResult.create assigns score 1.0 only when both evaluator scores are 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the released evaluator parse and normalize the final response to the expected compared response—task type MUTATE, status SUCCESS, and null retrieved data—without an assertion or evaluator error?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last POST event matching the rendered ^__REDDIT__/submit.*$ URL have response status 302 and evaluator-normalized submission fields forum 10048, the configured title, and the configured five-line ordered bullet body, including the duplicated final review title?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Both retained artifacts are evaluable, AgentResponseEvaluator scores 1.0 on the final response, and NetworkEventEvaluator scores 1.0 on the HAR's last URL-and-method-matching submission event; consequently both configured scores are 1.0.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: With evaluable artifacts, fail if the final response produces any AgentResponseEvaluator mismatch/error, or if no matching submission POST exists or its selected last event mismatches any checked URL, method, status, forum, title, or body field; any resulting evaluator score other than 1.0 makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: One or both required retained artifacts are absent, truncated, or unreadable, so the outcomes of both configured evaluators cannot be established from stored evidence.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    rationale: Because native success is conjunctive, evidence for only one evaluator cannot decide the task score.
+stronger:
+  additional_conditions:
+  - id: persisted_forum_post
+    text: Beyond native success, retained post-run forum state shows that the requested post persisted in the game-related forum with the configured title and ordered five-bullet body.
+    rationale: The task asks to create a post, but the released NetworkEventEvaluator checks a submission request and 302 response from the network trace without inspecting persisted forum state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit forum-state snapshot or export
+      question: Does post-run state contain the requested post in the game-related forum, with the configured title and five review-title bullets in the required order?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

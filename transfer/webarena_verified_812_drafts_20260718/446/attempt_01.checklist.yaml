@@ -1,0 +1,66 @@
+schema_version: case_checklist_v1
+case_unit_id: '446'
+domain: webarena_verified
+task_id: '446'
+native:
+  user_goal:
+    text: Assign the a11yproject issue about 404 errors to the GitLab account Roshanjossey.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult score 1.0: both configured checks must score 1.0—the AgentResponseEvaluator check and the NetworkEventEvaluator check.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and then NetworkEventEvaluator, with TaskEvalResult.create composing their scores.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the stored response normalize under AgentResponseEvaluator to the expected MUTATE task type and SUCCESS status?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last qualifying PUT event a full match for the normalized issue-1478 URL, HTTP 200 response, and extracted $.issue.assignee_ids value [2264], with serializer ignored?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks score 1.0: the response matches MUTATE/SUCCESS under AgentResponseEvaluator normalization, and the last PUT event passing method/path filtering matches /a11yproject/a11yproject.com/-/issues/1478.json, response status 200, and extracted assignee_ids exactly [2264] under NetworkEventEvaluator normalization.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._normalize_post_data_field
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'With complete retained artifacts, native failure is established if either check does not score 1.0 or errors: the response fails the normalized MUTATE/SUCCESS comparison, or no qualifying PUT exists, or the last qualifying PUT mismatches the normalized URL/query rule, HTTP 200 status, or extracted assignee_ids [2264].'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The evidence review is undecided only if agent_response.json or network.har is unavailable or known to be incomplete or retention-corrupted, so an official check cannot be reconstructed; a complete artifact that is malformed, missing the required event, or mismatched is failure.
+    rationale: Absence or post-run corruption of a decisive retained artifact does not establish either evaluator outcome.
+stronger:
+  additional_conditions:
+  - id: confirm_resulting_assignment
+    text: Beyond native network-event acceptance, a retained post-run GitLab issue-state capture must show a11yproject.com issue 1478 (the 404 errors issue) with Roshanjossey, user 2264, listed as an assignee.
+    rationale: The official goal requires a resulting assignment, while the released network check accepts matching request metadata and HTTP 200 without inspecting response content or later issue state.
+    decisive_artifacts:
+    - artifact: Post-run GitLab issue-state capture, such as the issue page state or issue API JSON
+      question: Does the post-run state identify issue 1478 as the 404 errors issue and list Roshanjossey/user 2264 as an assignee?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._extract_event_data
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

@@ -1,0 +1,66 @@
+schema_version: case_checklist_v1
+case_unit_id: '578'
+domain: webarena_verified
+task_id: '578'
+native:
+  user_goal:
+    text: Add users "yjlou" and "a11yproject" to the GitLab repository millennials-to-snake-people with the Reporter role.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0: AgentResponseEvaluator must accept the configured MUTATE/SUCCESS response, and NetworkEventEvaluator must accept the last matching POST to __GITLAB__/api/v4/projects/187/invitations with access_level 20, user_id "168,2325", and response status 201.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator on the final response and NetworkEventEvaluator on the network trace; TaskEvalResult.create applies an all-evaluators-must-score-1.0 composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response normalize and compare as the configured MUTATE/SUCCESS response, yielding AgentResponseEvaluator score 1.0?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last evaluation event matching the configured POST method and invitations URL accepted with post data access_level 20 and user_id "168,2325" and response status 201?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both native checks pass: agent_response.json yields AgentResponseEvaluator score 1.0, and network.har yields NetworkEventEvaluator score 1.0 for the configured last matching POST; consequently TaskEvalResult.score is 1.0.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: With evaluable retained artifacts, fail if either the response does not pass the configured MUTATE/SUCCESS comparison or the trace lacks an accepted last matching POST (including a post-data or response-status mismatch); any evaluator failure or error makes TaskEvalResult.score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only if the retained record lacks enough of agent_response.json or network.har to reconstruct what the evaluators received; a retained input that the released evaluator rejects is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: persisted_membership_state
+    text: Beyond native success, require retained post-run GitLab membership state showing both yjlou and a11yproject in millennials-to-snake-people with the Reporter role.
+    rationale: The official goal is a repository-membership state change, while the released evaluator checks a self-reported success and a matching 201 network event without directly inspecting persisted project membership.
+    decisive_artifacts:
+    - artifact: Post-run GitLab project-members list or API capture
+      question: After the run, does project 187 show both yjlou and a11yproject as members with Reporter access (access level 20)?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

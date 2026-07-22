@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+  echo "neurips-draft-submit must run as root." >&2
+  exit 2
+fi
+if [[ $# -lt 1 ]]; then
+  echo "Usage: neurips-draft-submit JOB_ID [run_draft_batch.py options]" >&2
+  exit 2
+fi
+
+job_id=$1
+shift
+if [[ ! $job_id =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$ ]]; then
+  echo "JOB_ID must match [A-Za-z0-9][A-Za-z0-9_-]{0,47}." >&2
+  exit 2
+fi
+
+job_root=/srv/neurips-draft/jobs/$job_id
+case_packet_root=$job_root/case_packets
+output_root=$job_root/results
+unit=neurips-draft-$job_id.service
+
+if [[ ! -d $case_packet_root ]]; then
+  echo "Missing case-packet root: $case_packet_root" >&2
+  exit 2
+fi
+if find "$case_packet_root" -type l -print -quit | grep -q .; then
+  echo "Case-packet uploads must not contain symbolic links." >&2
+  exit 2
+fi
+first_packet=$(find "$case_packet_root" -mindepth 2 -maxdepth 2 -type f -name case_packet.md -print -quit)
+if [[ -z $first_packet ]]; then
+  echo "No */case_packet.md files found under $case_packet_root" >&2
+  exit 2
+fi
+if systemctl is-active --quiet "$unit"; then
+  echo "Job is already active: $job_id" >&2
+  exit 2
+fi
+
+chown -R --no-dereference draftsvc:draftsvc "$case_packet_root"
+install -d -m 0750 -o draftsvc -g draftsvc "$output_root"
+
+systemd-run \
+  --quiet \
+  --unit "$unit" \
+  --collect \
+  --property Type=exec \
+  --property TasksMax=8192 \
+  --uid draftsvc \
+  --gid draftsvc \
+  --setenv HOME=/srv/neurips-draft/home \
+  --setenv CODEX_HOME=/srv/neurips-draft/home/.codex \
+  --setenv PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  /usr/local/bin/neurips-draft-batch "$case_packet_root" "$output_root" "$@"
+
+echo "submitted_job=$job_id"
+echo "systemd_unit=$unit"
+echo "case_packet_root=$case_packet_root"
+echo "output_root=$output_root"

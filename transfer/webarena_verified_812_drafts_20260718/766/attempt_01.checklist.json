@@ -1,0 +1,106 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "766",
+  "domain": "webarena_verified",
+  "task_id": "766",
+  "native": {
+    "user_goal": {
+      "text": "Show on the map a walking route from 401 Shady Ave, Pittsburgh to the closest Amazon-owned grocery, using the OSRM direction service.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "TaskEvalResult.score is 1.0 only when both official checks score 1.0: AgentResponseEvaluator accepts the response as NAVIGATE/SUCCESS, and NetworkEventEvaluator accepts the last qualifying navigation event as a GET to __MAP__ with HTTP 200.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator, then requires every evaluator score to equal 1.0.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the stored response parse and normalize to an object accepted by AgentResponseEvaluator against the configured NAVIGATE/SUCCESS response?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the last qualifying navigation event normalize and compare as a GET to __MAP__ with HTTP 200?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Both evaluator checks score 1.0: the response is accepted as NAVIGATE/SUCCESS and the HAR's last qualifying navigation event is accepted as GET __MAP__ with HTTP 200; consequently TaskEvalResult.score is 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Either evaluator scores below 1.0—including a response mismatch or evaluator error, or an absent/mismatching last qualifying navigation event—so TaskEvalResult.score is 0.0.",
+        "support": [
+          "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Retention loss leaves agent_response.json or network.har absent or truncated, making the run's actual evaluator input unrecoverable; an intact artifact showing a malformed response or missing event is failure, not undecided.",
+        "rationale": "The two retained evaluator inputs are jointly necessary to reconstruct both native checks, while missing evidence after the run is distinct from an evaluator receiving an empty or malformed input."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "verify_requested_route",
+        "text": "Beyond native scoring, retained evidence must show the final map displaying the requested walking route from 401 Shady Ave to the closest Amazon-owned grocery and a corresponding successful OSRM directions request.",
+        "rationale": "The native checks validate only a NAVIGATE/SUCCESS response and the last map-root GET/200 navigation; they do not inspect the destination, closeness or ownership, rendered route, walking mode, or OSRM use required by the instruction.",
+        "decisive_artifacts": [
+          {
+            "artifact": "final browser-state capture",
+            "question": "Does the final screenshot or DOM snapshot show the stated origin, the closest Amazon-owned grocery as destination, walking mode, and the rendered route?",
+            "support": [
+              "derived/task.json::intent"
+            ]
+          },
+          {
+            "artifact": "network.har",
+            "question": "Do retained search/routing events substantiate the selected destination and contain a successful OSRM directions request for the displayed walking route?",
+            "support": [
+              "derived/task.json::intent",
+              "official/src/webarena_verified/types/tracing.py::NetworkEvent"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values"
+        ]
+      }
+    ]
+  }
+}

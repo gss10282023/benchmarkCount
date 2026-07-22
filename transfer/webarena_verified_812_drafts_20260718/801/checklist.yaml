@@ -1,0 +1,73 @@
+schema_version: case_checklist_v1
+case_unit_id: '801'
+domain: webarena_verified
+task_id: '801'
+native:
+  user_goal:
+    text: Create a new GitLab group named "crew" with members ASWATFZLLC, patrickhlauke, westurner, and linkmatrix.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only if all three configured checks score 1.0 on the same run: the final response is accepted as MUTATE/SUCCESS; the last URL/method-matching POST to GitLab /groups has group[name]=crew, group[path]=crew, and response status 302; and the last URL/method-matching POST to /api/v4/groups/<numeric-id>/invitations has user_id matching 83,119,561,145 under string_list normalization and response status 201.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator executes one AgentResponseEvaluator and two NetworkEventEvaluator configurations, then applies an all-evaluator-scores-equal-1.0 composition.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the stored final response parse and, under the released response normalization and comparison, match task_type MUTATE and status SUCCESS?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har (group-creation check)
+    question: Does the last evaluation event matching POST to the derendered GitLab /groups URL have response status 302 and post fields group[name]=crew and group[path]=crew, with only the configured serializer query parameter ignored?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - artifact: network.har (member-invitation check)
+    question: Does the last evaluation event matching POST to /api/v4/groups/<numeric-id>/invitations have response status 201 and user_id matching 83,119,561,145 under the configured string_list normalization, with only the serializer query parameter ignored?
+    support:
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'All three evaluator results from the same retained run score 1.0: the response check accepts MUTATE/SUCCESS, the selected /groups event matches its configured fields and status, and the selected invitations event matches its configured URL, user_id list, and status.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Native success fails if any configured check scores other than 1.0 or errors; an unaccepted response, an absent or mismatched selected /groups event, or an absent or mismatched selected invitations event is sufficient.
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Evidence review is undecided only if agent_response.json or network.har was not retained or is unreadable or incomplete enough that at least one official check cannot be replayed; a replayed mismatch or evaluator error is failure, not undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+stronger:
+  additional_conditions:
+  - id: crew_membership_state
+    text: Beyond native transport-event success, retained post-run GitLab state must show that the group "crew" exists and its membership includes ASWATFZLLC, patrickhlauke, westurner, and linkmatrix.
+    rationale: The native network checks independently match a group-creation POST and an invitations POST whose URL permits any numeric group ID; they neither link that ID to "crew" nor inspect post-run membership state, although the instruction requires those accounts in that group.
+    decisive_artifacts:
+    - artifact: Post-run GitLab group-membership state capture (authenticated API export or UI snapshot)
+      question: Does the group named "crew" exist, and does its retained membership include ASWATFZLLC, patrickhlauke, westurner, and linkmatrix?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

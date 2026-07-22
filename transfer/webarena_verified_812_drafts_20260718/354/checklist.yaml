@@ -1,0 +1,60 @@
+schema_version: case_checklist_v1
+case_unit_id: '354'
+domain: webarena_verified
+task_id: '354'
+native:
+  user_goal:
+    text: Navigate to the shopping page showing living room furniture products sorted by descending price.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured evaluator scores are 1.0: the agent response passes the NAVIGATE/SUCCESS/null-data comparison, and the selected last navigation event passes the expected shopping URL, query, GET, and HTTP-200 comparison.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order, then conjunctively composes their scores in TaskEvalResult.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After released parsing and normalization, does the response structurally match task_type NAVIGATE, status SUCCESS, and retrieved_data null?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the evaluator-selected last navigation event normalize to GET with HTTP 200 at the living-room-furniture URL with product_list_order=price and product_list_dir=desc?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks score 1.0: the normalized agent response matches NAVIGATE/SUCCESS/null data, and the selected last navigation event matches the expected URL, descending-price query values, GET method, and HTTP 200.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Either configured evaluator is non-1.0 or errors: a complete response is malformed or mismatches the expected normalized response, or a complete HAR lacks a matching selected last navigation event; any such result makes the task score 0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Either required artifact is missing, truncated, corrupt, or of uncertain completeness, so at least one of the two evaluator comparisons cannot be established from retained evidence.
+    rationale: Native success is conjunctive and cannot be reconstructed without decisive evidence for both configured evaluators.
+stronger:
+  additional_conditions:
+  - id: rendered_page_confirms_sort
+    text: Beyond native success, a retained final browser-state capture shows the living-room-furniture listing rendered with descending price sorting active and visible product prices in non-increasing order.
+    rationale: The stated goal requires a page showing sorted products, while the native checks inspect only the declared response and a network event, not the rendered listing or its visible order.
+    decisive_artifacts:
+    - artifact: Final browser screenshot or DOM/accessibility snapshot
+      question: Does the rendered page identify the living-room-furniture listing, show descending price sort active, and display products in descending price order?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value

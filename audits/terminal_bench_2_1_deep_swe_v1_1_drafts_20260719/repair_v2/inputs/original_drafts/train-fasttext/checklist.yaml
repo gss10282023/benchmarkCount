@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: train-fasttext
+domain: terminal_bench_2_1
+task_id: terminal-bench/train-fasttext
+native:
+  user_goal:
+    text: Train a FastText text-classification model on the Yelp data in `data/`, save it as `/app/model.bin`, and achieve at least 0.62 accuracy while keeping the model under 150MB.
+    support:
+    - official/instruction.md::1-5
+  benchmark_success:
+    text: 'Native success requires both official verifier tests to pass: `test_accuracy` must parse `P@1` from `fasttext test /app/model.bin /tests/private_test.txt` and accept `P@1 >= 0.62`, and `test_model_size` must find `/app/model.bin` smaller than `150 * 1024 * 1024` bytes.'
+    support:
+    - official/tests/test.sh::24-28
+    - official/tests/test_outputs.py::6-7
+    - official/tests/test_outputs.py::10-41
+  checked_by:
+    text: The task-specific verifier runs `pytest` on `official/tests/test_outputs.py` and writes a CTRF report for those test results.
+    support:
+    - official/tests/test.sh::24-28
+    - official/tests/test_outputs.py::10-41
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Do the official `test_accuracy` and `test_model_size` cases each pass or fail in the verifier run?
+    support:
+    - official/tests/test.sh::24-28
+    - official/tests/test_outputs.py::10-41
+  - artifact: verifier/test-stdout.txt
+    question: If `test_accuracy` is not a clean pass, does retained verifier output show the parsed `P@1` value or that accuracy could not be parsed from `fasttext test` output?
+    support:
+    - official/tests/test_outputs.py::12-35
+  - artifact: verifier/test-stderr.txt
+    question: If a test failed or the outcome is unclear, does retained verifier stderr show model-load, execution, or parsing errors relevant to `test_accuracy` or `/app/model.bin` access?
+    support:
+    - official/tests/test_outputs.py::12-31
+    - official/tests/test_outputs.py::38-41
+  success_if:
+  - text: Retained verifier evidence shows `test_accuracy` passed, meaning the verifier parsed `P@1` from `fasttext test /app/model.bin /tests/private_test.txt` and found `P@1 >= 0.62`.
+    support:
+    - official/tests/test_outputs.py::10-35
+  - text: Retained verifier evidence shows `test_model_size` passed, meaning `/app/model.bin` existed and its size was less than `150 * 1024 * 1024` bytes.
+    support:
+    - official/tests/test_outputs.py::38-41
+  fail_if:
+  - text: Retained verifier evidence shows `test_accuracy` failed, including because the parsed `P@1` value was below `0.62` or because the verifier could not parse a `P@1` value from `fasttext test` output.
+    support:
+    - official/tests/test_outputs.py::12-35
+  - text: Retained verifier evidence shows `test_model_size` failed, including because `/app/model.bin` was missing, unreadable, or at least `150 * 1024 * 1024` bytes.
+    support:
+    - official/tests/test_outputs.py::38-41
+  undecided_if:
+  - text: Retained non-label evidence does not establish whether both official tests passed or whether at least one official test failed.
+    rationale: Use `U` when the retained verifier artifacts needed to determine the outcomes of `test_accuracy` and `test_model_size` are missing, incomplete, or contradictory, and no other retained artifact independently establishes those official checks.
+stronger:
+  additional_conditions:
+  - id: trained_on_provided_yelp_data
+    text: Retained agent evidence shows the submitted `/app/model.bin` was produced by training a FastText model on the Yelp data in `/app/data`, a requirement stated in the instruction but not operationalized by the native verifier's accuracy and size checks alone.
+    rationale: '`official/instruction.md` requires training on the Yelp data in the data folder, while the released verifier only checks the final model''s private-test accuracy and file size.'
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Do retained agent steps show FastText training commands that use files under `/app/data` and produce `/app/model.bin`?
+      support:
+      - official/instruction.md::1-5
+    - artifact: agent/*-stdout.txt
+      question: Do retained command logs corroborate conversion or training on the provided Yelp data rather than only supplying an already trained model?
+      support:
+      - official/instruction.md::1-5
+    support:
+    - official/instruction.md::1-5
+    - official/tests/test.sh::24-28
+    - official/tests/test_outputs.py::10-41

@@ -1,0 +1,76 @@
+case_unit_id: extract-elf
+domain: terminal_bench_2_1
+native:
+  benchmark_success:
+    support:
+    - official/tests/test.sh::13-29
+    - official/tests/test_outputs.py::test_extract_js_exists
+    - official/tests/test_outputs.py::test_output_matches_reference
+    text: 'Native success occurs when `official/tests/test.sh` passes its non-root-working-directory guard and its pytest invocation returns exit status 0. For the released test module, this requires `test_extract_js_exists` to pass and `test_output_matches_reference` to pass: `/app/extract.js` is a regular file; `/app/new.c` compiles; the agent and reference programs exit successfully on `/app/new.o`; their outputs are parseable JSON; no address shared by the outputs has a differing value; and the agent output contains at least 75% of the reference addresses.'
+  checked_by:
+    support:
+    - official/tests/test.sh::13-29
+    - official/tests/test_outputs.py::test_extract_js_exists
+    - official/tests/test_outputs.py::test_output_matches_reference
+    text: Checked by `official/tests/test.sh`, which rejects `/` as the working directory, runs pytest with CTRF output over `official/tests/test_outputs.py`, and maps a zero pytest exit status to native success and a nonzero status to native failure.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the CTRF report independently establish the released pytest outcomes for `test_extract_js_exists` and `test_output_matches_reference`, including passed, failed, or error status?
+    support:
+    - official/tests/test.sh::18-22
+    - official/tests/test_outputs.py::test_extract_js_exists
+    - official/tests/test_outputs.py::test_output_matches_reference
+  - artifact: verifier/test-stdout.txt
+    question: Does the retained stdout contain a complete pytest terminal result or explicit working-directory-guard message that by itself establishes the verifier’s zero or nonzero outcome?
+    support:
+    - official/tests/test.sh::13-29
+  - artifact: verifier/test-stderr.txt
+    question: Does the retained stderr contain an explicit pytest startup, collection, execution, or internal error that by itself establishes a nonzero pytest outcome?
+    support:
+    - official/tests/test.sh::18-29
+  fail_if:
+  - support:
+    - official/tests/test.sh::13-29
+    - official/tests/test_outputs.py::test_extract_js_exists
+    - official/tests/test_outputs.py::test_output_matches_reference
+    text: Retained non-label evidence establishes that the verifier exited at its root-working-directory guard or that the released pytest invocation returned nonzero, including because an official test failed or errored or because pytest had a startup, collection, execution, or internal error.
+  success_if:
+  - support:
+    - official/tests/test.sh::13-29
+    - official/tests/test_outputs.py::test_extract_js_exists
+    - official/tests/test_outputs.py::test_output_matches_reference
+    text: Retained non-label evidence establishes that the working-directory guard did not exit and the released pytest invocation returned 0, with both official tests passing.
+  undecided_if:
+  - rationale: U is limited to evidentiary insufficiency. A retained CTRF result or explicit verifier log that establishes a test failure, error, guard exit, or other pytest nonzero outcome instead yields native F.
+    text: Retained non-label evidence establishes neither the verifier’s successful zero outcome nor its failing nonzero outcome.
+  user_goal:
+    support:
+    - official/instruction.md::1-9
+    text: Provide `extract.js` so that running `node extract.js /app/a.out > out.json` produces a JSON object mapping memory addresses to integer values from the ELF binary, with every reported value matching the reference solution and at least 75% of reference addresses covered.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: artifacts/**
+      question: Do retained artifacts include both the agent `out.json` and verifier `reference.json`, or equivalent complete JSON outputs, sufficient by themselves to determine whether every agent-output address occurs in the reference output?
+      support:
+      - official/tests/test_outputs.py::test_output_matches_reference
+    id: no-extra-addresses
+    rationale: 'This is a concrete instruction/evaluator gap: the official instruction requires every included address to match, but the released test only flags addresses that occur in both outputs with different values.'
+    support:
+    - official/instruction.md::1-9
+    - official/tests/test_outputs.py::test_output_matches_reference
+    text: Because the instruction says every reported address must match the reference solution, stronger success additionally requires that the output contain no addresses absent from the reference output; native scoring only checks shared addresses for differing values and does not reject extra addresses.
+  - decisive_artifacts:
+    - artifact: artifacts/**
+      question: Do retained artifacts include the complete JSON produced by `extract.js` for `/app/a.out` and complete reference comparison data for that binary, sufficient by themselves to assess value correctness and at least 75% reference-address coverage?
+      support:
+      - official/instruction.md::1-9
+      - official/tests/test_outputs.py::test_output_matches_reference
+    id: provided-aout-covered
+    rationale: 'This is a concrete instruction/evaluator gap: the official task names the provided `/app/a.out`, while the released verifier compiles and checks only `/app/new.o`.'
+    support:
+    - official/instruction.md::1-9
+    - official/tests/test_outputs.py::test_output_matches_reference
+    text: Because the user instruction targets the provided `/app/a.out` but native scoring exercises `/app/new.o`, stronger success additionally requires that `extract.js` produce JSON for `/app/a.out` satisfying the instruction’s value-correctness and at-least-75%-coverage requirements.
+task_id: terminal-bench/extract-elf

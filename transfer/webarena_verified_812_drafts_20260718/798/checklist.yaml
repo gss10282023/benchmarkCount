@@ -1,0 +1,72 @@
+schema_version: case_checklist_v1
+case_unit_id: '798'
+domain: webarena_verified
+task_id: '798'
+native:
+  user_goal:
+    text: Change the delivery address for the user's most recent non-canceled order to 77 Massachusetts Ave, Cambridge, MA.
+    support:
+    - derived/task.json::intent
+    - derived/task.json::instantiation_dict
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring both configured evaluators to score 1.0: AgentResponseEvaluator must accept the response against its normalized target {task_type: MUTATE, status: ACTION_NOT_ALLOWED_ERROR, retrieved_data: null}, and NetworkEventEvaluator must accept the last qualifying GET event for __SHOPPING__/sales/order/history/ with response status 200.'
+    support:
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs AgentResponseEvaluator and then NetworkEventEvaluator; TaskEvalResult.create applies the all-evaluators-must-score-1.0 composition.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the response parse and normalize without error, then compare with no assertions against the evaluator's MUTATE and ACTION_NOT_ALLOWED_ERROR target?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Among non-static evaluation events, does the last event qualifying by GET method and the shopping order-history URL normalize to the expected URL, GET method, and response status 200?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/types/tracing.py::NetworkTrace.evaluation_events
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: Success is established only when AgentResponseEvaluator.score = 1.0 and NetworkEventEvaluator.score = 1.0 with no evaluation error, yielding TaskEvalResult.score = 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - derived/task.json::eval
+  fail_if:
+  - text: Failure is established when complete retained inputs show either evaluator scoring below 1.0 or erroring, including a response mismatch or normalization error, no acceptable last order-history GET event, or a URL, method, or status mismatch; the all-of composition then yields task score 0.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  undecided_if:
+  - text: Stored evidence is undecidable only if agent_response.json or network.har is absent, truncated, or unreadable so that one or both evaluator inputs cannot be reconstructed; an evaluator-recorded mismatch, missing event, or error is failure rather than undecided.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_agent_response
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    rationale: Loss of retained evidence is epistemic and does not establish what the released evaluator would have scored.
+stronger:
+  additional_conditions:
+  - id: actual_delivery_address_changed
+    text: Beyond native success, require retained post-run order-state evidence that the most recent order whose status is not canceled has delivery address 77 Massachusetts Ave, Cambridge, MA.
+    rationale: The official instruction requires an actual address change, while the native checks accept ACTION_NOT_ALLOWED_ERROR plus a successful GET of order history; they inspect neither the selected order nor its persisted delivery address.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Do retained authenticated order-state response bodies identify the most recent non-canceled order and show its persisted delivery address as 77 Massachusetts Ave, Cambridge, MA?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::instantiation_dict
+      - official/src/webarena_verified/types/tracing.py::NetworkEvent.response_content
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[0].expected
+    - derived/task.json::eval[1].expected

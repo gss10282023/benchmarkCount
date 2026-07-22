@@ -1,0 +1,85 @@
+schema_version: case_checklist_v1
+case_unit_id: '268'
+domain: webarena_verified
+task_id: '268'
+native:
+  user_goal:
+    text: Return only a list of objects containing the integer relation ID of the closest national park to Vinalhaven, ME and the bicycle duration in HH:MM:SS, using OSRM and the provided wiki with coordinate-based source and destination searches.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both configured checks score 1.0: AgentResponseEvaluator matches the normalized response and NetworkEventEvaluator matches the required last OSRM bicycle-route event.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator and NetworkEventEvaluator, with their scores combined conjunctively by TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the parsed and schema-normalized response have task type RETRIEVE, status SUCCESS, and retrieved data matching the single object with relation_id 2176999 and duration 10:58:00 under unordered comparison?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Is the last matching GET route event for -68.2177005,44.3494709;-68.8315387,44.0478975 a 200 response with a Cookie matching _osm_directions_engine=fossgis_osrm_bicycle?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: AgentResponseEvaluator scores 1.0 because the response normalizes to task type RETRIEVE, status SUCCESS, and exactly the unordered singleton result containing relation_id 2176999 and duration 10:58:00.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: NetworkEventEvaluator scores 1.0 because the selected last matching OSRM GET event has the prescribed coordinate pair, bicycle-engine Cookie, and response status 200; together with the response score of 1.0, this yields task score 1.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if either evaluator does not score 1.0, including a missing, invalid, or mismatching normalized response; no qualifying last route event; a selected event with the wrong Cookie or status; or any evaluator/orchestration error.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only if retained evidence omits or truncates an evaluator input so its run-time value cannot be reconstructed and no retained official evaluator result resolves it; a run-time missing or invalid input that was scored 0 is failure.
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+stronger:
+  additional_conditions:
+  - id: raw_retrieved_data_is_list
+    text: Beyond native scoring, the raw retrieved_data value is encoded as a JSON array rather than relying on scalar-to-singleton coercion.
+    rationale: The task explicitly requires a list of objects, but the released response evaluator wraps any non-list or non-tuple retrieved_data value into a singleton tuple before comparison.
+    decisive_artifacts:
+    - artifact: agent_response.json
+      question: Is the raw retrieved_data value a JSON array?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data
+  - id: prescribed_wiki_coordinate_method
+    text: Beyond native scoring, the HAR contains successful provided-wiki official-place-page requests for Vinalhaven and the selected national park and coordinate-based map searches for both endpoints.
+    rationale: The official intent prescribes these wiki and coordinate-search steps, while the released native checks validate only the response and one OSRM route event and impose no wiki or separate endpoint-search requirement.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the HAR show the prescribed official-page wiki lookups and coordinate-based map searches for both route endpoints?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1]
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

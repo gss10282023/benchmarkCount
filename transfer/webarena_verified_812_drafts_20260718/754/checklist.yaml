@@ -1,0 +1,79 @@
+schema_version: case_checklist_v1
+case_unit_id: '754'
+domain: webarena_verified
+task_id: '754'
+native:
+  user_goal:
+    text: Create a private GitLab NodeJS repository named "web_agent_nodejs" using the appropriate development template.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 iff both configured checks score 1.0: AgentResponseEvaluator accepts the normalized MUTATE/SUCCESS response, and NetworkEventEvaluator accepts the last qualifying project-creation POST.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: AgentResponseEvaluator checks the final response, NetworkEventEvaluator checks the retained network trace, and TaskEvalResult.create AND-composes their scores.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: 'Does the response parse and normalize to the expected comparable mapping: task_type MUTATE, status SUCCESS, and retrieved_data null?'
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the last qualifying POST to the normalized GitLab /projects URL return 302 and contain project name/path web_agent_nodejs, namespace 2505, template express, and visibility 0?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: AgentResponseEvaluator scores 1.0 because the stored response normalizes to task_type MUTATE, status SUCCESS, and retrieved_data null.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_expected_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: NetworkEventEvaluator scores 1.0 because the last qualifying project-creation POST has response status 302 and all five required post-data values.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  - text: Both evaluator scores are 1.0, so TaskEvalResult.score is 1.0.
+    support:
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: AgentResponseEvaluator fails or errors because the supplied response is invalid or does not normalize to the required MUTATE/SUCCESS/null mapping; this makes the task score 0.0.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  - text: NetworkEventEvaluator fails or errors because no qualifying project POST exists or the last qualifying POST mismatches any required URL, method, response-status, or post-data value; this makes the task score 0.0.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Either required run artifact was not retained or is unreadable, and no retained official evaluation result resolves the missing check.
+    rationale: Without both the final response and network trace, stored evidence cannot reconstruct whether both AND-composed evaluator checks passed.
+stronger:
+  additional_conditions:
+  - id: durable_project_state
+    text: Post-run GitLab state confirms an existing private project in namespace 2505 with name and path "web_agent_nodejs" whose repository contents were initialized from the Express NodeJS template.
+    rationale: The official instruction requires an actually created repository, while the native evaluator accepts a matching POST with a 302 response and does not inspect the resulting GitLab project state.
+    decisive_artifacts:
+    - artifact: Post-run GitLab project-state snapshot or export
+      question: Does it show the project in namespace 2505 with name/path web_agent_nodejs, private visibility, and repository contents from the Express template?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.post_data
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

@@ -1,0 +1,260 @@
+{
+  "decision": "revise",
+  "checklist_items": [
+    {
+      "id": "identity_and_scope",
+      "status": "pass",
+      "rationale": "The domain, case unit, and task identifiers all match case 223, and the checklist stays within the packet’s represented sources.",
+      "evidence": [
+        "case_packet.md::Case Metadata",
+        "checklist.yaml::{case_unit_id,domain,task_id}"
+      ]
+    },
+    {
+      "id": "native_user_goal",
+      "status": "pass",
+      "rationale": "The user goal preserves the request for travel times from CMU Pittsburgh to the nearest McDonald’s using OSRM, with different transportation methods and HH:MM:SS output.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::official instruction",
+        "checklist.yaml::native.user_goal"
+      ]
+    },
+    {
+      "id": "official_evaluator_semantics",
+      "status": "pass",
+      "rationale": "The checklist identifies the three sparsely configured response fields, duration-schema normalization, expected `4min` value, and unordered exact collection comparison without treating default `error_details` as checked.",
+      "evidence": [
+        "case_packet.md::derived/tag_task.json::eval[0]",
+        "case_packet.md::official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+        "checklist.yaml::native.benchmark_success",
+        "checklist.yaml::native.checked_by"
+      ]
+    },
+    {
+      "id": "evaluator_composition",
+      "status": "pass",
+      "rationale": "It correctly states that there is exactly one AgentResponseEvaluator and that native success requires its score, and consequently TaskEvalResult.score, to equal 1.0; evaluator and orchestration errors are treated as failure.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::evaluator sequence",
+        "case_packet.md::official/src/webarena_verified/types/eval.py::TaskEvalResult.create",
+        "checklist.yaml::native.benchmark_success",
+        "checklist.yaml::native.fail_if[1]"
+      ]
+    },
+    {
+      "id": "decisive_post_run_evidence",
+      "status": "fail",
+      "rationale": "The checklist incorrectly promotes `network.har` to a native decisive artifact. This case has only an AgentResponseEvaluator, whose configured comparison reads the final response; trace route contents cannot change that comparison. Complete `agent_response.json` is the minimal sufficient native evidence.",
+      "evidence": [
+        "case_packet.md::derived/task.json::eval[0]",
+        "case_packet.md::official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+        "checklist.yaml::native.decisive_artifacts[1]"
+      ]
+    },
+    {
+      "id": "decision_rules",
+      "status": "fail",
+      "rationale": "The undecided rule ambiguously allows `network.har` to substitute for the submitted response when replaying the sole response evaluator. A complete trace cannot establish the response fields or value; undecided should depend on loss of the complete response evidence needed for reconstruction.",
+      "evidence": [
+        "checklist.yaml::native.undecided_if[0]",
+        "case_packet.md::official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+        "case_packet.md::official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+      ]
+    },
+    {
+      "id": "source_support_pointers",
+      "status": "pass",
+      "rationale": "The checklist’s paths, evaluator symbols, fields, and expected values are all represented in the packet; no source pointer is invented.",
+      "evidence": [
+        "case_packet.md::Source Inventory",
+        "checklist.yaml::native",
+        "checklist.yaml::stronger"
+      ]
+    },
+    {
+      "id": "stronger_conditions",
+      "status": "pass",
+      "rationale": "Both additional conditions express concrete gaps between the official instruction and the sole response check: plural method coverage with literal formatting, and evidence that the nearest destination and OSRM were actually used. They remain separate from native scoring and are measurable from retained response/trace evidence.",
+      "evidence": [
+        "case_packet.md::Benchmark Task Summary::official instruction",
+        "case_packet.md::derived/task.json::eval[0]",
+        "checklist.yaml::stronger.additional_conditions"
+      ]
+    },
+    {
+      "id": "minimality_and_no_run_leakage",
+      "status": "fail",
+      "rationale": "Although the checklist contains no run leakage, its native evidence section is not minimal and is internally inconsistent: it calls the trace required while acknowledging that its route contents are not compared, and its undecided rule suggests either response or trace may suffice.",
+      "evidence": [
+        "checklist.yaml::native.decisive_artifacts[1]",
+        "checklist.yaml::native.undecided_if[0]",
+        "case_packet.md::derived/task.json::eval[0]"
+      ]
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "remove_nondecisive_native_trace",
+      "checklist_item_id": "decisive_post_run_evidence",
+      "message": "`network.har` is listed as a native decisive artifact even though the sole configured evaluator compares only the final response.",
+      "required_change": "Remove `network.har` from native decisive artifacts. Retain it only under the OSRM/nearest-destination stronger condition, where its contents are actually relevant.",
+      "evidence": [
+        "case_packet.md::derived/task.json::eval[0]",
+        "case_packet.md::official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value",
+        "checklist.yaml::native.decisive_artifacts[1]"
+      ]
+    },
+    {
+      "id": "repair_undecided_evidence_rule",
+      "checklist_item_id": "decision_rules",
+      "message": "The undecided rule suggests that enough of either `agent_response.json` or `network.har` can replay the official check, but the trace cannot reconstruct the submitted response.",
+      "required_change": "Make undecided depend only on retention, integrity, or provenance loss affecting the complete submitted response. Preserve failure for complete invalid/null responses and evaluator errors.",
+      "evidence": [
+        "checklist.yaml::native.undecided_if[0]",
+        "case_packet.md::official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+      ]
+    },
+    {
+      "id": "make_native_body_minimal_and_coherent",
+      "checklist_item_id": "minimality_and_no_run_leakage",
+      "message": "The native section retains an unnecessary trace artifact and gives conflicting signals about whether response or trace evidence determines the sole evaluator.",
+      "required_change": "Use `agent_response.json` as the sole native decisive artifact and align success, failure, and undecided rules with that evidence boundary.",
+      "evidence": [
+        "checklist.yaml::native.decisive_artifacts",
+        "checklist.yaml::native.undecided_if",
+        "case_packet.md::Benchmark Task Summary::evaluator sequence"
+      ]
+    }
+  ],
+  "revised_checklist": {
+    "native": {
+      "user_goal": {
+        "text": "From CMU Pittsburgh, determine travel times to the nearest McDonald's for different transportation methods using the OSRM direction service, and return the durations in HH:MM:SS format.",
+        "support": [
+          "derived/task.json::intent"
+        ]
+      },
+      "benchmark_success": {
+        "text": "TaskEvalResult.score is 1.0 exactly when the sole configured AgentResponseEvaluator completes with score 1.0. The evaluator handles a direct response object or JSON decoded from raw text, including a fenced JSON block; compares only the sparsely configured fields task_type, status, and retrieved_data (not the materialized default error_details); accepts performed_operation as the legacy task_type field when task_type is absent; and requires normalization to task_type RETRIEVE, status SUCCESS, and exactly one duration value matching `4min`. Retrieved-data order is ignored.",
+        "support": [
+          "derived/tag_task.json::eval[0]",
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "checked_by": {
+        "text": "One AgentResponseEvaluator extracts the submitted response, applies released JSON handling, normalizes the explicitly configured task_type, status, and retrieved_data fields using the duration-array schema, and performs structural comparison plus exact unordered retrieved-data matching. TaskEvalResult then requires that evaluator's score to equal 1.0.",
+        "support": [
+          "derived/tag_task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator",
+          "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      },
+      "decisive_artifacts": [
+        {
+          "artifact": "agent_response.json",
+          "question": "Does the complete submitted response, after the released object/JSON/fenced-JSON handling and normalization, have task_type RETRIEVE, status SUCCESS, and exactly one unordered duration value matching `4min`, with no comparison assertion or evaluator error?",
+          "support": [
+            "derived/tag_task.json::eval[0].expected",
+            "derived/task.json::eval[0].results_schema",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+          ]
+        }
+      ],
+      "success_if": [
+        {
+          "text": "The complete response passes released parsing and normalization, and its compared fields normalize to task_type RETRIEVE, status SUCCESS, and exactly one retrieved_data duration matching `4min`; unordered comparison produces no assertions.",
+          "support": [
+            "derived/tag_task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_retrieved_data",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+          ]
+        },
+        {
+          "text": "The sole AgentResponseEvaluator completes without error and scores 1.0, making TaskEvalResult.score 1.0.",
+          "support": [
+            "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "fail_if": [
+        {
+          "text": "The complete submitted response yields score 0 because it is null or not a comparable object after released parsing, lacks a compared field, has a nonmatching task_type or status, has missing or null retrieved_data, or has a missing, extra, or nonmatching normalized duration item.",
+          "support": [
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+            "official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered"
+          ]
+        },
+        {
+          "text": "An evaluator or task-orchestration error that produces a non-1.0 score is native failure.",
+          "support": [
+            "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task",
+            "official/src/webarena_verified/core/evaluation/evaluators/base.py::BaseEvaluator.evaluate",
+            "official/src/webarena_verified/types/eval.py::EvaluatorResult.create",
+            "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+          ]
+        }
+      ],
+      "undecided_if": [
+        {
+          "text": "The retained agent_response.json is missing, truncated, corrupt, or lacks sufficient provenance to establish the complete submitted response, so the sole configured comparison cannot be reconstructed.",
+          "rationale": "This is limited to post-run evidence loss. A completely retained null, invalid, or mismatching response is native failure, not undecided."
+        }
+      ]
+    },
+    "stronger": {
+      "additional_conditions": [
+        {
+          "id": "multi_method_hhmmss",
+          "text": "The retained answer identifies at least two transportation methods and reports each duration exactly in HH:MM:SS format.",
+          "rationale": "The instruction asks for different transportation methods and HH:MM:SS output, while native scoring compares only one duration-normalized item, `4min`; native success therefore does not establish plural coverage or literal formatting.",
+          "decisive_artifacts": [
+            {
+              "artifact": "agent_response.json",
+              "question": "Does the complete answer identify at least two transportation methods and give each corresponding duration in HH:MM:SS format?",
+              "support": [
+                "derived/task.json::intent",
+                "derived/task.json::eval[0].expected.retrieved_data",
+                "derived/task.json::eval[0].results_schema"
+              ]
+            }
+          ],
+          "support": [
+            "derived/task.json::intent",
+            "derived/task.json::eval[0].expected.retrieved_data",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values"
+          ]
+        },
+        {
+          "id": "osrm_nearest_destination",
+          "text": "The complete retained trace shows a nearest-McDonald's lookup from CMU Pittsburgh followed by OSRM direction requests for the reported transportation methods to that destination.",
+          "rationale": "The instruction explicitly requires the nearest destination and OSRM, while the only configured evaluator reads the final response and performs no network-event check of the selected destination or service used.",
+          "decisive_artifacts": [
+            {
+              "artifact": "network.har",
+              "question": "Does the complete trace show the nearest-McDonald's lookup and subsequent OSRM direction requests from CMU Pittsburgh for the reported methods?",
+              "support": [
+                "derived/task.json::intent",
+                "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace"
+              ]
+            }
+          ],
+          "support": [
+            "derived/task.json::intent",
+            "derived/task.json::eval[0]",
+            "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_value"
+          ]
+        }
+      ]
+    }
+  }
+}

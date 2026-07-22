@@ -1,0 +1,69 @@
+schema_version: case_checklist_v1
+case_unit_id: '598'
+domain: webarena_verified
+task_id: '598'
+native:
+  user_goal:
+    text: Subscribe the current Reddit user to the "pittsburgh" forum from the page of that forum's all-time most-commented post.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult scores 1.0 only when both configured checks score 1.0: AgentResponseEvaluator accepts the final MUTATE/SUCCESS response and NetworkEventEvaluator accepts its selected last matching subscription event.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released AgentResponseEvaluator compares the normalized final response, the released NetworkEventEvaluator compares the retained network trace, and TaskEvalResult composes their scores with an all-must-pass rule.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the final response, under released parsing and normalization, match task_type MUTATE, status SUCCESS, and retrieved_data null without an evaluator error?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Does the evaluator-selected last matching POST event use either official pittsburgh subscribe/unsubscribe URL alternative, carry the specified post-page referer, return status 200, and contain response_content.subscribed=true?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Success iff both checks score 1.0: the final response passes the released MUTATE/SUCCESS comparison and the HAR''s evaluator-selected last matching event satisfies every configured network field.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: Fail if AgentResponseEvaluator does not score 1.0 because the retained final response is malformed, mismatches the normalized MUTATE/SUCCESS expectation, or causes an evaluator error.
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  - text: Fail if NetworkEventEvaluator does not score 1.0 because no qualifying event exists, its selected last event mismatches any required field, the HAR is malformed, or evaluation errors.
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+  undecided_if:
+  - text: Undecided only if agent_response.json or network.har was not retained, or was damaged after the run so the original evaluator input cannot be reconstructed; a retained run-produced artifact that merely fails to parse is a native failure/error.
+    rationale: Both official checks require their corresponding retained artifact, so missing post-run evidence prevents reconstructing the benchmark decision.
+stronger:
+  additional_conditions:
+  - id: persistent_subscription_state
+    text: Beyond native event matching, require retained post-run state evidence that the current user remains subscribed to the pittsburgh forum at completion.
+    rationale: The task asks for a subscription state change, while the released evaluator accepts a matching response event and does not inspect the final persistent forum-membership state.
+    decisive_artifacts:
+    - artifact: Post-run Reddit subscription-state snapshot
+      question: Does a retained forum page, account-subscriptions view, or state/API capture after completion show the current user subscribed to pittsburgh?
+      support:
+      - derived/task.json::intent
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+      - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    support:
+    - derived/task.json::intent
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values

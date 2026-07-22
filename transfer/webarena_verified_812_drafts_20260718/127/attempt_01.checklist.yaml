@@ -1,0 +1,71 @@
+schema_version: case_checklist_v1
+case_unit_id: '127'
+domain: webarena_verified
+task_id: '127'
+native:
+  user_goal:
+    text: Return the top three store search terms that match available products.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0. Because task 127 configures only AgentResponseEvaluator, its score must be 1.0: after supported parsing and normalization, task_type and status match RETRIEVE and SUCCESS, and retrieved_data is an unordered, multiplicity-preserving exact match for Hollister, Joust Bag, and Antonia Racer Tank.'
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator; EvaluatorResult awards 1.0 only when comparison has no failing assertions, and TaskEvalResult awards 1.0 only when every configured evaluator scores 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: After the evaluator's supported parsing and normalization, does the submitted response structurally match task_type RETRIEVE, status SUCCESS, and retrieved_data exactly equal to the configured three-string multiset?
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._get_actual_agent_response_dict
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: Can the retained HAR be parsed into the NetworkTrace required for evaluation without causing setup or orchestration error, including URL fallback if configured environment URLs are unavailable?
+    support:
+    - case_packet.md::Benchmark Task Summary
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._parse_network_trace
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._validate_config_for_eval
+  success_if:
+  - text: The submitted response is evaluator-readable as a structured response whose compared task_type and status normalize to RETRIEVE and SUCCESS.
+    support:
+    - derived/task.json::eval[0].expected
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - text: retrieved_data normalizes to exactly one occurrence each of Hollister, Joust Bag, and Antonia Racer Tank, with no missing or extra item; order is irrelevant.
+    support:
+    - derived/task.json::eval[0].expected.retrieved_data
+    - derived/task.json::eval[0].ordered
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: The required trace and evaluation context are accepted, the sole AgentResponseEvaluator scores 1.0, and therefore TaskEvalResult.score is 1.0.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: A present response that cannot be interpreted as the compared response object, lacks a compared field, or has task_type or status that does not normalize to RETRIEVE or SUCCESS is a benchmark failure.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_objects
+  - text: Missing, null, empty, differently normalized, duplicated, omitted, or extra retrieved_data content that prevents the unordered array from exactly matching the configured three values is a benchmark failure.
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/value_comparator.py::ValueComparator._compare_arrays_unordered
+  - text: Any response/trace parsing or evaluator-orchestration error, or any resulting evaluator score other than 1.0, makes TaskEvalResult.score 0.0 and is a native failure.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator.evaluate_task
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: The stored evidence is undecidable only when the submitted response or required trace cannot be reconstructed because its retained artifact is missing or storage-corrupted; present evaluator-visible null, empty, malformed, or mismatching content is failure rather than undecided.
+    rationale: Without the retained evaluator inputs, the run's submitted value and evaluability cannot be established, while invalid content actually supplied to the evaluator receives score 0.0.
+stronger:
+  additional_conditions: []

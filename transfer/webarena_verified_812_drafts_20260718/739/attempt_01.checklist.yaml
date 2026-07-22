@@ -1,0 +1,65 @@
+schema_version: case_checklist_v1
+case_unit_id: '739'
+domain: webarena_verified
+task_id: '739'
+native:
+  user_goal:
+    text: View on the map an OSRM route from Carnegie Mellon University to the Yankees’ home stadium in the 1980s, using coordinates obtained from the places’ official Wikipedia pages for both endpoint searches.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'TaskEvalResult.score is 1.0 only when both official evaluators score 1.0: AgentResponseEvaluator accepts the final response as a successful NAVIGATE response, and NetworkEventEvaluator accepts the evaluator-selected last navigation event as a GET with response status 200 and a URL matching `^.*/route/v1/.*/-73.9265212,40.8295828;-79.9427192,40.4441897.*$`; all query parameters are ignored.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  checked_by:
+    text: The official WebArenaVerifiedEvaluator runs AgentResponseEvaluator and NetworkEventEvaluator in task order, then conjunctively composes their scores in TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained final response pass AgentResponseEvaluator parsing, normalization, and comparison against the configured NAVIGATE/SUCCESS response?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator
+  - artifact: network.har
+    question: Is the evaluator-selected last navigation event a successful GET whose normalized URL matches `^.*/route/v1/.*/-73.9265212,40.8295828;-79.9427192,40.4441897.*$` after the configured query-parameter ignoring?
+    support:
+    - derived/task.json::eval[1]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Both checks pass without error: the retained response earns AgentResponseEvaluator score 1.0, and the retained HAR earns NetworkEventEvaluator score 1.0 for the specified last navigation event; consequently the conjunctive task score is 1.0.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  fail_if:
+  - text: 'Fail if either official check is not 1.0: the response fails its configured NAVIGATE/SUCCESS comparison, or the selected last navigation event is absent or mismatches the required URL, GET method, or 200 status. An evaluator error also makes the overall score 0.'
+    support:
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+  undecided_if:
+  - text: Undecided only when retained evidence is missing, corrupt, or truncated so that the response comparison or selected HAR event cannot be reconstructed; a visible evaluator mismatch is failure, not undecided.
+    rationale: The native claim composes two evaluator inputs, so incomplete retention cannot establish the unobserved component.
+stronger:
+  additional_conditions:
+  - id: requested_route_direction
+    text: Require retained evidence that the route actually viewed has Carnegie Mellon University (`-79.9427192,40.4441897`) as origin and the Yankees-stadium endpoint (`-73.9265212,40.8295828`) as destination, rather than the reverse direction accepted by the native URL check.
+    rationale: The task requests a route from Carnegie Mellon University to the stadium, while the released evaluator’s OSRM URL pattern lists the stadium endpoint first and Carnegie Mellon second.
+    decisive_artifacts:
+    - artifact: network.har
+      question: Does the OSRM request used for the displayed route encode `-79.9427192,40.4441897;-73.9265212,40.8295828` in the requested origin-to-destination order?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::eval[1].expected.url
+    - artifact: Final map screenshot or retained DOM/accessibility snapshot
+      question: Does the final map identify Carnegie Mellon University as the route origin and the Yankees’ stadium as the destination?
+      support:
+      - derived/task.json::intent
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1].expected.url

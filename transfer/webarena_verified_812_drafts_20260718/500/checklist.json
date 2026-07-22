@@ -1,0 +1,97 @@
+{
+  "schema_version": "case_checklist_v1",
+  "case_unit_id": "500",
+  "domain": "webarena_verified",
+  "task_id": "500",
+  "native": {
+    "user_goal": {
+      "text": "Update shopping-admin order #301 so its DHL tracking number is 239028439840.",
+      "support": [
+        "derived/task.json::intent"
+      ]
+    },
+    "benchmark_success": {
+      "text": "Native success is TaskEvalResult.score = 1.0: both configured checks must score 1.0—the AgentResponseEvaluator must accept the final response as a successful MUTATE, and the NetworkEventEvaluator must accept the selected last matching POST shipment-save event for order 301 with response status 302, carrier code dhl, and tracking number 239028439840.",
+      "support": [
+        "derived/task.json::eval",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "checked_by": {
+      "text": "The released WebArenaVerifiedEvaluator runs the configured AgentResponseEvaluator and NetworkEventEvaluator over the retained agent response and network trace, then applies the all-evaluators-must-pass score composition.",
+      "support": [
+        "official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context",
+        "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+      ]
+    },
+    "decisive_artifacts": [
+      {
+        "artifact": "agent_response.json",
+        "question": "Does the response parse and normalize to a structured response accepted as task_type MUTATE and status SUCCESS by AgentResponseEvaluator?",
+        "support": [
+          "derived/task.json::eval[0]",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator"
+        ]
+      },
+      {
+        "artifact": "network.har",
+        "question": "Does the selected last matching network event satisfy the configured POST URL, response status 302, and required tracking form values for order 301?",
+        "support": [
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator"
+        ]
+      }
+    ],
+    "success_if": [
+      {
+        "text": "Success iff AgentResponseEvaluator scores 1.0 for a normalized MUTATE/SUCCESS response and NetworkEventEvaluator scores 1.0 for the selected last matching POST event with the configured order URL, 302 status, carrier code dhl, and number 239028439840; the all-of composition then yields TaskEvalResult.score = 1.0.",
+        "support": [
+          "derived/task.json::eval",
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "fail_if": [
+      {
+        "text": "Fail if the response evaluator does not accept the response as MUTATE/SUCCESS, or if the network evaluator finds no selected matching event or that event differs in the configured URL, method, status, or required tracking fields; any evaluator failure or error makes the task score 0.",
+        "support": [
+          "official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values",
+          "official/src/webarena_verified/types/eval.py::TaskEvalResult.create"
+        ]
+      }
+    ],
+    "undecided_if": [
+      {
+        "text": "Stored evidence is undecided if agent_response.json or network.har is missing, unreadable, or truncated such that both required evaluator outcomes cannot be reconstructed.",
+        "rationale": "The two artifacts feed independent required evaluators, so incomplete retained evidence cannot establish the benchmark's all-of score."
+      }
+    ]
+  },
+  "stronger": {
+    "additional_conditions": [
+      {
+        "id": "post_run_state_confirms_tracking",
+        "text": "Beyond native request-trace success, retained post-run shopping-admin state must show that order #301 has DHL tracking number 239028439840.",
+        "rationale": "The task asks for the order to be updated, while the released evaluator accepts an agent declaration plus a matching POST/302 network event and does not inspect the resulting persisted order state.",
+        "decisive_artifacts": [
+          {
+            "artifact": "Post-run shopping-admin order #301 detail snapshot or state export",
+            "question": "Does the retained post-run order state show carrier DHL and tracking number 239028439840 on order #301?",
+            "support": [
+              "derived/task.json::intent",
+              "derived/task.json::eval[1]"
+            ]
+          }
+        ],
+        "support": [
+          "derived/task.json::intent",
+          "derived/task.json::eval[1]",
+          "official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value"
+        ]
+      }
+    ]
+  }
+}

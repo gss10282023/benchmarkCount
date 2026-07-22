@@ -1,0 +1,70 @@
+schema_version: case_checklist_v1
+case_unit_id: '567'
+domain: webarena_verified
+task_id: '567'
+native:
+  user_goal:
+    text: Invite Jakub Klinkovský and Benoît Blanchon as collaborators to the gimmiethat.space GitLab repository.
+    support:
+    - derived/task.json::intent
+  benchmark_success:
+    text: 'Native success is TaskEvalResult.score = 1.0, requiring all three configured evaluator scores to equal 1.0: the MUTATE/SUCCESS agent-response check and both last-event-only POST checks for project 184 membership creation, respectively expecting response 201 with access_level 30 and user_id 1842 or 597.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+  checked_by:
+    text: The released WebArenaVerifiedEvaluator runs one AgentResponseEvaluator and two NetworkEventEvaluator instances, then conjunctively aggregates their scores in TaskEvalResult.create.
+    support:
+    - official/src/webarena_verified/api/internal/evaluator.py::WebArenaVerifiedEvaluator._evaluate_with_context
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - derived/task.json::eval
+  decisive_artifacts:
+  - artifact: agent_response.json
+    question: Does the retained response parse and normalize without assertions against the configured MUTATE/SUCCESS agent-response expectation?
+    support:
+    - derived/task.json::eval[0]
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._normalized_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/agent_response_evaluator.py::AgentResponseEvaluator._compare_values
+  - artifact: network.har
+    question: 'Does the last evaluation event matching POST /api/v4/projects/184/members satisfy both configured comparisons: response 201 with {access_level: 30, user_id: 1842} and response 201 with {access_level: 30, user_id: 597}?'
+    support:
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._compare_values
+  success_if:
+  - text: 'Success iff the AgentResponseEvaluator and both NetworkEventEvaluator instances each score 1.0: the response passes the MUTATE/SUCCESS comparison, and the event selected as the last matching project-members POST passes both expected 201/post-data comparisons.'
+    support:
+    - derived/task.json::eval
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+  fail_if:
+  - text: Failure if any configured evaluator does not score 1.0, including a response-format or MUTATE/SUCCESS mismatch, no matching project-members POST, or the selected last matching POST failing either the user_id 1842 or user_id 597 event comparison.
+    support:
+    - official/src/webarena_verified/types/eval.py::EvaluatorResult.create
+    - official/src/webarena_verified/types/eval.py::TaskEvalResult.create
+    - derived/task.json::eval[0]
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+  undecided_if:
+  - text: Undecided only when retention loss or damage leaves agent_response.json or network.har incomplete, so the three evaluator inputs cannot be reconstructed; a retained empty, invalid, or mismatching input is failure.
+    rationale: Retrospective evidence review cannot apply every native check without complete copies of both evaluator inputs; this does not reclassify an empty or invalid input actually supplied to the evaluator.
+stronger:
+  additional_conditions:
+  - id: post_run_membership_confirms_both_collaborators
+    text: Beyond native success, require a retained post-run GitLab project-members view or API export for gimmiethat.space showing both Jakub Klinkovský and Benoît Blanchon as current collaborators.
+    rationale: The official intent requires a persistent two-person membership result, but both released network checks use last_event_only=true with the same POST endpoint and method, so they select the same final matching event rather than independently establishing both memberships.
+    decisive_artifacts:
+    - artifact: Post-run GitLab project-members state capture for gimmiethat.space
+      question: Does the capture identify the repository and list both named users as current collaborators?
+      support:
+      - derived/task.json::intent
+      - derived/task.json::instantiation_dict
+    support:
+    - derived/task.json::intent
+    - derived/task.json::eval[1]
+    - derived/task.json::eval[2]
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._get_actual_value
+    - official/src/webarena_verified/core/evaluation/evaluators/network_event_evaluator.py::NetworkEventEvaluator._filter_events_by_criteria

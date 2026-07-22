@@ -1,0 +1,88 @@
+schema_version: case_checklist_v1
+case_unit_id: '96'
+domain: tau3_retail
+task_id: '96'
+native:
+  user_goal:
+    text: Authenticate Yusuf Li, then modify pending order `#W6750959` so its shipping address becomes `476 Maple Drive`, `Suite 432`, New York, NY 10093, USA, and modify item `3254583681` to item `9440686670` using payment method `paypal_8080730`.
+    support:
+    - derived/task.json::user_scenario.instructions.reason_for_call
+    - derived/task.json::user_scenario.instructions.known_info
+    - derived/task.json::evaluation_criteria.actions[0]
+    - derived/task.json::evaluation_criteria.actions[1]
+  benchmark_success:
+    text: 'Native benchmark success is released scalar reward `1.0` under the task reward basis `[''DB'',''NL_ASSERTION'']`: the run must end with `AGENT_STOP` or `USER_STOP`, the predicted environment must exactly match the gold environment after replay of the two official modification actions, and the NL-assertion factor is `1.0` here because this task has no `nl_assertions` to evaluate.'
+    support:
+    - derived/task.json::evaluation_criteria.reward_basis
+    - derived/task.json::evaluation_criteria.actions[0]
+    - derived/task.json::evaluation_criteria.actions[1]
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+  checked_by:
+    text: Check the released native evaluator output, especially `reward`, `reward_basis`, `termination_reason`, `db_check`, and any retained `nl_assertions` record.
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0].contents
+    - derived/artifact_inventory.json::artifact_classes[0].path_pattern
+  decisive_artifacts:
+  - artifact: '`adapter/native_run/results.json` native evaluator output'
+    question: Does it show `termination_reason` in `{AGENT_STOP, USER_STOP}`, `reward_basis` including `DB` and `NL_ASSERTION`, scalar `reward` of `1.0`, and `db_check.db_match=true`?
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0].path_pattern
+    - derived/artifact_inventory.json::artifact_classes[0].contents
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+  - artifact: Retained trajectory in the native evaluator output or tool log
+    question: If the scalar result is missing or disputed, does the retained trajectory show the same environment-affecting tool history whose replay could yield the gold state comparison for order `#W6750959`?
+    support:
+    - derived/artifact_inventory.json::artifact_classes[0].contents
+    - derived/artifact_inventory.json::artifact_classes[2].contents
+    - derived/artifact_inventory.json::native_db_evidence_rule
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+  success_if:
+  - text: Stored native evaluator evidence shows `termination_reason` is `AGENT_STOP` or `USER_STOP`, `reward_basis` is `['DB','NL_ASSERTION']`, `db_check.db_match=true` (equivalently DB reward `1.0`), and released scalar `reward=1.0`.
+    support:
+    - derived/task.json::evaluation_criteria.reward_basis
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+  - text: 'Any retained `nl_assertions` evidence is absent or empty in a way consistent with this task''s `nl_assertions: null`, which the released evaluator scores as NL-assertion reward `1.0` rather than failure.'
+    support:
+    - derived/task.json::evaluation_criteria.nl_assertions
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
+  fail_if:
+  - text: Stored native evaluator evidence shows premature termination with reason other than `AGENT_STOP` or `USER_STOP`, which forces released scalar reward `0.0`.
+    support:
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+  - text: Stored native evaluator evidence shows `db_check.db_match=false` or DB reward `0.0`, meaning the final predicted agent/user databases do not exactly match the gold environment after replay of the official actions.
+    support:
+    - official/tau2_bench/src/tau2/evaluator/evaluator_env.py::EnvironmentEvaluator.calculate_reward
+    - derived/artifact_inventory.json::native_db_evidence_rule
+  - text: Stored native evaluator evidence shows released scalar `reward=0.0` under the task reward basis even without a separate DB detail, because the native claim is the released benchmark outcome.
+    support:
+    - derived/task.json::evaluation_criteria.reward_basis
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+  undecided_if:
+  - text: The retained evidence lacks the released native evaluator result fields needed to determine termination status and DB match, and only partial conversation/tool traces remain.
+    support:
+    - derived/artifact_inventory.json::artifact_classes[2].limitations
+    - derived/artifact_inventory.json::native_db_evidence_rule
+    rationale: Partial tool/entity observations do not by themselves prove the complete predicted-agent-DB and predicted-user-DB hash comparison used by the native evaluator.
+stronger:
+  additional_conditions:
+  - id: tau3_retail_96_policy_confirmation_gap
+    text: Beyond native success, retained run evidence should show the agent authenticated the user by email or name+zip and obtained explicit user confirmation of the listed address-change and item-change details before any modifying tool call.
+    rationale: The official retail policy requires authentication at the beginning of the conversation and explicit confirmation before any database-updating action, but this task's released evaluation uses only DB plus vacuous NL-assertion scoring, so a run can satisfy the native benchmark without stored evidence that those policy steps occurred.
+    decisive_artifacts:
+    - artifact: Retained conversation/tool log
+      question: Before any `modify_pending_order_address` or `modify_pending_order_items` call, does the conversation show authentication via email or name+zip and an explicit `yes` confirmation after the action details were listed?
+      support:
+      - derived/artifact_inventory.json::artifact_classes[2].path_pattern
+      - derived/artifact_inventory.json::artifact_classes[2].contents
+      - official/policy.md::At the beginning of the conversation, you have to authenticate the user identity by locating their user id via email, or via name + zip code. This has to be done even when the user already provides the user id.
+      - official/policy.md::Before taking any action that updates the database (cancel, modify, return, exchange), you must list the action details and obtain explicit user confirmation (yes) to proceed.
+    support:
+    - official/policy.md::At the beginning of the conversation, you have to authenticate the user identity by locating their user id via email, or via name + zip code. This has to be done even when the user already provides the user id.
+    - official/policy.md::Before taking any action that updates the database (cancel, modify, return, exchange), you must list the action details and obtain explicit user confirmation (yes) to proceed.
+    - derived/task.json::evaluation_criteria.reward_basis
+    - official/tau2_bench/src/tau2/evaluator/evaluator.py::evaluate_simulation
+    - official/tau2_bench/src/tau2/evaluator/evaluator_nl_assertions.py::NLAssertionsEvaluator.calculate_reward
