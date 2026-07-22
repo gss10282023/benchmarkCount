@@ -12,7 +12,8 @@ explicit comparison.
   defines the blue revision style.
 - `main.tex` SHA-256:
   `106e057825ab8f12bfb4cbc1accf0c3a9de13ee61f87a8a074a3a887a2d44dd7`
-- Existing LaTeX build outputs are retained with this snapshot.
+- The rendered `main.pdf` is retained. Transient LaTeX/latexmk intermediates
+  are intentionally excluded and can be regenerated from `main.tex`.
 
 ## `v2_zip_snapshot`
 

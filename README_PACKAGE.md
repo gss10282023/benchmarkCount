@@ -1,17 +1,16 @@
 # Revised Agent Benchmark Paper Package
 
-Main editable source:
-- `revised_agent_benchmark_paper.tex`
+The two supplied v2 paper snapshots are kept separately under [`paper/`](paper/):
 
-Current rendered PDF:
-- `revised_agent_benchmark_paper.pdf`
+- `paper/v2_blue_annotated/` — the current revision with blue
+  `\paperupdate` annotations.
+- `paper/v2_zip_snapshot/` — the version imported from the supplied ZIP.
 
-Included local dependencies:
-- `neurips_2026.sty`
-- `ref.bib`
-- `checklist.tex`
-- `figures/`
-- `revised_agent_benchmark_paper.bbl`
+Each snapshot is self-contained and includes its own editable `main.tex`,
+bibliography, NeurIPS style, and figures. The blue-annotated snapshot also
+retains its rendered `main.pdf`; the ZIP snapshot retains the byte-exact input
+archive. See [`paper/README.md`](paper/README.md) for provenance and SHA-256
+hashes.
 
 Benchmark reproducibility assets:
 
@@ -21,11 +20,11 @@ Benchmark reproducibility assets:
   owner-hosted raw-run download locations for VPS-side scoring. Raw third-party
   trajectories and run archives are intentionally not redistributed here.
 
-To rebuild the PDF locally, run:
+To rebuild either PDF locally, enter the selected snapshot and run:
 
 ```sh
-latexmk -pdf -interaction=nonstopmode revised_agent_benchmark_paper.tex
+latexmk -pdf -interaction=nonstopmode main.tex
 ```
 
-On Overleaf, upload the contents of this folder and set
-`revised_agent_benchmark_paper.tex` as the main file.
+On Overleaf, upload the contents of one snapshot folder and set `main.tex` as
+the main file. Do not merge the two snapshots implicitly.
